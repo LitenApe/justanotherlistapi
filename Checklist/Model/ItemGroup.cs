@@ -3,32 +3,32 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace JustAnotherListAPI.Checklist.Model
 {
-  public class ItemGroup
-  {
-    public Guid Id { get; set; }
-    public required string Name { get; set; }
-    public ICollection<Item> Items { get; } = [];
-    public ICollection<Member> Members { get; } = [];
-
-    public static ItemGroup Create(ItemGroupDTO itemGroup)
+    public class ItemGroup
     {
-      return new ()
-      {
-        Name = itemGroup.Name
-      };
+        public Guid Id { get; set; }
+        public required string Name { get; set; }
+        public ICollection<Item>? Items { get; } = null;
+        public ICollection<Member>? Members { get; } = null;
+
+        public static ItemGroup Create(ItemGroupDTO itemGroup)
+        {
+            return new()
+            {
+                Name = itemGroup.Name
+            };
+        }
+
+        public void Update(ItemGroupDTO itemGroup)
+        {
+            Name = itemGroup.Name;
+        }
     }
 
-    public void Update(ItemGroupDTO itemGroup)
+    public class ItemGroupConfiguration : IEntityTypeConfiguration<ItemGroup>
     {
-      Name = itemGroup.Name;
+        public void Configure(EntityTypeBuilder<ItemGroup> builder)
+        {
+            builder.Property(ig => ig.Id).HasDefaultValueSql();
+        }
     }
-  }
-
-  public class ItemGroupConfiguration : IEntityTypeConfiguration<ItemGroup>
-  {
-      public void Configure(EntityTypeBuilder<ItemGroup> builder)
-      {
-        builder.Property(ig => ig.Id).HasDefaultValueSql();
-      }
-  }
 }

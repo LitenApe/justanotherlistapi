@@ -11,9 +11,9 @@ namespace JustAnotherListAPI.Checklist.Model
         [DefaultValue(false)]
         public bool IsComplete { get; set; }
 
-        public static ItemDTO Create (Item item)
+        public static ItemDTO Create(Item item)
         {
-            return new ()
+            return new()
             {
                 Name = item.Name,
                 Description = item.Description,

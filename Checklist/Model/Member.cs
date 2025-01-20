@@ -8,9 +8,9 @@ namespace JustAnotherListAPI.Checklist.Model
         public required Guid MemberId { get; set; }
         public required Guid ItemGroupId { get; set; }
 
-        public static Member Create (Guid memberId, Guid itemGroupId)
+        public static Member Create(Guid memberId, Guid itemGroupId)
         {
-            return new ()
+            return new()
             {
                 MemberId = memberId,
                 ItemGroupId = itemGroupId
