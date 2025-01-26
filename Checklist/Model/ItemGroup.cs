@@ -7,7 +7,7 @@ namespace JustAnotherListAPI.Checklist.Model
     {
         public Guid Id { get; set; }
         public required string Name { get; set; }
-        public ICollection<Item>? Items { get; } = null;
+        public ICollection<Item> Items { get; } = [];
         public ICollection<Member>? Members { get; } = null;
 
         public static ItemGroup Create(ItemGroupDTO itemGroup)

@@ -12,11 +12,11 @@ namespace JustAnotherListAPI.Checklist.Controller
             Guid userId = Guid.Parse("ed1e87c8-4823-4364-b3ee-4d9f13a07300");
 
             var memberDb = db.Members;
-            var itemGroupDb = db.ItemGroups.Include(ig => ig.Items);
+            var itemGroupDb = db.ItemGroups;
 
             var lists = await memberDb.Where(m => m.MemberId == userId)
               .Join(
-                itemGroupDb,
+                itemGroupDb.Include(ig => ig.Items.Where(i => !i.IsComplete)),
                 ig => ig.ItemGroupId,
                 m => m.Id,
                 (m, ig) => ItemGroupDTO.Create(ig)
