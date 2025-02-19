@@ -1,22 +1,21 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace JustAnotherListAPI.Checklist.Model
-{
-    public class ItemGroupDTO
-    {
-        public Guid Id { get; set; }
-        [Required]
-        public required string Name { get; set; }
-        public ICollection<Item> Items { get; set; } = [];
+namespace JustAnotherListAPI.Checklist.Model;
 
-        public static ItemGroupDTO Create(ItemGroup itemGroup)
+public class ItemGroupDTO
+{
+    public Guid Id { get; set; }
+    [Required]
+    public required string Name { get; set; }
+    public ICollection<Item> Items { get; set; } = [];
+
+    public static ItemGroupDTO Create(ItemGroup itemGroup)
+    {
+        return new()
         {
-            return new()
-            {
-                Id = itemGroup.Id,
-                Name = itemGroup.Name,
-                Items = itemGroup.Items
-            };
-        }
+            Id = itemGroup.Id,
+            Name = itemGroup.Name,
+            Items = itemGroup.Items
+        };
     }
 }

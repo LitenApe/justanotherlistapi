@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using JustAnotherListAPI.Checklist.Model;
+using JustAnotherListApi.Checklist;
 class DatabaseContext : DbContext
 {
     public DatabaseContext(DbContextOptions<DatabaseContext> options)
