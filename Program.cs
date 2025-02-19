@@ -1,5 +1,5 @@
+using JustAnotherListApi.Checklist;
 using Microsoft.EntityFrameworkCore;
-using JustAnotherListAPI.Checklist;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,6 +17,18 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
-ChecklistWebExtension.MapEndpoints(app);
+CreateItem.MapEndpoint(app);
+UpdateItem.MapEndpoint(app);
+DeleteItem.MapEndpoint(app);
+
+GetItemGroup.MapEndpoint(app);
+GetItemGroups.MapEndpoint(app);
+CreateItemGroup.MapEndpoint(app);
+UpdateItemGroup.MapEndpoint(app);
+DeleteItemGroup.MapEndpoint(app);
+
+GetMembers.MapEndpoint(app);
+AddMember.MapEndpoint(app);
+RemoveMember.MapEndpoint(app);
 
 app.Run();
