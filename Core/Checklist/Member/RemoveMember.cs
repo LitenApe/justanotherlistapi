@@ -7,7 +7,7 @@ public static class RemoveMember
     public static WebApplication MapEndpoint(this WebApplication app)
     {
         app.MapGroup("/api/list")
-            .MapDelete("/{itemGroupId:giud}/member/{memberId:guid}", Execute)
+            .MapDelete("/{itemGroupId:guid}/member/{memberId:guid}", Execute)
             .WithTags(nameof(Member))
             .WithName(nameof(RemoveMember));
         return app;
