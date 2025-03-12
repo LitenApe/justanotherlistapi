@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using JustAnotherListApi.Checklist;
 
+namespace JustAnotherListApi;
 public class DatabaseContext : DbContext
 {
     public DatabaseContext(DbContextOptions<DatabaseContext> options)

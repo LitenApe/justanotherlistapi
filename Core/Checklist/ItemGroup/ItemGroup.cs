@@ -8,7 +8,7 @@ public class ItemGroup
     public Guid Id { get; set; }
     public required string Name { get; set; }
     public ICollection<Item> Items { get; } = [];
-    public ICollection<Member>? Members { get; } = null;
+    public ICollection<Member> Members { get; } = [];
 }
 
 public class ItemGroupConfiguration : IEntityTypeConfiguration<ItemGroup>

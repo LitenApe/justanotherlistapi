@@ -1,4 +1,6 @@
-﻿namespace JustAnotherListApi.Checklist;
+﻿using Microsoft.AspNetCore.Http.HttpResults;
+
+namespace JustAnotherListApi.Checklist;
 
 public static class CreateItemGroup
 {
@@ -16,7 +18,7 @@ public static class CreateItemGroup
         return app;
     }
 
-    public static async Task<IResult> Execute(Request request, DatabaseContext db)
+    public static async Task<Created<ItemGroup>> Execute(Request request, DatabaseContext db)
     {
         Guid userId = Guid.Parse("ed1e87c8-4823-4364-b3ee-4d9f13a07300");
 

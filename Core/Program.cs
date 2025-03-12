@@ -1,3 +1,4 @@
+using JustAnotherListApi;
 using JustAnotherListApi.Checklist;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
