@@ -1,35 +1,69 @@
 using JustAnotherListApi;
-using JustAnotherListApi.Checklist;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDbContext<DatabaseContext>(opt => opt.UseInMemoryDatabase("JustAnotherList"));
+/// Add services
+
+/// Database
+builder.Services.AddDbContext<DatabaseContext>(opt =>
+{
+    opt.UseInMemoryDatabase("JustAnotherList");
+});
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
+/// Auth
+builder.Services.AddAuthentication();
+builder.Services.AddAuthorization();
+builder.Services.AddIdentityApiEndpoints<IdentityUser>()
+    .AddEntityFrameworkStores<DatabaseContext>();
+
+/// API Documentation
 builder.Services.AddOpenApi();
+
+/// Configure services
+
+/// Auth
+builder.Services.Configure<IdentityOptions>(opt =>
+{
+    opt.Password.RequireDigit = true;
+    opt.Password.RequireLowercase = true;
+    opt.Password.RequireNonAlphanumeric = true;
+    opt.Password.RequireUppercase = true;
+    opt.Password.RequiredLength = 6;
+    opt.Password.RequiredUniqueChars = 1;
+
+    opt.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(3);
+    opt.Lockout.MaxFailedAccessAttempts = 7;
+    opt.Lockout.AllowedForNewUsers = true;
+
+    opt.User.AllowedUserNameCharacters =
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
+    opt.User.RequireUniqueEmail = false;
+});
+builder.Services.ConfigureApplicationCookie(opt =>
+{
+    // Cookie settings
+    opt.Cookie.HttpOnly = true;
+    opt.ExpireTimeSpan = TimeSpan.FromMinutes(5);
+
+    opt.LoginPath = "/auth/login";
+    opt.AccessDeniedPath = "/auth/denied";
+    opt.SlidingExpiration = true;
+});
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-    app.MapScalarApiReference();
-}
+app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
 
-CreateItem.MapEndpoint(app);
-UpdateItem.MapEndpoint(app);
-DeleteItem.MapEndpoint(app);
+JustAnotherListApi.Checklist.EndpointConfiguration.MapEndpoints(app);
+app.MapIdentityApi<IdentityUser>();
 
-GetItemGroup.MapEndpoint(app);
-GetItemGroups.MapEndpoint(app);
-CreateItemGroup.MapEndpoint(app);
-UpdateItemGroup.MapEndpoint(app);
-DeleteItemGroup.MapEndpoint(app);
-
-GetMembers.MapEndpoint(app);
-AddMember.MapEndpoint(app);
-RemoveMember.MapEndpoint(app);
+app.MapOpenApi();
+app.MapScalarApiReference();
 
 app.Run();

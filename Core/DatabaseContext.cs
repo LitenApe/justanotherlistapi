@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using JustAnotherListApi.Checklist;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 
 namespace JustAnotherListApi;
-public class DatabaseContext : DbContext
+public class DatabaseContext : IdentityDbContext<IdentityUser>
 {
     public DatabaseContext(DbContextOptions<DatabaseContext> options)
       : base(options) { }
