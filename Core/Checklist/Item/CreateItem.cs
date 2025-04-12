@@ -23,15 +23,16 @@ public static class CreateItem
         [DefaultValue(false)]
         public bool IsComplete { get; set; }
 
-       public static Item toItem(Guid itemGroupId, Request item)
-       {
-            return new Item() {
+        public static Item toItem(Guid itemGroupId, Request item)
+        {
+            return new Item()
+            {
                 ItemGroupId = itemGroupId,
                 Name = item.Name,
                 Description = item.Description,
                 IsComplete = item.IsComplete,
             };
-       }
+        }
     }
 
     public static async Task<IResult> Execute(Guid itemGroupId, Request newItem, DatabaseContext db)

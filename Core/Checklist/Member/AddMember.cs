@@ -31,7 +31,7 @@ public static class AddMember
     public static async Task<bool> LoadData(Guid itemGroupId, DatabaseContext db)
     {
         Guid userId = Guid.Parse("ed1e87c8-4823-4364-b3ee-4d9f13a07300");
-        return await db.Members.AnyAsync(ig => ig.ItemGroupId.Equals(itemGroupId) && ig.MemberId.Equals(userId)); 
+        return await db.Members.AnyAsync(ig => ig.ItemGroupId.Equals(itemGroupId) && ig.MemberId.Equals(userId));
     }
 
     public static async Task UpdateData(Guid itemGroupId, Guid memberId, DatabaseContext db)

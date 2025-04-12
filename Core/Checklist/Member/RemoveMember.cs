@@ -15,7 +15,7 @@ public static class RemoveMember
         return app;
     }
 
-    public static async Task<IResult> Execute(Guid itemGroupId,  Guid memberId, DatabaseContext db)
+    public static async Task<IResult> Execute(Guid itemGroupId, Guid memberId, DatabaseContext db)
     {
         var data = await LoadData(itemGroupId, memberId, db);
 
