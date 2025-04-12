@@ -8,6 +8,8 @@ public static class RemoveMember
     {
         app.MapGroup("/api/list")
             .MapDelete("/{itemGroupId:guid}/member/{memberId:guid}", Execute)
+            .RequireAuthorization()
+            .WithSummary("Remove member from item group")
             .WithTags(nameof(Member))
             .WithName(nameof(RemoveMember));
         return app;

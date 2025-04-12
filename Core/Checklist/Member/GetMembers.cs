@@ -8,6 +8,8 @@ public static class GetMembers
     {
         app.MapGroup("/api/list")
             .MapGet("/{itemGroupId:guid}/member", Execute)
+            .RequireAuthorization()
+            .WithSummary("Get members of a item group")
             .WithTags(nameof(Member))
             .WithName(nameof(GetMembers));
         return app;

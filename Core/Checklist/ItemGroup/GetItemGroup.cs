@@ -8,6 +8,8 @@ public static class GetItemGroup
     {
         app.MapGroup("/api/list")
             .MapGet("/{itemGroupId}", Execute)
+            .RequireAuthorization()
+            .WithSummary("Get a item group")
             .WithTags(nameof(ItemGroup))
             .WithName(nameof(GetItemGroup));
         return app;

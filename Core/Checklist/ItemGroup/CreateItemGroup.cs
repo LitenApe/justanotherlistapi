@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Http.HttpResults;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Identity;
 
 namespace JustAnotherListApi.Checklist;
 
@@ -13,12 +15,14 @@ public static class CreateItemGroup
     {
         app.MapGroup("/api/list")
             .MapPost("/", Execute)
+            .RequireAuthorization()
+            .WithSummary("Create a new item group")
             .WithTags(nameof(ItemGroup))
             .WithName(nameof(CreateItemGroup));
         return app;
     }
 
-    public static async Task<Created<ItemGroup>> Execute(Request request, DatabaseContext db)
+    public static async Task<Created<ItemGroup>> Execute(Request request, ClaimsPrincipal claimsPrincipal, UserManager<IdentityUser> userManager, DatabaseContext db)
     {
         Guid userId = Guid.Parse("ed1e87c8-4823-4364-b3ee-4d9f13a07300");
 

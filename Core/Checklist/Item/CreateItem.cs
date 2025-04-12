@@ -9,6 +9,8 @@ public static class CreateItem
     {
         app.MapGroup("/api/list")
             .MapPost("/{itemGroupId}", Execute)
+            .RequireAuthorization()
+            .WithSummary("Create a item")
             .WithTags(nameof(Item))
             .WithName(nameof(CreateItem));
         return app;

@@ -8,6 +8,8 @@ public static class DeleteItemGroup
     {
         app.MapGroup("/api/list")
             .MapDelete("/{itemGroupId}", Execute)
+            .RequireAuthorization()
+            .WithSummary("Delete a item group")
             .WithTags(nameof(ItemGroup))
             .WithName(nameof(DeleteItemGroup));
         return app;

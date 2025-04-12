@@ -8,6 +8,8 @@ public static class UpdateItem
     {
         app.MapGroup("/api/list")
             .MapPut("/{itemGroupId}/{itemId}", Execute)
+            .RequireAuthorization()
+            .WithSummary("Update a item")
             .WithTags(nameof(Item))
             .WithName(nameof(UpdateItem));
         return app;

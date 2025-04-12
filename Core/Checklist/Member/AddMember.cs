@@ -8,6 +8,8 @@ public static class AddMember
     {
         app.MapGroup("/api/list")
             .MapPost("/{itemGroupId:guid}/member/{memberId:guid}", Execute)
+            .RequireAuthorization()
+            .WithSummary("Add a new member to a item group")
             .WithTags(nameof(Member))
             .WithName(nameof(AddMember));
         return app;

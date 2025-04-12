@@ -8,6 +8,8 @@ public static class GetItemGroups
     {
         app.MapGroup("/api/list")
             .MapGet("/", Execute)
+            .RequireAuthorization()
+            .WithSummary("Get all item groups related to authenticated user")
             .WithTags(nameof(ItemGroup))
             .WithName(nameof(GetItemGroups));
         return app;
