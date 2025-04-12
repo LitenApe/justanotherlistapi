@@ -1,4 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.EntityFrameworkCore;
 
 namespace JustAnotherListApi.Checklist;
 
@@ -15,31 +17,34 @@ public static class GetMembers
         return app;
     }
 
-    public static async Task<IResult> Execute(Guid itemGroupId, DatabaseContext db)
+    public static async Task<Results<Ok<List<string>>, UnauthorizedHttpResult, ForbidHttpResult>> Execute(Guid itemGroupId, ClaimsPrincipal claimsPrincipal, DatabaseContext db)
     {
-        var data = await LoadData(itemGroupId, db);
+        var userId = claimsPrincipal.GetUserId();
+        if (userId is null)
+        {
+            return TypedResults.Unauthorized();
+        }
 
-        if (data is null)
+        var isMember = await db.IsMember(itemGroupId, userId);
+        if (!isMember)
         {
             return TypedResults.Forbid();
+        }
+
+        var data = await LoadData(itemGroupId, db);
+        if (data is null)
+        {
+            return TypedResults.Ok(new List<string> { userId });
         }
 
         return TypedResults.Ok(data);
     }
 
-    public static async Task<IEnumerable<Guid>?> LoadData(Guid itemGroupId, DatabaseContext db)
+    internal static async Task<List<string>?> LoadData(Guid itemGroupId, DatabaseContext db)
     {
-        Guid userId = Guid.Parse("ed1e87c8-4823-4364-b3ee-4d9f13a07300");
-        var isMember = await db.Members.AnyAsync(ig => ig.ItemGroupId == itemGroupId && ig.MemberId == userId);
-
-        if (isMember)
-        {
-            return null;
-        }
-
-        return db.Members
-            .AsNoTracking()
+        return await db.Members
             .Where(m => m.ItemGroupId == itemGroupId)
-            .Select(m => m.MemberId);
+            .Select(m => m.MemberId)
+            .ToListAsync();
     }
 }

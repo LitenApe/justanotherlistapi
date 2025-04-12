@@ -1,6 +1,5 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.AspNetCore.Identity;
 
 namespace JustAnotherListApi.Checklist;
 
@@ -22,20 +21,28 @@ public static class CreateItemGroup
         return app;
     }
 
-    public static async Task<Created<ItemGroup>> Execute(Request request, ClaimsPrincipal claimsPrincipal, UserManager<IdentityUser> userManager, DatabaseContext db)
+    public static async Task<Results<Created<ItemGroup>, UnauthorizedHttpResult>> Execute(Request request, ClaimsPrincipal claimsPrincipal, DatabaseContext db)
     {
-        Guid userId = Guid.Parse("ed1e87c8-4823-4364-b3ee-4d9f13a07300");
+        var userId = claimsPrincipal.GetUserId();
+        if (userId is null)
+        {
+            return TypedResults.Unauthorized();
+        }
 
+        var itemGroup = await CreateData(userId, request, db);
+        return TypedResults.Created($"/list/{itemGroup.Id}", itemGroup);
+    }
+
+    internal static async Task<ItemGroup> CreateData(string userId, Request request, DatabaseContext db)
+    {
         var itemGroup = new ItemGroup { Name = request.Name };
-
         db.ItemGroups.Add(itemGroup);
 
         var member = new Member { ItemGroupId = itemGroup.Id, MemberId = userId };
-
         db.Members.Add(member);
 
         await db.SaveChangesAsync();
 
-        return TypedResults.Created($"/list/{itemGroup.Id}", itemGroup);
+        return itemGroup;
     }
 }

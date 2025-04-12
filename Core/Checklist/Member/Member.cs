@@ -5,7 +5,7 @@ namespace JustAnotherListApi.Checklist;
 
 public class Member
 {
-    public required Guid MemberId { get; set; }
+    public required string MemberId { get; set; }
     public required Guid ItemGroupId { get; set; }
 }
 

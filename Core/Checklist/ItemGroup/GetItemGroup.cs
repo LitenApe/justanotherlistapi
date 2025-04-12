@@ -1,4 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.EntityFrameworkCore;
 
 namespace JustAnotherListApi.Checklist;
 
@@ -7,7 +9,7 @@ public static class GetItemGroup
     public static WebApplication MapEndpoint(this WebApplication app)
     {
         app.MapGroup("/api/list")
-            .MapGet("/{itemGroupId}", Execute)
+            .MapGet("/{itemGroupId:guid}", Execute)
             .RequireAuthorization()
             .WithSummary("Get a item group")
             .WithTags(nameof(ItemGroup))
@@ -15,22 +17,34 @@ public static class GetItemGroup
         return app;
     }
 
-    public static async Task<IResult> Execute(Guid itemGroupId, DatabaseContext db)
+    public static async Task<Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult>> Execute(Guid itemGroupId, ClaimsPrincipal claimsPrincipal, DatabaseContext db)
     {
-        Guid userId = Guid.Parse("ed1e87c8-4823-4364-b3ee-4d9f13a07300");
+        var userId = claimsPrincipal.GetUserId();
+        if (userId is null)
+        {
+            return TypedResults.Unauthorized();
+        }
 
-        var isMember = await db.Members.AnyAsync(ig => ig.ItemGroupId == itemGroupId && ig.MemberId == userId);
-
+        var isMember = await db.IsMember(itemGroupId, userId);
         if (!isMember)
         {
             return TypedResults.Forbid();
         }
 
-        var itemGroup = await db.ItemGroups
+        var itemGroup = await LoadData(itemGroupId, db);
+        if (itemGroup is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        return TypedResults.Ok(itemGroup);
+    }
+
+    internal static Task<ItemGroup> LoadData(Guid itemGroupId, DatabaseContext db)
+    {
+        return db.ItemGroups
           .Include(ig => ig.Items)
           .Include(ig => ig.Members)
           .FirstAsync(ig => ig.Id == itemGroupId);
-
-        return TypedResults.Ok(itemGroup);
     }
 }

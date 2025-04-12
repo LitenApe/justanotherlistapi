@@ -1,6 +1,7 @@
 using JustAnotherListApi;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -60,10 +61,20 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 
+
+
 JustAnotherListApi.Checklist.EndpointConfiguration.MapEndpoints(app);
 app.MapIdentityApi<IdentityUser>();
 
 app.MapOpenApi();
-app.MapScalarApiReference();
+app.MapScalarApiReference(opt =>
+{
+    opt
+        .WithPreferredScheme("Bearer")
+        .WithHttpBearerAuthentication(bearer =>
+        {
+            bearer.Token = "your-bearer-token";
+        });
+});
 
 app.Run();

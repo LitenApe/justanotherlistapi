@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace JustAnotherListApi.Checklist;
 public static class DeleteItem
@@ -6,35 +7,40 @@ public static class DeleteItem
     public static WebApplication MapEndpoint(this WebApplication app)
     {
         app.MapGroup("/api/list")
-            .MapDelete("/{itemGroupId}/{itemId}", Execute)
+            .MapDelete("/{itemGroupId:guid}/{itemId:guid}", Execute)
             .RequireAuthorization()
             .WithSummary("Delete a item")
             .WithTags(nameof(Item))
             .WithName(nameof(DeleteItem));
         return app;
     }
-    public static async Task<IResult> Execute(Guid itemGroupId, Guid itemId, DatabaseContext db)
+    public static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>> Execute(Guid itemGroupId, Guid itemId, ClaimsPrincipal claimsPrincipal, DatabaseContext db)
     {
-        Guid userId = Guid.Parse("ed1e87c8-4823-4364-b3ee-4d9f13a07300");
+        var userId = claimsPrincipal.GetUserId();
+        if (userId is null)
+        {
+            return TypedResults.Unauthorized();
+        }
 
-        var isMember = await db.Members.AnyAsync(ig => ig.ItemGroupId == itemGroupId && ig.MemberId == userId);
-
+        var isMember = await db.IsMember(itemGroupId, userId);
         if (!isMember)
         {
             return TypedResults.Forbid();
         }
 
-        var item = await db.Items.FindAsync(itemId);
+        await DeleteData(itemId, db);
+        return TypedResults.NoContent();
+    }
 
+    internal static async Task DeleteData(Guid itemId, DatabaseContext db)
+    {
+        var item = await db.Items.FindAsync(itemId);
         if (item is null)
         {
-            return TypedResults.BadRequest();
+            return;
         }
 
         db.Items.Remove(item);
-
         await db.SaveChangesAsync();
-
-        return TypedResults.NoContent();
     }
 }

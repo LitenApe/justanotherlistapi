@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace JustAnotherListApi.Checklist;
 
@@ -12,7 +13,7 @@ public static class UpdateItemGroup
     public static WebApplication MapEndpoint(this WebApplication app)
     {
         app.MapGroup("/api/list")
-            .MapPut("/{itemGroupId}", Execute)
+            .MapPut("/{itemGroupId:guid}", Execute)
             .RequireAuthorization()
             .WithSummary("Update a item group")
             .WithTags(nameof(ItemGroup))
@@ -20,27 +21,35 @@ public static class UpdateItemGroup
         return app;
     }
 
-    public static async Task<IResult> Execute(Guid itemGroupId, Request request, DatabaseContext db)
+    public static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>> Execute(Guid itemGroupId, Request request, ClaimsPrincipal claimsPrincipal, DatabaseContext db)
     {
-        Guid userId = Guid.Parse("ed1e87c8-4823-4364-b3ee-4d9f13a07300");
-        var isMember = await db.Members.AnyAsync(ig => ig.ItemGroupId == itemGroupId && ig.MemberId == userId);
+        var userId = claimsPrincipal.GetUserId();
+        if (userId is null)
+        {
+            return TypedResults.Unauthorized();
+        }
 
+        var isMember = await db.IsMember(itemGroupId, userId);
         if (!isMember)
         {
             return TypedResults.Forbid();
         }
 
-        var itemGroup = await db.ItemGroups.FindAsync(itemGroupId);
+        await UpdateData(itemGroupId, request, db);
+        return TypedResults.NoContent();
+    }
 
+    internal static async Task UpdateData(Guid itemGroupId, Request request, DatabaseContext db)
+    {
+        var itemGroup = await db.ItemGroups.FindAsync(itemGroupId);
         if (itemGroup is null)
         {
-            return TypedResults.BadRequest();
+            return;
         }
 
         itemGroup.Name = request.Name;
 
+        db.ItemGroups.Update(itemGroup);
         await db.SaveChangesAsync();
-
-        return TypedResults.NoContent();
     }
 }

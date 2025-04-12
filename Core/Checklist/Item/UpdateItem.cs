@@ -1,5 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
-using System.ComponentModel;
+﻿using System.ComponentModel;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace JustAnotherListApi.Checklist;
 public static class UpdateItem
@@ -7,12 +8,46 @@ public static class UpdateItem
     public static WebApplication MapEndpoint(this WebApplication app)
     {
         app.MapGroup("/api/list")
-            .MapPut("/{itemGroupId}/{itemId}", Execute)
+            .MapPut("/{itemGroupId:guid}/{itemId:guid}", Execute)
             .RequireAuthorization()
             .WithSummary("Update a item")
             .WithTags(nameof(Item))
             .WithName(nameof(UpdateItem));
         return app;
+    }
+
+    public static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>> Execute(Guid itemGroupId, Guid itemId, Request request, ClaimsPrincipal claimsPrincipal, DatabaseContext db)
+    {
+        var userId = claimsPrincipal.GetUserId();
+        if (userId is null)
+        {
+            return TypedResults.Unauthorized();
+        }
+
+        var isMember = await db.IsMember(itemGroupId, userId);
+        if (!isMember)
+        {
+            return TypedResults.Forbid();
+        }
+
+        await UpdateData(itemId, request, db);
+        return TypedResults.NoContent();
+    }
+
+    internal static async Task UpdateData(Guid itemId, Request request, DatabaseContext db)
+    {
+        var item = await db.Items.FindAsync(itemId);
+        if (item is null)
+        {
+            return;
+        }
+
+        item.Name = request.Name;
+        item.Description = request.Description;
+        item.IsComplete = request.IsComplete;
+
+        db.Update(item);
+        await db.SaveChangesAsync();
     }
 
     public class Request
@@ -21,32 +56,5 @@ public static class UpdateItem
         public string? Description { get; set; }
         [DefaultValue(false)]
         public bool IsComplete { get; set; }
-    }
-
-    public static async Task<IResult> Execute(Guid itemGroupId, Guid itemId, Request updatedItem, DatabaseContext db)
-    {
-        Guid userId = Guid.Parse("ed1e87c8-4823-4364-b3ee-4d9f13a07300");
-
-        var isMember = await db.Members.AnyAsync(ig => ig.ItemGroupId == itemGroupId && ig.MemberId == userId);
-
-        if (!isMember)
-        {
-            return TypedResults.Forbid();
-        }
-
-        var item = await db.Items.FindAsync(itemId);
-
-        if (item is null)
-        {
-            return TypedResults.BadRequest();
-        }
-
-        item.Name = updatedItem.Name;
-        item.Description = updatedItem.Description;
-        item.IsComplete = updatedItem.IsComplete;
-
-        await db.SaveChangesAsync();
-
-        return TypedResults.NoContent();
     }
 }

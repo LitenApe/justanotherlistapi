@@ -1,4 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.EntityFrameworkCore;
 
 namespace JustAnotherListApi.Checklist;
 
@@ -15,22 +17,34 @@ public static class GetItemGroups
         return app;
     }
 
-    public static async Task<IResult> Execute(DatabaseContext db)
+    public static async Task<Results<Ok<List<ItemGroup>>, UnauthorizedHttpResult>> Execute(ClaimsPrincipal claimsPrincipal, DatabaseContext db)
     {
-        Guid userId = Guid.Parse("ed1e87c8-4823-4364-b3ee-4d9f13a07300");
+        var userId = claimsPrincipal.GetUserId();
+        if (userId is null)
+        {
+            return TypedResults.Unauthorized();
+        }
 
+        var itemGroups = await LoadData(userId, db);
+        if (itemGroups is null)
+        {
+            return TypedResults.Ok(new List<ItemGroup>());
+        }
+
+        return TypedResults.Ok(itemGroups);
+    }
+
+    internal static async Task<List<ItemGroup>> LoadData(string userId, DatabaseContext db)
+    {
         var memberDb = db.Members;
         var itemGroupDb = db.ItemGroups;
 
-        var lists = await memberDb.Where(m => m.MemberId == userId)
+        return await memberDb.Where(m => m.MemberId == userId)
           .Join(
             itemGroupDb.Include(ig => ig.Items.Where(i => !i.IsComplete)),
             ig => ig.ItemGroupId,
             m => m.Id,
             (m, ig) => ig
-          )
-          .ToListAsync();
-
-        return TypedResults.Ok(lists);
+          ).ToListAsync();
     }
 }
