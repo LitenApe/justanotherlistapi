@@ -17,7 +17,12 @@ public static class AddMember
         return app;
     }
 
-    public static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>> Execute(Guid itemGroupId, Guid memberId, ClaimsPrincipal claimsPrincipal, DatabaseContext db)
+    public static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
+        Guid itemGroupId,
+        Guid memberId,
+        ClaimsPrincipal claimsPrincipal,
+        DatabaseContext db,
+        CancellationToken ct)
     {
         var userId = claimsPrincipal.GetUserId();
         if (userId is null)
@@ -25,17 +30,17 @@ public static class AddMember
             return TypedResults.Unauthorized();
         }
 
-        var isMember = await db.IsMember(itemGroupId, userId);
+        var isMember = await db.IsMember(itemGroupId, userId, ct);
         if (!isMember)
         {
             return TypedResults.Forbid();
         }
 
-        await CreateData(itemGroupId, memberId, db);
+        await CreateData(itemGroupId, memberId, db, ct);
         return TypedResults.NoContent();
     }
 
-    internal static async Task CreateData(Guid itemGroupId, Guid memberId, DatabaseContext db)
+    internal static async Task CreateData(Guid itemGroupId, Guid memberId, DatabaseContext db, CancellationToken ct)
     {
         var member = new Member
         {
@@ -43,6 +48,6 @@ public static class AddMember
             MemberId = memberId.ToString()
         };
         db.Members.Add(member);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(ct);
     }
 }

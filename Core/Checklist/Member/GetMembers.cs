@@ -17,7 +17,11 @@ public static class GetMembers
         return app;
     }
 
-    public static async Task<Results<Ok<List<string>>, UnauthorizedHttpResult, ForbidHttpResult>> Execute(Guid itemGroupId, ClaimsPrincipal claimsPrincipal, DatabaseContext db)
+    public static async Task<Results<Ok<List<string>>, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
+        Guid itemGroupId,
+        ClaimsPrincipal claimsPrincipal,
+        DatabaseContext db,
+        CancellationToken ct)
     {
         var userId = claimsPrincipal.GetUserId();
         if (userId is null)
@@ -25,13 +29,13 @@ public static class GetMembers
             return TypedResults.Unauthorized();
         }
 
-        var isMember = await db.IsMember(itemGroupId, userId);
+        var isMember = await db.IsMember(itemGroupId, userId, ct);
         if (!isMember)
         {
             return TypedResults.Forbid();
         }
 
-        var data = await LoadData(itemGroupId, db);
+        var data = await LoadData(itemGroupId, db, ct);
         if (data is null)
         {
             return TypedResults.Ok(new List<string> { userId });
@@ -40,11 +44,12 @@ public static class GetMembers
         return TypedResults.Ok(data);
     }
 
-    internal static async Task<List<string>?> LoadData(Guid itemGroupId, DatabaseContext db)
+    internal static async Task<List<string>?> LoadData(Guid itemGroupId, DatabaseContext db, CancellationToken ct)
     {
         return await db.Members
+            .AsNoTracking()
             .Where(m => m.ItemGroupId == itemGroupId)
             .Select(m => m.MemberId)
-            .ToListAsync();
+            .ToListAsync(ct);
     }
 }

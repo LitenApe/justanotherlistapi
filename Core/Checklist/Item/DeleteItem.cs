@@ -14,7 +14,12 @@ public static class DeleteItem
             .WithName(nameof(DeleteItem));
         return app;
     }
-    public static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>> Execute(Guid itemGroupId, Guid itemId, ClaimsPrincipal claimsPrincipal, DatabaseContext db)
+    public static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
+        Guid itemGroupId,
+        Guid itemId,
+        ClaimsPrincipal claimsPrincipal,
+        DatabaseContext db,
+        CancellationToken ct = default)
     {
         var userId = claimsPrincipal.GetUserId();
         if (userId is null)
@@ -22,25 +27,25 @@ public static class DeleteItem
             return TypedResults.Unauthorized();
         }
 
-        var isMember = await db.IsMember(itemGroupId, userId);
+        var isMember = await db.IsMember(itemGroupId, userId, ct);
         if (!isMember)
         {
             return TypedResults.Forbid();
         }
 
-        await DeleteData(itemId, db);
+        await DeleteData(itemId, db, ct);
         return TypedResults.NoContent();
     }
 
-    internal static async Task DeleteData(Guid itemId, DatabaseContext db)
+    internal static async Task DeleteData(Guid itemId, DatabaseContext db, CancellationToken ct)
     {
-        var item = await db.Items.FindAsync(itemId);
+        var item = await db.Items.FindAsync(itemId, ct);
         if (item is null)
         {
             return;
         }
 
         db.Items.Remove(item);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(ct);
     }
 }

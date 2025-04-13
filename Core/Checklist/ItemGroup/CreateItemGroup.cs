@@ -21,7 +21,11 @@ public static class CreateItemGroup
         return app;
     }
 
-    public static async Task<Results<Created<ItemGroup>, UnauthorizedHttpResult>> Execute(Request request, ClaimsPrincipal claimsPrincipal, DatabaseContext db)
+    public static async Task<Results<Created<ItemGroup>, UnauthorizedHttpResult>> Execute(
+        Request request,
+        ClaimsPrincipal claimsPrincipal,
+        DatabaseContext db,
+        CancellationToken ct = default)
     {
         var userId = claimsPrincipal.GetUserId();
         if (userId is null)
@@ -29,20 +33,18 @@ public static class CreateItemGroup
             return TypedResults.Unauthorized();
         }
 
-        var itemGroup = await CreateData(userId, request, db);
+        var itemGroup = await CreateData(userId, request, db, ct);
         return TypedResults.Created($"/list/{itemGroup.Id}", itemGroup);
     }
 
-    internal static async Task<ItemGroup> CreateData(string userId, Request request, DatabaseContext db)
+    internal static async Task<ItemGroup> CreateData(string userId, Request request, DatabaseContext db, CancellationToken ct)
     {
         var itemGroup = new ItemGroup { Name = request.Name };
-        db.ItemGroups.Add(itemGroup);
+        await db.ItemGroups.AddAsync(itemGroup, ct);
 
         var member = new Member { ItemGroupId = itemGroup.Id, MemberId = userId };
-        db.Members.Add(member);
-
-        await db.SaveChangesAsync();
-
+        await db.Members.AddAsync(member, ct);
+        await db.SaveChangesAsync(ct);
         return itemGroup;
     }
 }

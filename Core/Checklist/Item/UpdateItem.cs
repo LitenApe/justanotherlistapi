@@ -16,7 +16,13 @@ public static class UpdateItem
         return app;
     }
 
-    public static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>> Execute(Guid itemGroupId, Guid itemId, Request request, ClaimsPrincipal claimsPrincipal, DatabaseContext db)
+    public static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
+        Guid itemGroupId,
+        Guid itemId,
+        Request request,
+        ClaimsPrincipal claimsPrincipal,
+        DatabaseContext db,
+        CancellationToken ct = default)
     {
         var userId = claimsPrincipal.GetUserId();
         if (userId is null)
@@ -24,19 +30,19 @@ public static class UpdateItem
             return TypedResults.Unauthorized();
         }
 
-        var isMember = await db.IsMember(itemGroupId, userId);
+        var isMember = await db.IsMember(itemGroupId, userId, ct);
         if (!isMember)
         {
             return TypedResults.Forbid();
         }
 
-        await UpdateData(itemId, request, db);
+        await UpdateData(itemId, request, db, ct);
         return TypedResults.NoContent();
     }
 
-    internal static async Task UpdateData(Guid itemId, Request request, DatabaseContext db)
+    internal static async Task UpdateData(Guid itemId, Request request, DatabaseContext db, CancellationToken ct)
     {
-        var item = await db.Items.FindAsync(itemId);
+        var item = await db.Items.FindAsync(itemId, ct);
         if (item is null)
         {
             return;
@@ -47,7 +53,7 @@ public static class UpdateItem
         item.IsComplete = request.IsComplete;
 
         db.Update(item);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(ct);
     }
 
     public class Request

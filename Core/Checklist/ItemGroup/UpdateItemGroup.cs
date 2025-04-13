@@ -5,11 +5,6 @@ namespace JustAnotherListApi.Checklist;
 
 public static class UpdateItemGroup
 {
-    public class Request
-    {
-        public required string Name { get; set; }
-    }
-
     public static WebApplication MapEndpoint(this WebApplication app)
     {
         app.MapGroup("/api/list")
@@ -21,7 +16,12 @@ public static class UpdateItemGroup
         return app;
     }
 
-    public static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>> Execute(Guid itemGroupId, Request request, ClaimsPrincipal claimsPrincipal, DatabaseContext db)
+    public static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
+        Guid itemGroupId,
+        Request request,
+        ClaimsPrincipal claimsPrincipal,
+        DatabaseContext db,
+        CancellationToken ct)
     {
         var userId = claimsPrincipal.GetUserId();
         if (userId is null)
@@ -29,19 +29,19 @@ public static class UpdateItemGroup
             return TypedResults.Unauthorized();
         }
 
-        var isMember = await db.IsMember(itemGroupId, userId);
+        var isMember = await db.IsMember(itemGroupId, userId, ct);
         if (!isMember)
         {
             return TypedResults.Forbid();
         }
 
-        await UpdateData(itemGroupId, request, db);
+        await UpdateData(itemGroupId, request, db, ct);
         return TypedResults.NoContent();
     }
 
-    internal static async Task UpdateData(Guid itemGroupId, Request request, DatabaseContext db)
+    internal static async Task UpdateData(Guid itemGroupId, Request request, DatabaseContext db, CancellationToken ct)
     {
-        var itemGroup = await db.ItemGroups.FindAsync(itemGroupId);
+        var itemGroup = await db.ItemGroups.FindAsync(itemGroupId, ct);
         if (itemGroup is null)
         {
             return;
@@ -50,6 +50,11 @@ public static class UpdateItemGroup
         itemGroup.Name = request.Name;
 
         db.ItemGroups.Update(itemGroup);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(ct);
+    }
+
+    public class Request
+    {
+        public required string Name { get; set; }
     }
 }

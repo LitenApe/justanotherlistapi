@@ -17,7 +17,11 @@ public static class GetItemGroup
         return app;
     }
 
-    public static async Task<Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult>> Execute(Guid itemGroupId, ClaimsPrincipal claimsPrincipal, DatabaseContext db)
+    public static async Task<Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
+        Guid itemGroupId,
+        ClaimsPrincipal claimsPrincipal,
+        DatabaseContext db,
+        CancellationToken ct)
     {
         var userId = claimsPrincipal.GetUserId();
         if (userId is null)
@@ -25,13 +29,13 @@ public static class GetItemGroup
             return TypedResults.Unauthorized();
         }
 
-        var isMember = await db.IsMember(itemGroupId, userId);
+        var isMember = await db.IsMember(itemGroupId, userId, ct);
         if (!isMember)
         {
             return TypedResults.Forbid();
         }
 
-        var itemGroup = await LoadData(itemGroupId, db);
+        var itemGroup = await LoadData(itemGroupId, db, ct);
         if (itemGroup is null)
         {
             return TypedResults.NotFound();
@@ -40,11 +44,12 @@ public static class GetItemGroup
         return TypedResults.Ok(itemGroup);
     }
 
-    internal static Task<ItemGroup> LoadData(Guid itemGroupId, DatabaseContext db)
+    internal static Task<ItemGroup> LoadData(Guid itemGroupId, DatabaseContext db, CancellationToken ct)
     {
         return db.ItemGroups
-          .Include(ig => ig.Items)
-          .Include(ig => ig.Members)
-          .FirstAsync(ig => ig.Id == itemGroupId);
+            .AsNoTracking()
+            .Include(ig => ig.Items)
+            .Include(ig => ig.Members)
+            .FirstAsync(ig => ig.Id == itemGroupId, ct);
     }
 }
