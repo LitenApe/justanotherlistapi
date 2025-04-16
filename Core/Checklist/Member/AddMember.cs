@@ -1,20 +1,16 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
 
 namespace JustAnotherListApi.Checklist;
 
 public static class AddMember
 {
-    public static WebApplication MapEndpoint(this WebApplication app)
+    public static void MapEndpoint(this RouteGroupBuilder builder)
     {
-        app.MapGroup("/api/list")
-            .MapPost("/{itemGroupId:guid}/member/{memberId:guid}", Execute)
-            .RequireAuthorization()
+        builder.MapPost("/{itemGroupId:guid}/member/{memberId:guid}", Execute)
             .WithSummary("Add a new member to a item group")
             .WithTags(nameof(Member))
             .WithName(nameof(AddMember));
-        return app;
     }
 
     public static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>> Execute(

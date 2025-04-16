@@ -5,15 +5,12 @@ namespace JustAnotherListApi.Checklist;
 
 public static class UpdateItemGroup
 {
-    public static WebApplication MapEndpoint(this WebApplication app)
+    public static void MapEndpoint(this RouteGroupBuilder builder)
     {
-        app.MapGroup("/api/list")
-            .MapPut("/{itemGroupId:guid}", Execute)
-            .RequireAuthorization()
+        builder.MapPut("/{itemGroupId:guid}", Execute)
             .WithSummary("Update a item group")
             .WithTags(nameof(ItemGroup))
             .WithName(nameof(UpdateItemGroup));
-        return app;
     }
 
     public static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>> Execute(

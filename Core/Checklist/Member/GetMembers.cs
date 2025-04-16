@@ -6,15 +6,12 @@ namespace JustAnotherListApi.Checklist;
 
 public static class GetMembers
 {
-    public static WebApplication MapEndpoint(this WebApplication app)
+    public static void MapEndpoint(this RouteGroupBuilder builder)
     {
-        app.MapGroup("/api/list")
-            .MapGet("/{itemGroupId:guid}/member", Execute)
-            .RequireAuthorization()
+        builder.MapGet("/{itemGroupId:guid}/member", Execute)
             .WithSummary("Get members of a item group")
             .WithTags(nameof(Member))
             .WithName(nameof(GetMembers));
-        return app;
     }
 
     public static async Task<Results<Ok<List<string>>, UnauthorizedHttpResult, ForbidHttpResult>> Execute(

@@ -5,15 +5,12 @@ namespace JustAnotherListApi.Checklist;
 
 public static class RemoveMember
 {
-    public static WebApplication MapEndpoint(this WebApplication app)
+    public static void MapEndpoint(this RouteGroupBuilder builder)
     {
-        app.MapGroup("/api/list")
-            .MapDelete("/{itemGroupId:guid}/member/{memberId:guid}", Execute)
-            .RequireAuthorization()
+        builder.MapDelete("/{itemGroupId:guid}/member/{memberId:guid}", Execute)
             .WithSummary("Remove member from item group")
             .WithTags(nameof(Member))
             .WithName(nameof(RemoveMember));
-        return app;
     }
 
     public static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>> Execute(

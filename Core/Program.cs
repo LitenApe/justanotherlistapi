@@ -1,7 +1,6 @@
 using JustAnotherListApi;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -61,10 +60,8 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 
-
-
-JustAnotherListApi.Checklist.EndpointConfiguration.MapEndpoints(app);
 app.MapIdentityApi<IdentityUser>();
+app.MapChecklistApi();
 
 app.MapOpenApi();
 app.MapScalarApiReference(opt =>

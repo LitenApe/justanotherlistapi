@@ -5,20 +5,12 @@ namespace JustAnotherListApi.Checklist;
 
 public static class CreateItemGroup
 {
-    public class Request
+    public static void MapEndpoint(this RouteGroupBuilder builder)
     {
-        public required string Name { get; set; }
-    }
-
-    public static WebApplication MapEndpoint(this WebApplication app)
-    {
-        app.MapGroup("/api/list")
-            .MapPost("/", Execute)
-            .RequireAuthorization()
+        builder.MapPost("/", Execute)
             .WithSummary("Create a new item group")
             .WithTags(nameof(ItemGroup))
             .WithName(nameof(CreateItemGroup));
-        return app;
     }
 
     public static async Task<Results<Created<ItemGroup>, UnauthorizedHttpResult>> Execute(
@@ -46,5 +38,10 @@ public static class CreateItemGroup
         await db.Members.AddAsync(member, ct);
         await db.SaveChangesAsync(ct);
         return itemGroup;
+    }
+
+    public class Request
+    {
+        public required string Name { get; set; }
     }
 }

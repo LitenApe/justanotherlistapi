@@ -5,15 +5,12 @@ using Microsoft.AspNetCore.Http.HttpResults;
 namespace JustAnotherListApi.Checklist;
 public static class UpdateItem
 {
-    public static WebApplication MapEndpoint(this WebApplication app)
+    public static void MapEndpoint(this RouteGroupBuilder builder)
     {
-        app.MapGroup("/api/list")
-            .MapPut("/{itemGroupId:guid}/{itemId:guid}", Execute)
-            .RequireAuthorization()
+        builder.MapPut("/{itemGroupId:guid}/{itemId:guid}", Execute)
             .WithSummary("Update a item")
             .WithTags(nameof(Item))
             .WithName(nameof(UpdateItem));
-        return app;
     }
 
     public static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>> Execute(

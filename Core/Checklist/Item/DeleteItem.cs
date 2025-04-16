@@ -4,16 +4,14 @@ using Microsoft.AspNetCore.Http.HttpResults;
 namespace JustAnotherListApi.Checklist;
 public static class DeleteItem
 {
-    public static WebApplication MapEndpoint(this WebApplication app)
+    public static void MapEndpoint(this RouteGroupBuilder builder)
     {
-        app.MapGroup("/api/list")
-            .MapDelete("/{itemGroupId:guid}/{itemId:guid}", Execute)
-            .RequireAuthorization()
+        builder.MapDelete("/{itemGroupId:guid}/{itemId:guid}", Execute)
             .WithSummary("Delete a item")
             .WithTags(nameof(Item))
             .WithName(nameof(DeleteItem));
-        return app;
     }
+
     public static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
         Guid itemGroupId,
         Guid itemId,

@@ -6,15 +6,12 @@ namespace JustAnotherListApi.Checklist;
 
 public static class CreateItem
 {
-    public static WebApplication MapEndpoint(this WebApplication app)
+    public static void MapEndpoint(this RouteGroupBuilder builder)
     {
-        app.MapGroup("/api/list")
-            .MapPost("/{itemGroupId:guid}", Execute)
-            .RequireAuthorization()
+        builder.MapPost("/{itemGroupId:guid}", Execute)
             .WithSummary("Create a item")
             .WithTags(nameof(Item))
             .WithName(nameof(CreateItem));
-        return app;
     }
 
     public static async Task<Results<Created<Item>, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
