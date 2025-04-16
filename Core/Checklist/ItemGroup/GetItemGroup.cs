@@ -41,12 +41,12 @@ public static class GetItemGroup
         return TypedResults.Ok(itemGroup);
     }
 
-    internal static Task<ItemGroup> LoadData(Guid itemGroupId, DatabaseContext db, CancellationToken ct)
+    internal static Task<ItemGroup?> LoadData(Guid itemGroupId, DatabaseContext db, CancellationToken ct)
     {
         return db.ItemGroups
             .AsNoTracking()
             .Include(ig => ig.Items)
             .Include(ig => ig.Members)
-            .FirstAsync(ig => ig.Id == itemGroupId, ct);
+            .FirstOrDefaultAsync(ig => ig.Id == itemGroupId, ct);
     }
 }

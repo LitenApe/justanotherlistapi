@@ -1,5 +1,6 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.EntityFrameworkCore;
 
 namespace JustAnotherListApi.Checklist;
 public static class DeleteItem
@@ -37,7 +38,7 @@ public static class DeleteItem
 
     internal static async Task DeleteData(Guid itemId, DatabaseContext db, CancellationToken ct)
     {
-        var item = await db.Items.FindAsync(itemId, ct);
+        var item = await db.Items.FindAsync([itemId], cancellationToken: ct);
         if (item is null)
         {
             return;

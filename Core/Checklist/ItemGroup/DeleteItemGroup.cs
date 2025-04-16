@@ -37,7 +37,7 @@ public static class DeleteItemGroup
 
     internal static async Task RemoveData(Guid itemGroupId, DatabaseContext db, CancellationToken ct)
     {
-        var itemGroup = await db.ItemGroups.FindAsync(itemGroupId, ct);
+        var itemGroup = await db.ItemGroups.FindAsync([itemGroupId], cancellationToken: ct);
         if (itemGroup is null)
         {
             return;

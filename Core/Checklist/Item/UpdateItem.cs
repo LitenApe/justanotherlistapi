@@ -39,7 +39,7 @@ public static class UpdateItem
 
     internal static async Task UpdateData(Guid itemId, Request request, DatabaseContext db, CancellationToken ct)
     {
-        var item = await db.Items.FindAsync(itemId, ct);
+        var item = await db.Items.FindAsync([itemId], cancellationToken: ct);
         if (item is null)
         {
             return;
