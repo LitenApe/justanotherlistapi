@@ -3,14 +3,16 @@ using System.Net.Http.Json;
 using Core;
 using Core.Checklist;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 public class CreateItemGroupTests : IClassFixture<WebApplicationFactory<Program>>
 {
-    private readonly HttpClient _client;
+    private readonly WebApplicationFactory<Program> _factory;
 
     public CreateItemGroupTests(WebApplicationFactory<Program> factory)
     {
-        _client = factory.CreateClient();
+        _factory = factory;
     }
 
     [Fact]
@@ -21,11 +23,35 @@ public class CreateItemGroupTests : IClassFixture<WebApplicationFactory<Program>
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10)); // Set a timeout
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/list", request, cts.Token);
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/list", request, cts.Token);
 
         // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var createdItemGroup = await response.Content.ReadFromJsonAsync<ItemGroup>(cancellationToken: cts.Token);
+        Assert.NotNull(createdItemGroup);
+        Assert.Equal("Test Group", createdItemGroup.Name);
+    }
+
+    [Fact]
+    public async Task Execute_WritesToDatabase_WhenUserIsAuthorized()
+    {
+        // Arrange
+        var request = new CreateItemGroup.Request { Name = "Test Group" };
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10)); // Set a timeout
+
+        // Act
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/list", request, cts.Token);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        // Verify the database write
+        using var scope = _factory.Services.GetRequiredService<IServiceScopeFactory>().CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+
+        var createdItemGroup = await dbContext.ItemGroups.FirstOrDefaultAsync(ig => ig.Name == "Test Group", cts.Token);
         Assert.NotNull(createdItemGroup);
         Assert.Equal("Test Group", createdItemGroup.Name);
     }
@@ -38,7 +64,8 @@ public class CreateItemGroupTests : IClassFixture<WebApplicationFactory<Program>
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/list", request, cts.Token);
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/list", request, cts.Token);
 
         // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -51,11 +78,9 @@ public class CreateItemGroupTests : IClassFixture<WebApplicationFactory<Program>
         var request = new CreateItemGroup.Request { Name = "Test Group" };
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-        // Remove Authorization header
-        _client.DefaultRequestHeaders.Authorization = null;
-
         // Act
-        var response = await _client.PostAsJsonAsync("/api/list", request, cts.Token);
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/list", request, cts.Token);
 
         // Assert
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
