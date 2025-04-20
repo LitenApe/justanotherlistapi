@@ -21,7 +21,8 @@ public class Program
         builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
         // Auth
-        builder.Services.AddAuthentication();
+        builder.Services.AddAuthentication()
+            .AddJwtBearer();
         builder.Services.AddAuthorization();
         builder.Services.AddIdentityApiEndpoints<IdentityUser>()
             .AddEntityFrameworkStores<DatabaseContext>();
@@ -75,7 +76,7 @@ public class Program
         app.MapOpenApi();
         app.MapScalarApiReference(opt =>
         {
-            opt.WithPreferredScheme(IdentityConstants.BearerScheme)
+            opt.WithPreferredScheme("Bearer")
             .WithDownloadButton(true)
             .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.Curl);
         });
