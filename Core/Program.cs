@@ -1,3 +1,4 @@
+using Core.Utility;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
@@ -20,13 +21,16 @@ public class Program
         builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
         // Auth
-        builder.Services.AddAuthentication(IdentityConstants.BearerScheme);
+        builder.Services.AddAuthentication();
         builder.Services.AddAuthorization();
         builder.Services.AddIdentityApiEndpoints<IdentityUser>()
             .AddEntityFrameworkStores<DatabaseContext>();
 
         // API Documentation
-        builder.Services.AddOpenApi();
+        builder.Services.AddOpenApi(opt =>
+        {
+            opt.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+        });
 
         // Configure services
 
@@ -71,16 +75,9 @@ public class Program
         app.MapOpenApi();
         app.MapScalarApiReference(opt =>
         {
-            opt.Authentication = new ScalarAuthenticationOptions
-            {
-                PreferredSecurityScheme = IdentityConstants.BearerScheme,
-            };
-            opt
-                .WithPreferredScheme(IdentityConstants.BearerScheme)
-                .WithHttpBearerAuthentication(bearer =>
-                {
-                    bearer.Token = "your-bearer-token";
-                });
+            opt.WithPreferredScheme(IdentityConstants.BearerScheme)
+            .WithDownloadButton(true)
+            .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.Curl);
         });
 
         app.Run();
