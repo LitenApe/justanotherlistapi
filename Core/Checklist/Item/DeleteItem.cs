@@ -1,8 +1,7 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
 
-namespace JustAnotherListApi.Checklist;
+namespace Core.Checklist;
 public static class DeleteItem
 {
     public static void MapEndpoint(this RouteGroupBuilder builder)

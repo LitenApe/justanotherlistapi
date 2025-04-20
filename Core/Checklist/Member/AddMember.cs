@@ -1,7 +1,7 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
 
-namespace JustAnotherListApi.Checklist;
+namespace Core.Checklist;
 
 public static class AddMember
 {

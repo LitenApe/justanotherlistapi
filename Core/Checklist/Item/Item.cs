@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace JustAnotherListApi.Checklist;
+namespace Core.Checklist;
 
 public class Item
 {

@@ -1,6 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 
-namespace JustAnotherListApi
+namespace Core
 {
     public static class DatabaseContextExtensionIsMember
     {

@@ -1,6 +1,6 @@
-﻿using JustAnotherListApi.Checklist;
+﻿using Core.Checklist;
 
-namespace JustAnotherListApi
+namespace Core
 {
     public static class ChecklistApiEndpointRouteBuilderExtension
     {

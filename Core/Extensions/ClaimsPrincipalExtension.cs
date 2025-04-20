@@ -1,6 +1,6 @@
 ﻿using System.Security.Claims;
 
-namespace JustAnotherListApi
+namespace Core
 {
     public static class ClaimsPrincipalExtensionGetUserId
     {

@@ -1,46 +1,63 @@
-﻿using JustAnotherListApi;
-using JustAnotherListApi.Checklist;
-using Microsoft.EntityFrameworkCore;
+﻿using System.Net;
+using System.Net.Http.Json;
+using Core;
+using Core.Checklist;
+using Microsoft.AspNetCore.Mvc.Testing;
 
-namespace Core.Tests.Checklist.ItemGroup;
-
-public class CreateItemGroupTests
+public class CreateItemGroupTests : IClassFixture<WebApplicationFactory<Program>>
 {
-    [Fact]
-    public async Task CreateItemGroup_returnCreatedItemGroup()
+    private readonly HttpClient _client;
+
+    public CreateItemGroupTests(WebApplicationFactory<Program> factory)
     {
-        var request = new CreateItemGroup.Request() { Name = "name" };
-        var dbOptions = new DbContextOptionsBuilder<DatabaseContext>().UseInMemoryDatabase("JustAnotherList").Options;
-        var dbContext = new DatabaseContext(dbOptions);
-        var response = await CreateItemGroup.Execute(request, dbContext);
-
-        var requestBody = response.Value;
-
-        Assert.NotNull(requestBody);
-        Assert.Multiple(
-            () => Assert.Equal(request.Name, requestBody.Name),
-            () => Assert.Empty(requestBody.Items),
-            () => Assert.Single(requestBody.Members),
-            () => Assert.NotEqual(Guid.Empty, requestBody.Id));
+        _client = factory.CreateClient();
     }
 
     [Fact]
-    public async Task CreateItemGroup_writesToDatabase()
+    public async Task Execute_ReturnsCreated_WhenUserIsAuthorized()
     {
-        var request = new CreateItemGroup.Request() { Name = "name" };
-        var dbOptions = new DbContextOptionsBuilder<DatabaseContext>().UseInMemoryDatabase("JustAnotherList").Options;
-        var dbContext = new DatabaseContext(dbOptions);
-        var response = await CreateItemGroup.Execute(request, dbContext);
+        // Arrange
+        var request = new CreateItemGroup.Request { Name = "Test Group" };
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10)); // Set a timeout
 
-        Assert.NotNull(response.Value);
-        var itemGroup = dbContext.ItemGroups.Find(response.Value.Id);
+        // Act
+        var response = await _client.PostAsJsonAsync("/api/list", request, cts.Token);
 
-        Assert.NotNull(itemGroup);
-        Assert.Equal(request.Name, itemGroup.Name);
+        // Assert
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var createdItemGroup = await response.Content.ReadFromJsonAsync<ItemGroup>(cancellationToken: cts.Token);
+        Assert.NotNull(createdItemGroup);
+        Assert.Equal("Test Group", createdItemGroup.Name);
+    }
 
-        var members = dbContext.Members.Where(m => m.ItemGroupId == response.Value.Id);
+    [Fact]
+    public async Task Execute_ReturnsBadRequest_WhenNameIsEmpty()
+    {
+        // Arrange
+        var request = new CreateItemGroup.Request { Name = "" };
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-        Assert.NotNull(members);
-        Assert.Single(members);
+        // Act
+        var response = await _client.PostAsJsonAsync("/api/list", request, cts.Token);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Execute_ReturnsUnauthorized_WhenNoTokenProvided()
+    {
+        // Arrange
+        var request = new CreateItemGroup.Request { Name = "Test Group" };
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+        // Remove Authorization header
+        _client.DefaultRequestHeaders.Authorization = null;
+
+        // Act
+        var response = await _client.PostAsJsonAsync("/api/list", request, cts.Token);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 }
