@@ -35,7 +35,7 @@ public static class GetMembers
         var data = await LoadData(itemGroupId, db, ct);
         if (data is null)
         {
-            return TypedResults.Ok(new List<string> { userId });
+            return TypedResults.Forbid();
         }
 
         return TypedResults.Ok(data);

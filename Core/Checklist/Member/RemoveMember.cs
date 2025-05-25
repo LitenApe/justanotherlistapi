@@ -1,5 +1,6 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.EntityFrameworkCore;
 
 namespace Core.Checklist;
 
@@ -38,8 +39,24 @@ public static class RemoveMember
 
     internal static async Task RemoveData(Guid itemGroupId, Guid memberId, DatabaseContext db, CancellationToken ct)
     {
-        var member = new Member { ItemGroupId = itemGroupId, MemberId = memberId.ToString() };
-        db.Members.Remove(member);
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            var member = await db.Members.FirstOrDefaultAsync(m => m.ItemGroupId == itemGroupId && m.MemberId == memberId.ToString(), ct);
+            if (member != null)
+            {
+                db.Members.Remove(member);
+                await db.SaveChangesAsync(ct);
+            }
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // If the member does not exist, we can ignore this exception
+            // as it means the member was already removed or never existed.
+        }
+        catch (Exception ex)
+        {
+            // Log the exception if necessary
+            throw new InvalidOperationException("Failed to remove member from item group.", ex);
+        }
     }
 }

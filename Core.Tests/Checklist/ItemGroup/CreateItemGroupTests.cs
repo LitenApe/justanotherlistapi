@@ -152,11 +152,13 @@ public class CreateItemGroupTests
         }
     }
 
-    [Fact]
-    public async Task Execute_BadRequest_WhenRequestNameIsEmpty()
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Execute_BadRequest_WhenRequestNameIsEmptyOrWhitespace(string name)
     {
         // Arrange
-        var request = new CreateItemGroup.Request { Name = "" };
+        var request = new CreateItemGroup.Request { Name = name };
         var userId = Guid.NewGuid();
 
         // Mock ClaimsPrincipal
