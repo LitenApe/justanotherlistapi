@@ -14,7 +14,7 @@ public static class UpdateItem
             .WithName(nameof(UpdateItem));
     }
 
-    public static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
+    public static async Task<Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
         Guid itemGroupId,
         Guid itemId,
         Request request,
@@ -22,6 +22,11 @@ public static class UpdateItem
         DatabaseContext db,
         CancellationToken ct = default)
     {
+        if (string.IsNullOrEmpty(request.Name.Trim()))
+        {
+            return TypedResults.BadRequest();
+        }
+
         var userId = claimsPrincipal.GetUserId();
         if (userId is null)
         {

@@ -19,15 +19,15 @@ public static class CreateItemGroup
         DatabaseContext db,
         CancellationToken ct = default)
     {
+        if (string.IsNullOrEmpty(request.Name.Trim()))
+        {
+            return TypedResults.BadRequest();
+        }
+
         var userId = claimsPrincipal.GetUserId();
         if (userId is null)
         {
             return TypedResults.Unauthorized();
-        }
-
-        if (string.IsNullOrEmpty(request.Name.Trim()))
-        {
-            return TypedResults.BadRequest();
         }
 
         var itemGroup = await CreateData(userId, request, db, ct);

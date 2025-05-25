@@ -14,13 +14,18 @@ public static class CreateItem
             .WithName(nameof(CreateItem));
     }
 
-    public static async Task<Results<Created<Item>, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
+    public static async Task<Results<Created<Item>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
         Guid itemGroupId,
         Request request,
         ClaimsPrincipal claimsPrincipal,
         DatabaseContext db,
         CancellationToken ct = default)
     {
+        if (string.IsNullOrEmpty(request.Name.Trim()))
+        {
+            return TypedResults.BadRequest();
+        }
+
         var userId = claimsPrincipal.GetUserId();
         if (userId is null)
         {

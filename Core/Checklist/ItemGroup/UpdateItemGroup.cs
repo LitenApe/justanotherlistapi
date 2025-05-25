@@ -14,13 +14,18 @@ public static class UpdateItemGroup
             .WithName(nameof(UpdateItemGroup));
     }
 
-    public static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
+    public static async Task<Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
         Guid itemGroupId,
         Request request,
         ClaimsPrincipal claimsPrincipal,
         DatabaseContext db,
         CancellationToken ct)
     {
+        if (string.IsNullOrEmpty(request.Name.Trim()))
+        {
+            return TypedResults.BadRequest();
+        }
+
         var userId = claimsPrincipal.GetUserId();
         if (userId is null)
         {
