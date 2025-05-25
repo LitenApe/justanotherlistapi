@@ -13,7 +13,7 @@ public static class CreateItemGroup
             .WithName(nameof(CreateItemGroup));
     }
 
-    public static async Task<Results<Created<ItemGroup>, UnauthorizedHttpResult>> Execute(
+    public static async Task<Results<Created<ItemGroup>, BadRequest, UnauthorizedHttpResult>> Execute(
         Request request,
         ClaimsPrincipal claimsPrincipal,
         DatabaseContext db,
@@ -23,6 +23,11 @@ public static class CreateItemGroup
         if (userId is null)
         {
             return TypedResults.Unauthorized();
+        }
+
+        if (string.IsNullOrEmpty(request.Name.Trim()))
+        {
+            return TypedResults.BadRequest();
         }
 
         var itemGroup = await CreateData(userId, request, db, ct);

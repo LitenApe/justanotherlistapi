@@ -39,7 +39,13 @@ public static class CreateItem
 
     internal static async Task<Item> CreateData(Guid itemGroupId, Request request, DatabaseContext db, CancellationToken ct)
     {
-        var item = new Item { ItemGroupId = itemGroupId, Name = request.Name, Description = request.Description, IsComplete = request.IsComplete };
+        var item = new Item
+        {
+            ItemGroupId = itemGroupId,
+            Name = request.Name,
+            Description = request.Description,
+            IsComplete = request.IsComplete
+        };
         await db.Items.AddAsync(item, ct);
         await db.SaveChangesAsync(ct);
         return item;
@@ -47,9 +53,14 @@ public static class CreateItem
 
     public class Request
     {
+        [Description("Name of the item")]
         public required string Name { get; set; }
+
+        [Description("Description of the item")]
         public string? Description { get; set; }
+
         [DefaultValue(false)]
+        [Description("Indicates whether the item is complete")]
         public bool IsComplete { get; set; }
     }
 }

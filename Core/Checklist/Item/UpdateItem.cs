@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.EntityFrameworkCore;
 
 namespace Core.Checklist;
 public static class UpdateItem
@@ -33,13 +34,13 @@ public static class UpdateItem
             return TypedResults.Forbid();
         }
 
-        await UpdateData(itemId, request, db, ct);
+        await UpdateData(itemGroupId, itemId, request, db, ct);
         return TypedResults.NoContent();
     }
 
-    internal static async Task UpdateData(Guid itemId, Request request, DatabaseContext db, CancellationToken ct)
+    internal static async Task UpdateData(Guid itemGroupId, Guid itemId, Request request, DatabaseContext db, CancellationToken ct)
     {
-        var item = await db.Items.FindAsync([itemId], cancellationToken: ct);
+        var item = await db.Items.FirstOrDefaultAsync((i) => i.Id == itemId && i.ItemGroupId == itemGroupId, cancellationToken: ct);
         if (item is null)
         {
             return;
@@ -55,9 +56,14 @@ public static class UpdateItem
 
     public class Request
     {
+        [Description("Name of the item")]
         public required string Name { get; set; }
+
+        [Description("Description of the item")]
         public string? Description { get; set; }
+
         [DefaultValue(false)]
+        [Description("Indicates if the item is complete")]
         public bool IsComplete { get; set; }
     }
 }

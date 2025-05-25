@@ -1,4 +1,5 @@
-﻿using System.Security.Claims;
+﻿using System.ComponentModel;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Core.Checklist;
@@ -52,6 +53,7 @@ public static class UpdateItemGroup
 
     public class Request
     {
+        [Description("Name of the item group")]
         public required string Name { get; set; }
     }
 }
