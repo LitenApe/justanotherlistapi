@@ -1,86 +1,75 @@
+using Core;
 using Core.Utility;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 
-namespace Core;
+var builder = WebApplication.CreateBuilder(args);
 
-public class Program
+// --- Service Registrations ---
+
+// Database (In-Memory for development)
+builder.Services.AddDbContext<DatabaseContext>(opt =>
+    opt.UseInMemoryDatabase("JustAnotherList"));
+builder.Services.AddDatabaseDeveloperPageExceptionFilter();
+
+// Authentication & Authorization
+builder.Services.AddAuthentication()
+    .AddJwtBearer();
+builder.Services.AddAuthorization();
+builder.Services.AddIdentityApiEndpoints<IdentityUser>()
+    .AddEntityFrameworkStores<DatabaseContext>();
+
+// API Documentation
+builder.Services.AddOpenApi(opt =>
+    opt.AddDocumentTransformer<BearerSecuritySchemeTransformer>());
+
+// Identity Options
+builder.Services.Configure<IdentityOptions>(opt =>
 {
-    public static void Main(string[] args)
-    {
-        var builder = WebApplication.CreateBuilder(args);
+    opt.Password.RequireDigit = true;
+    opt.Password.RequireLowercase = true;
+    opt.Password.RequireNonAlphanumeric = true;
+    opt.Password.RequireUppercase = true;
+    opt.Password.RequiredLength = 6;
+    opt.Password.RequiredUniqueChars = 1;
 
-        // Add services
+    opt.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(3);
+    opt.Lockout.MaxFailedAccessAttempts = 7;
+    opt.Lockout.AllowedForNewUsers = true;
 
-        // Database
-        builder.Services.AddDbContext<DatabaseContext>(opt =>
-        {
-            opt.UseInMemoryDatabase("JustAnotherList");
-        });
-        builder.Services.AddDatabaseDeveloperPageExceptionFilter();
+    opt.User.AllowedUserNameCharacters =
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
+    opt.User.RequireUniqueEmail = false;
+});
 
-        // Auth
-        builder.Services.AddAuthentication()
-            .AddJwtBearer();
-        builder.Services.AddAuthorization();
-        builder.Services.AddIdentityApiEndpoints<IdentityUser>()
-            .AddEntityFrameworkStores<DatabaseContext>();
+// Cookie Settings
+builder.Services.ConfigureApplicationCookie(opt =>
+{
+    opt.Cookie.HttpOnly = true;
+    opt.ExpireTimeSpan = TimeSpan.FromDays(30);
+    opt.LoginPath = "/auth/login";
+    opt.AccessDeniedPath = "/auth/denied";
+    opt.SlidingExpiration = true;
+});
 
-        // API Documentation
-        builder.Services.AddOpenApi(opt =>
-        {
-            opt.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
-        });
+var app = builder.Build();
 
-        // Configure services
+// --- Middleware Pipeline ---
 
-        // Auth
-        builder.Services.Configure<IdentityOptions>(opt =>
-        {
-            opt.Password.RequireDigit = true;
-            opt.Password.RequireLowercase = true;
-            opt.Password.RequireNonAlphanumeric = true;
-            opt.Password.RequireUppercase = true;
-            opt.Password.RequiredLength = 6;
-            opt.Password.RequiredUniqueChars = 1;
+app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
 
-            opt.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(3);
-            opt.Lockout.MaxFailedAccessAttempts = 7;
-            opt.Lockout.AllowedForNewUsers = true;
+app.MapIdentityApi<IdentityUser>();
+app.MapChecklistApi();
 
-            opt.User.AllowedUserNameCharacters =
-                "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
-            opt.User.RequireUniqueEmail = false;
-        });
-        builder.Services.ConfigureApplicationCookie(opt =>
-        {
-            // Cookie settings
-            opt.Cookie.HttpOnly = true;
-            opt.ExpireTimeSpan = TimeSpan.FromMinutes(5);
+app.MapOpenApi();
+app.MapScalarApiReference(opt =>
+{
+    opt.WithPreferredScheme("Bearer")
+        .WithDownloadButton(true)
+        .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.Curl);
+});
 
-            opt.LoginPath = "/auth/login";
-            opt.AccessDeniedPath = "/auth/denied";
-            opt.SlidingExpiration = true;
-        });
-
-        var app = builder.Build();
-
-        app.UseHttpsRedirection();
-        app.UseAuthentication();
-        app.UseAuthorization();
-
-        app.MapIdentityApi<IdentityUser>();
-        app.MapChecklistApi();
-
-        app.MapOpenApi();
-        app.MapScalarApiReference(opt =>
-        {
-            opt.WithPreferredScheme("Bearer")
-            .WithDownloadButton(true)
-            .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.Curl);
-        });
-
-        app.Run();
-    }
-}
+await app.RunAsync();
