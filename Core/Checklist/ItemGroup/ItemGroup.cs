@@ -23,6 +23,8 @@ public class ItemGroupConfiguration : IEntityTypeConfiguration<ItemGroup>
 {
     public void Configure(EntityTypeBuilder<ItemGroup> builder)
     {
+        builder.HasKey(ig => ig.Id);
+        builder.HasIndex(ig => ig.Id);
         builder.Property(ig => ig.Id).HasDefaultValueSql();
     }
 }

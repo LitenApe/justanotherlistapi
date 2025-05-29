@@ -1,5 +1,6 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.EntityFrameworkCore;
 
 namespace Core.Checklist;
 public static class DeleteItem
@@ -31,13 +32,13 @@ public static class DeleteItem
             return TypedResults.Forbid();
         }
 
-        await DeleteData(itemId, db, ct);
+        await DeleteData(itemGroupId, itemId, db, ct);
         return TypedResults.NoContent();
     }
 
-    internal static async Task DeleteData(Guid itemId, DatabaseContext db, CancellationToken ct)
+    internal static async Task DeleteData(Guid itemGroupId, Guid itemId, DatabaseContext db, CancellationToken ct)
     {
-        var item = await db.Items.FindAsync([itemId], cancellationToken: ct);
+        var item = await db.Items.FirstOrDefaultAsync(i => i.Id == itemId && i.ItemGroupId == itemGroupId, cancellationToken: ct);
         if (item is null)
         {
             return;

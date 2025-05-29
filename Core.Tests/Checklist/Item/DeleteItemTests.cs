@@ -51,6 +51,52 @@ public class DeleteItemTests
     }
 
     [Fact]
+    public async Task Execute_DoesNotDeleteItem_WhenItemBelongsToAnotherGroup()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var itemGroupId = Guid.NewGuid();
+        var otherGroupId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+
+        var claims = new List<Claim>
+    {
+        new(ClaimTypes.NameIdentifier, userId)
+    };
+        var identity = new ClaimsIdentity(claims, "TestAuthType");
+        var claimsPrincipal = new ClaimsPrincipal(identity);
+
+        var options = new DbContextOptionsBuilder<DatabaseContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .Options;
+        await using var dbContext = new DatabaseContext(options);
+
+        dbContext.ItemGroups.Add(new ItemGroup { Id = itemGroupId, Name = "Group" });
+        dbContext.ItemGroups.Add(new ItemGroup { Id = otherGroupId, Name = "Other Group" });
+        dbContext.Members.Add(new Member { ItemGroupId = itemGroupId, MemberId = userId });
+        dbContext.Items.Add(new Item { Id = itemId, Name = "Item", Description = "Desc", IsComplete = false, ItemGroupId = otherGroupId });
+        await dbContext.SaveChangesAsync();
+
+        // Act
+        var result = await DeleteItem.Execute(itemGroupId, itemId, claimsPrincipal, dbContext, default);
+
+        // Assert
+        Assert.NotNull(result);
+        if (result is Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> results)
+        {
+            Assert.IsType<NoContent>(results.Result);
+
+            // Confirm item is NOT deleted because it belongs to another group
+            var item = await dbContext.Items.FirstOrDefaultAsync(i => i.Id == itemId && i.ItemGroupId == otherGroupId);
+            Assert.NotNull(item);
+        }
+        else
+        {
+            Assert.Fail("Expected Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>.");
+        }
+    }
+
+    [Fact]
     public async Task Execute_ReturnsUnauthorized_WhenUserIsNull()
     {
         // Arrange

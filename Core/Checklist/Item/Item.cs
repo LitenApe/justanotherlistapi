@@ -26,6 +26,10 @@ public class ItemConfiguration : IEntityTypeConfiguration<Item>
 {
     public void Configure(EntityTypeBuilder<Item> builder)
     {
+        builder.HasKey(i => i.Id);
+        builder.HasIndex(i => i.Id);
+        builder.HasIndex(i => new { i.Id, i.ItemGroupId });
+        builder.Property(i => i.Id).HasDefaultValueSql();
         builder.HasOne<ItemGroup>().WithMany(ig => ig.Items).HasForeignKey(i => i.ItemGroupId);
     }
 }
