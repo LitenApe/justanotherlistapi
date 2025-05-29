@@ -10,12 +10,12 @@ public class GetItemGroupTests
     public async Task Execute_ReturnsOk_WhenUserIsMember_AndItemGroupExists()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
 
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, userId)
+            new(ClaimTypes.NameIdentifier, userId.ToString())
         };
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
@@ -58,12 +58,12 @@ public class GetItemGroupTests
     public async Task Execute_ReturnsAllItemsAndMembers_ForItemGroup()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
 
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, userId)
+            new(ClaimTypes.NameIdentifier, userId.ToString())
         };
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
@@ -78,7 +78,7 @@ public class GetItemGroupTests
         var item1 = new Item { Id = Guid.NewGuid(), Name = "Item 1", ItemGroupId = itemGroupId };
         var item2 = new Item { Id = Guid.NewGuid(), Name = "Item 2", ItemGroupId = itemGroupId };
         var member1 = new Member { ItemGroupId = itemGroupId, MemberId = userId };
-        var member2 = new Member { ItemGroupId = itemGroupId, MemberId = Guid.NewGuid().ToString() };
+        var member2 = new Member { ItemGroupId = itemGroupId, MemberId = Guid.NewGuid() };
 
         dbContext.ItemGroups.Add(itemGroup);
         dbContext.Items.AddRange(item1, item2);
@@ -183,12 +183,12 @@ public class GetItemGroupTests
     public async Task Execute_ReturnsNotFound_WhenItemGroupDoesNotExist()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
 
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, userId)
+            new(ClaimTypes.NameIdentifier, userId.ToString())
         };
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);

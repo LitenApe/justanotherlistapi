@@ -10,13 +10,13 @@ public class AddMemberTests
     public async Task Execute_AddsMember_WhenUserIsMember()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var newMemberId = Guid.NewGuid();
 
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, userId)
+            new(ClaimTypes.NameIdentifier, userId.ToString())
         };
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
@@ -41,7 +41,7 @@ public class AddMemberTests
             Assert.IsType<NoContent>(results.Result);
 
             // Confirm DB write
-            var added = await dbContext.Members.FirstOrDefaultAsync(m => m.ItemGroupId == itemGroupId && m.MemberId == newMemberId.ToString());
+            var added = await dbContext.Members.FirstOrDefaultAsync(m => m.ItemGroupId == itemGroupId && m.MemberId == newMemberId);
             Assert.NotNull(added);
         }
         else

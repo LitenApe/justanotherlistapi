@@ -22,7 +22,7 @@ public static class GetItemGroups
             return TypedResults.Unauthorized();
         }
 
-        var itemGroups = await LoadData(userId, db, ct);
+        var itemGroups = await LoadData((Guid)userId, db, ct);
         if (itemGroups is null)
         {
             return TypedResults.Ok(new List<ItemGroup>());
@@ -31,7 +31,7 @@ public static class GetItemGroups
         return TypedResults.Ok(itemGroups);
     }
 
-    internal static async Task<List<ItemGroup>> LoadData(string userId, DatabaseContext db, CancellationToken ct)
+    internal static async Task<List<ItemGroup>> LoadData(Guid userId, DatabaseContext db, CancellationToken ct)
     {
         var memberDb = db.Members.AsNoTracking();
         var itemGroupDb = db.ItemGroups.AsNoTracking();

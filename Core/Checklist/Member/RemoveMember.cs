@@ -41,7 +41,7 @@ public static class RemoveMember
     {
         try
         {
-            var member = await db.Members.FirstOrDefaultAsync(m => m.ItemGroupId == itemGroupId && m.MemberId == memberId.ToString(), ct);
+            var member = await db.Members.FirstOrDefaultAsync(m => m.ItemGroupId == itemGroupId && m.MemberId == memberId, ct);
             if (member != null)
             {
                 db.Members.Remove(member);

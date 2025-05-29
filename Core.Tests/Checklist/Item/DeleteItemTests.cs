@@ -10,13 +10,13 @@ public class DeleteItemTests
     public async Task Execute_DeletesItem_WhenUserIsMember()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
 
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, userId)
+            new(ClaimTypes.NameIdentifier, userId.ToString())
         };
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
@@ -54,14 +54,14 @@ public class DeleteItemTests
     public async Task Execute_DoesNotDeleteItem_WhenItemBelongsToAnotherGroup()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var otherGroupId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
 
         var claims = new List<Claim>
     {
-        new(ClaimTypes.NameIdentifier, userId)
+        new(ClaimTypes.NameIdentifier, userId.ToString())
     };
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
@@ -167,13 +167,13 @@ public class DeleteItemTests
     public async Task Execute_NoError_WhenItemDoesNotExist()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
 
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, userId)
+            new(ClaimTypes.NameIdentifier, userId.ToString())
         };
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);

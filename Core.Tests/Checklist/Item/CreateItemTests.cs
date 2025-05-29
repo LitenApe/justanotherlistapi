@@ -10,7 +10,7 @@ public class CreateItemTests
     public async Task Execute_CreatesItem_WhenUserIsMember()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var request = new CreateItem.Request
         {
@@ -21,7 +21,7 @@ public class CreateItemTests
 
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, userId)
+            new(ClaimTypes.NameIdentifier, userId.ToString())
         };
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
@@ -73,7 +73,7 @@ public class CreateItemTests
     public async Task Execute_ReturnsBadRequest_WhenNameIsEmptyOrWhitespace(string name)
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var request = new CreateItem.Request
         {
@@ -84,7 +84,7 @@ public class CreateItemTests
 
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, userId)
+            new(ClaimTypes.NameIdentifier, userId.ToString())
         };
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);

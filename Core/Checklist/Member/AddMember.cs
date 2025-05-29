@@ -41,7 +41,7 @@ public static class AddMember
         var member = new Member
         {
             ItemGroupId = itemGroupId,
-            MemberId = memberId.ToString()
+            MemberId = memberId
         };
         db.Members.Add(member);
         await db.SaveChangesAsync(ct);

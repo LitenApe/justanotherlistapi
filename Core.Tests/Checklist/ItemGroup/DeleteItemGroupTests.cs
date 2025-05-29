@@ -10,12 +10,12 @@ public class DeleteItemGroupTests
     public async Task Execute_DeletesItemGroup_WhenUserIsMember()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
 
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, userId)
+            new(ClaimTypes.NameIdentifier, userId.ToString())
         };
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
@@ -117,12 +117,12 @@ public class DeleteItemGroupTests
     public async Task Execute_NoError_WhenItemGroupDoesNotExist_ButUserIsMember()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
 
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, userId)
+            new(ClaimTypes.NameIdentifier, userId.ToString())
         };
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);

@@ -10,14 +10,14 @@ public class GetItemGroupsTests
     public async Task Execute_ReturnsAllItemGroups_ForAuthenticatedUser()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
-        var otherUserId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
         var group1Id = Guid.NewGuid();
         var group2Id = Guid.NewGuid();
 
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, userId)
+            new(ClaimTypes.NameIdentifier, userId.ToString())
         };
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
@@ -54,6 +54,7 @@ public class GetItemGroupsTests
             if (results.Result is Ok<List<ItemGroup>> ok)
             {
                 var groups = ok.Value;
+                Assert.NotNull(groups);
                 Assert.Equal(2, groups.Count);
                 var group1 = groups.FirstOrDefault(g => g.Id == group1Id);
                 Assert.NotNull(group1);
@@ -100,6 +101,7 @@ public class GetItemGroupsTests
         {
             if (results.Result is Ok<List<ItemGroup>> ok)
             {
+                Assert.NotNull(ok.Value);
                 Assert.Empty(ok.Value);
             }
             else

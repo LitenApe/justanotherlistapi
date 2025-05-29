@@ -10,13 +10,13 @@ public class RemoveMemberTests
     public async Task Execute_RemovesMember_WhenUserIsMember()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-        var memberIdToRemove = Guid.NewGuid().ToString();
+        var memberIdToRemove = Guid.NewGuid();
 
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, userId)
+            new(ClaimTypes.NameIdentifier, userId.ToString())
         };
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
@@ -32,7 +32,7 @@ public class RemoveMemberTests
         await dbContext.SaveChangesAsync();
 
         // Act
-        var result = await RemoveMember.Execute(itemGroupId, Guid.Parse(memberIdToRemove), claimsPrincipal, dbContext, default);
+        var result = await RemoveMember.Execute(itemGroupId, memberIdToRemove, claimsPrincipal, dbContext, default);
 
         // Assert
         Assert.NotNull(result);
@@ -121,13 +121,13 @@ public class RemoveMemberTests
     public async Task Execute_NoError_WhenMemberDoesNotExist()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var memberIdToRemove = Guid.NewGuid();
 
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, userId)
+            new(ClaimTypes.NameIdentifier, userId.ToString())
         };
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);

@@ -10,13 +10,13 @@ public class GetMembersTests
     public async Task Execute_ReturnsAllMemberIds_WhenUserIsMember()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
-        var otherUserId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
 
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, userId)
+            new(ClaimTypes.NameIdentifier, userId.ToString())
         };
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
@@ -38,11 +38,12 @@ public class GetMembersTests
 
         // Assert
         Assert.NotNull(result);
-        if (result is Results<Ok<List<string>>, UnauthorizedHttpResult, ForbidHttpResult> results)
+        if (result is Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult> results)
         {
-            if (results.Result is Ok<List<string>> ok)
+            if (results.Result is Ok<List<Guid>> ok)
             {
                 var members = ok.Value;
+                Assert.NotNull(members);
                 Assert.Equal(2, members.Count);
                 Assert.Contains(userId, members);
                 Assert.Contains(otherUserId, members);
@@ -75,7 +76,7 @@ public class GetMembersTests
 
         // Assert
         Assert.NotNull(result);
-        if (result is Results<Ok<List<string>>, UnauthorizedHttpResult, ForbidHttpResult> results)
+        if (result is Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult> results)
         {
             Assert.IsType<UnauthorizedHttpResult>(results.Result);
         }
@@ -113,7 +114,7 @@ public class GetMembersTests
 
         // Assert
         Assert.NotNull(result);
-        if (result is Results<Ok<List<string>>, UnauthorizedHttpResult, ForbidHttpResult> results)
+        if (result is Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult> results)
         {
             Assert.IsType<ForbidHttpResult>(results.Result);
         }
@@ -127,12 +128,12 @@ public class GetMembersTests
     public async Task Execute_ReturnsUserId_WhenNoMembersExist()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
 
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, userId)
+            new(ClaimTypes.NameIdentifier, userId.ToString())
         };
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
@@ -155,7 +156,7 @@ public class GetMembersTests
 
         // Assert
         Assert.NotNull(result);
-        if (result is Results<Ok<List<string>>, UnauthorizedHttpResult, ForbidHttpResult> results)
+        if (result is Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult> results)
         {
             Assert.IsType<ForbidHttpResult>(results.Result);
         }

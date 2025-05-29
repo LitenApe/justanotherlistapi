@@ -19,8 +19,13 @@ public class DatabaseContext : IdentityDbContext<IdentityUser>
     public DbSet<ItemGroup> ItemGroups => Set<ItemGroup>();
     public DbSet<Member> Members => Set<Member>();
 
-    public Task<bool> IsMember(Guid itemGroup, string user, CancellationToken ct = default)
+    public Task<bool> IsMember(Guid itemGroup, Guid? user, CancellationToken ct = default)
     {
+        if (user is null)
+        {
+            return Task.FromResult(false);
+        }
+
         return Members.AnyAsync(m => m.ItemGroupId == itemGroup && m.MemberId == user, ct);
     }
 }

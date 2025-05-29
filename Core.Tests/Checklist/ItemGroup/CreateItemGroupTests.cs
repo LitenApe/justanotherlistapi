@@ -23,7 +23,7 @@ public class CreateItemGroupTests
 
         // Mock DatabaseContext
         var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: "TestDatabase")
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
         await using var dbContext = new DatabaseContext(options);
 
@@ -69,7 +69,7 @@ public class CreateItemGroupTests
 
         // Mock DatabaseContext
         var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: "TestDatabase")
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
         await using var dbContext = new DatabaseContext(options);
 
@@ -120,7 +120,7 @@ public class CreateItemGroupTests
 
         // Mock DatabaseContext
         var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: "TestDatabase")
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
         await using var dbContext = new DatabaseContext(options);
 
@@ -137,7 +137,7 @@ public class CreateItemGroupTests
                 Assert.NotNull(itemGroup);
 
                 var dataEntry = await dbContext.Members
-                    .FirstOrDefaultAsync(m => m.MemberId == userId.ToString() && m.ItemGroupId == itemGroup.Id);
+                    .FirstOrDefaultAsync(m => m.MemberId == userId && m.ItemGroupId == itemGroup.Id);
 
                 Assert.NotNull(dataEntry);
             }
@@ -171,7 +171,7 @@ public class CreateItemGroupTests
 
         // Mock DatabaseContext
         var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: "TestDatabase")
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
         await using var dbContext = new DatabaseContext(options);
 

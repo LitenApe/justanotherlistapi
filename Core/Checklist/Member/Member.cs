@@ -7,7 +7,7 @@ namespace Core.Checklist;
 public class Member
 {
     [Description("Unique identifier of the member")]
-    public required string MemberId { get; set; }
+    public required Guid MemberId { get; set; }
 
     [Description("Identifier of the item group this member belongs to")]
     public required Guid ItemGroupId { get; set; }

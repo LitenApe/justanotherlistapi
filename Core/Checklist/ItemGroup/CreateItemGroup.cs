@@ -30,11 +30,11 @@ public static class CreateItemGroup
             return TypedResults.Unauthorized();
         }
 
-        var itemGroup = await CreateData(userId, request, db, ct);
+        var itemGroup = await CreateData((Guid)userId, request, db, ct);
         return TypedResults.Created($"/list/{itemGroup.Id}", itemGroup);
     }
 
-    internal static async Task<ItemGroup> CreateData(string userId, Request request, DatabaseContext db, CancellationToken ct)
+    internal static async Task<ItemGroup> CreateData(Guid userId, Request request, DatabaseContext db, CancellationToken ct)
     {
         var itemGroup = new ItemGroup { Name = request.Name };
         await db.ItemGroups.AddAsync(itemGroup, ct);

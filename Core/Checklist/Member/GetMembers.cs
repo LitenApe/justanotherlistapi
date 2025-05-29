@@ -14,7 +14,7 @@ public static class GetMembers
             .WithName(nameof(GetMembers));
     }
 
-    public static async Task<Results<Ok<List<string>>, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
+    public static async Task<Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
         Guid itemGroupId,
         ClaimsPrincipal claimsPrincipal,
         DatabaseContext db,
@@ -41,7 +41,7 @@ public static class GetMembers
         return TypedResults.Ok(data);
     }
 
-    internal static async Task<List<string>?> LoadData(Guid itemGroupId, DatabaseContext db, CancellationToken ct)
+    internal static async Task<List<Guid>> LoadData(Guid itemGroupId, DatabaseContext db, CancellationToken ct)
     {
         return await db.Members
             .AsNoTracking()
