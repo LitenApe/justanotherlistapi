@@ -8,9 +8,16 @@ var builder = WebApplication.CreateBuilder(args);
 
 // --- Service Registrations ---
 
-// Database (In-Memory for development)
+// Database
+// builder.AddSqlServerClient(connectionName: "database");
+// builder.Services.AddDbContext<DatabaseContext>(opt =>
+// {
+//     opt.UseSqlServer(builder.Configuration.GetConnectionString("database"));
+// });
 builder.Services.AddDbContext<DatabaseContext>(opt =>
-    opt.UseInMemoryDatabase("JustAnotherList"));
+{
+    opt.UseInMemoryDatabase("JustAnotherList");
+});
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 // Authentication & Authorization
@@ -67,7 +74,7 @@ app.MapChecklistApi();
 app.MapOpenApi();
 app.MapScalarApiReference(opt =>
 {
-    opt.WithPreferredScheme("Bearer")
+    opt.AddPreferredSecuritySchemes("Bearer")
         .WithDownloadButton(true)
         .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.Curl);
 });
