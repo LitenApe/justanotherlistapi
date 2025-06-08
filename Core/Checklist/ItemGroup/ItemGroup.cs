@@ -25,6 +25,6 @@ public class ItemGroupConfiguration : IEntityTypeConfiguration<ItemGroup>
     {
         builder.HasKey(ig => ig.Id);
         builder.HasIndex(ig => ig.Id);
-        builder.Property(ig => ig.Id).HasDefaultValueSql();
+        builder.Property(ig => ig.Id).ValueGeneratedOnAdd();
     }
 }

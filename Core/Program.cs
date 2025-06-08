@@ -9,14 +9,10 @@ var builder = WebApplication.CreateBuilder(args);
 // --- Service Registrations ---
 
 // Database
-// builder.AddSqlServerClient(connectionName: "database");
-// builder.Services.AddDbContext<DatabaseContext>(opt =>
-// {
-//     opt.UseSqlServer(builder.Configuration.GetConnectionString("database"));
-// });
+builder.AddSqlServerClient(connectionName: "database");
 builder.Services.AddDbContext<DatabaseContext>(opt =>
 {
-    opt.UseInMemoryDatabase("JustAnotherList");
+    opt.UseSqlServer(builder.Configuration.GetConnectionString("database"));
 });
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
@@ -78,5 +74,13 @@ app.MapScalarApiReference(opt =>
         .WithDownloadButton(true)
         .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.Curl);
 });
+
+// --- Database Initialization ---
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+    await db.Database.MigrateAsync();
+}
 
 await app.RunAsync();
