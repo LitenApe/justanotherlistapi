@@ -3,11 +3,13 @@
 
 import {
   HeadContent,
+  Link,
   Outlet,
   Scripts,
   createRootRoute,
 } from '@tanstack/react-router';
 
+import { NotFound } from './404';
 import type { ReactNode } from 'react';
 
 export const Route = createRootRoute({
@@ -21,11 +23,12 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'JustAnotherList',
+        title: 'Just Another List',
       },
     ],
   }),
   component: RootComponent,
+  notFoundComponent: NotFound,
 });
 
 function RootComponent() {
@@ -43,6 +46,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
         <HeadContent />
       </head>
       <body>
+        <Link to="/">Home</Link>
         {children}
         <Scripts />
       </body>

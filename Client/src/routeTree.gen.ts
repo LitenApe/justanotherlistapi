@@ -9,38 +9,91 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as R404RouteImport } from './routes/404'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ChecklistIndexRouteImport } from './routes/checklist/index'
+import { Route as AuthSigninRouteImport } from './routes/auth/signin'
+import { Route as AuthRegistrationRouteImport } from './routes/auth/registration'
 
+const R404Route = R404RouteImport.update({
+  id: '/404',
+  path: '/404',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChecklistIndexRoute = ChecklistIndexRouteImport.update({
+  id: '/checklist/',
+  path: '/checklist/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthSigninRoute = AuthSigninRouteImport.update({
+  id: '/auth/signin',
+  path: '/auth/signin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRegistrationRoute = AuthRegistrationRouteImport.update({
+  id: '/auth/registration',
+  path: '/auth/registration',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/404': typeof R404Route
+  '/auth/registration': typeof AuthRegistrationRoute
+  '/auth/signin': typeof AuthSigninRoute
+  '/checklist': typeof ChecklistIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/404': typeof R404Route
+  '/auth/registration': typeof AuthRegistrationRoute
+  '/auth/signin': typeof AuthSigninRoute
+  '/checklist': typeof ChecklistIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/404': typeof R404Route
+  '/auth/registration': typeof AuthRegistrationRoute
+  '/auth/signin': typeof AuthSigninRoute
+  '/checklist/': typeof ChecklistIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/404' | '/auth/registration' | '/auth/signin' | '/checklist'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/404' | '/auth/registration' | '/auth/signin' | '/checklist'
+  id:
+    | '__root__'
+    | '/'
+    | '/404'
+    | '/auth/registration'
+    | '/auth/signin'
+    | '/checklist/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  R404Route: typeof R404Route
+  AuthRegistrationRoute: typeof AuthRegistrationRoute
+  AuthSigninRoute: typeof AuthSigninRoute
+  ChecklistIndexRoute: typeof ChecklistIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/404': {
+      id: '/404'
+      path: '/404'
+      fullPath: '/404'
+      preLoaderRoute: typeof R404RouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +101,36 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/checklist/': {
+      id: '/checklist/'
+      path: '/checklist'
+      fullPath: '/checklist'
+      preLoaderRoute: typeof ChecklistIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/signin': {
+      id: '/auth/signin'
+      path: '/auth/signin'
+      fullPath: '/auth/signin'
+      preLoaderRoute: typeof AuthSigninRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/registration': {
+      id: '/auth/registration'
+      path: '/auth/registration'
+      fullPath: '/auth/registration'
+      preLoaderRoute: typeof AuthRegistrationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  R404Route: R404Route,
+  AuthRegistrationRoute: AuthRegistrationRoute,
+  AuthSigninRoute: AuthSigninRoute,
+  ChecklistIndexRoute: ChecklistIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
