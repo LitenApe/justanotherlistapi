@@ -8,6 +8,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 // --- Service Registrations ---
 
+// Network
+builder.Services.AddCors();
+
 // Database
 builder.AddSqlServerClient(connectionName: "database");
 builder.Services.AddDbContext<DatabaseContext>(opt =>
@@ -60,6 +63,11 @@ var app = builder.Build();
 
 // --- Middleware Pipeline ---
 
+app.UseCors(policyBuilder => policyBuilder
+    .AllowAnyHeader()
+    .AllowAnyMethod()
+    .SetIsOriginAllowed(origin => true)
+    .AllowCredentials());
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
