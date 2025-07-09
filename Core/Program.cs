@@ -2,6 +2,8 @@ using Core;
 using Core.Utility;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using OpenTelemetry;
+using OpenTelemetry.Trace;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,6 +12,23 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Network
 builder.Services.AddCors();
+builder.Logging.AddOpenTelemetry(logging =>
+{
+    logging.IncludeFormattedMessage = true;
+    logging.IncludeScopes = true;
+});
+builder.Services.AddOpenTelemetry()
+    .WithTracing(metrics =>
+    {
+        // Metrics provider from OpenTelemetry
+        metrics.AddAspNetCoreInstrumentation();
+    })
+    .WithTracing(tracing =>
+    {
+        tracing.AddAspNetCoreInstrumentation();
+        tracing.AddHttpClientInstrumentation();
+    })
+    .UseOtlpExporter();
 
 // Database
 builder.AddSqlServerClient(connectionName: "database");
