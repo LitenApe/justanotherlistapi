@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as R404RouteImport } from './routes/404'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ChecklistIndexRouteImport } from './routes/checklist/index'
+import { Route as ChecklistChecklistIdRouteImport } from './routes/checklist/$checklistId'
 import { Route as AuthSigninRouteImport } from './routes/auth/signin'
 import { Route as AuthRegistrationRouteImport } from './routes/auth/registration'
 
@@ -30,6 +31,11 @@ const ChecklistIndexRoute = ChecklistIndexRouteImport.update({
   path: '/checklist/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChecklistChecklistIdRoute = ChecklistChecklistIdRouteImport.update({
+  id: '/checklist/$checklistId',
+  path: '/checklist/$checklistId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthSigninRoute = AuthSigninRouteImport.update({
   id: '/auth/signin',
   path: '/auth/signin',
@@ -46,6 +52,7 @@ export interface FileRoutesByFullPath {
   '/404': typeof R404Route
   '/auth/registration': typeof AuthRegistrationRoute
   '/auth/signin': typeof AuthSigninRoute
+  '/checklist/$checklistId': typeof ChecklistChecklistIdRoute
   '/checklist': typeof ChecklistIndexRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/404': typeof R404Route
   '/auth/registration': typeof AuthRegistrationRoute
   '/auth/signin': typeof AuthSigninRoute
+  '/checklist/$checklistId': typeof ChecklistChecklistIdRoute
   '/checklist': typeof ChecklistIndexRoute
 }
 export interface FileRoutesById {
@@ -61,19 +69,33 @@ export interface FileRoutesById {
   '/404': typeof R404Route
   '/auth/registration': typeof AuthRegistrationRoute
   '/auth/signin': typeof AuthSigninRoute
+  '/checklist/$checklistId': typeof ChecklistChecklistIdRoute
   '/checklist/': typeof ChecklistIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/404' | '/auth/registration' | '/auth/signin' | '/checklist'
+  fullPaths:
+    | '/'
+    | '/404'
+    | '/auth/registration'
+    | '/auth/signin'
+    | '/checklist/$checklistId'
+    | '/checklist'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/404' | '/auth/registration' | '/auth/signin' | '/checklist'
+  to:
+    | '/'
+    | '/404'
+    | '/auth/registration'
+    | '/auth/signin'
+    | '/checklist/$checklistId'
+    | '/checklist'
   id:
     | '__root__'
     | '/'
     | '/404'
     | '/auth/registration'
     | '/auth/signin'
+    | '/checklist/$checklistId'
     | '/checklist/'
   fileRoutesById: FileRoutesById
 }
@@ -82,6 +104,7 @@ export interface RootRouteChildren {
   R404Route: typeof R404Route
   AuthRegistrationRoute: typeof AuthRegistrationRoute
   AuthSigninRoute: typeof AuthSigninRoute
+  ChecklistChecklistIdRoute: typeof ChecklistChecklistIdRoute
   ChecklistIndexRoute: typeof ChecklistIndexRoute
 }
 
@@ -108,6 +131,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChecklistIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/checklist/$checklistId': {
+      id: '/checklist/$checklistId'
+      path: '/checklist/$checklistId'
+      fullPath: '/checklist/$checklistId'
+      preLoaderRoute: typeof ChecklistChecklistIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth/signin': {
       id: '/auth/signin'
       path: '/auth/signin'
@@ -130,6 +160,7 @@ const rootRouteChildren: RootRouteChildren = {
   R404Route: R404Route,
   AuthRegistrationRoute: AuthRegistrationRoute,
   AuthSigninRoute: AuthSigninRoute,
+  ChecklistChecklistIdRoute: ChecklistChecklistIdRoute,
   ChecklistIndexRoute: ChecklistIndexRoute,
 }
 export const routeTree = rootRouteImport

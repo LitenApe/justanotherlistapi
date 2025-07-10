@@ -1,3 +1,4 @@
+import Cookies from 'js-cookie';
 import { store } from '../../../services/localstorage.service';
 
 export function signIn(email: string, password: string) {
@@ -17,6 +18,7 @@ export function signIn(email: string, password: string) {
     .then((response) => (response !== '' ? JSON.parse(response) : null))
     .then((response) => {
       store('token', response);
+      Cookies.set('accessToken', response.accessToken);
       return response;
     });
 }
