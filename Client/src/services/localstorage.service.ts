@@ -13,5 +13,9 @@ export function get(key: string) {
     return null;
   }
 
-  return JSON.parse(value);
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
 }

@@ -1,10 +1,10 @@
-import Cookies from 'js-cookie';
+import { get } from '../../../services/localstorage.service';
 
 export function getChecklists() {
-  const token = Cookies.get('accessToken');
+  const token = get('token');
 
   if (token == null) {
-    throw new Error('Unable to retrieve token from cookie');
+    throw new Error('Unable to retrieve token from localstorage');
   }
 
   const options = {
@@ -19,10 +19,10 @@ export function getChecklists() {
 }
 
 export function getChecklist(id: string) {
-  const token = Cookies.get('accessToken');
+  const token = get('token');
 
   if (token == null) {
-    throw new Error('Unable to retrieve token from cookie');
+    throw new Error('Unable to retrieve token from localstorage');
   }
 
   const options = {
@@ -37,10 +37,10 @@ export function getChecklist(id: string) {
 }
 
 export function createChecklist(name: string) {
-  const token = Cookies.get('accessToken');
+  const token = get('token');
 
   if (token == null) {
-    throw new Error('Unable to retrieve token from cookie');
+    throw new Error('Unable to retrieve token from localstorage');
   }
 
   const options = {
@@ -61,10 +61,10 @@ export function createItem(
   description: string,
   completed: boolean,
 ) {
-  const token = Cookies.get('accessToken');
+  const token = get('token');
 
   if (token == null) {
-    throw new Error('Unable to retrieve token from cookie');
+    throw new Error('Unable to retrieve token from localstorage');
   }
 
   const options = {
