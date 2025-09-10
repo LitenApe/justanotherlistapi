@@ -1,11 +1,8 @@
-import { defineConfig } from 'vite';
-import { tanstackStart } from '@tanstack/react-start/plugin/vite';
-import tsConfigPaths from 'vite-tsconfig-paths';
+import { reactRouter } from "@react-router/dev/vite";
+import tailwindcss from "@tailwindcss/vite";
+import { defineConfig } from "vite";
+import tsconfigPaths from "vite-tsconfig-paths";
 
-// https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [tsConfigPaths(), tanstackStart()],
-  server: {
-    port: 55667,
-  },
+  plugins: [tailwindcss(), reactRouter(), tsconfigPaths()],
 });
