@@ -9,7 +9,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Core.Tests", "Core.Tests\Co
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aspire", "Aspire\Aspire.csproj", "{714620C9-55FB-4D22-A61A-B9881DADDA79}"
 EndProject
-Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "Client", "Client\Client.esproj", "{5DC3FCCF-9129-207D-CAD8-1B96C9FA47E2}"
+Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "Client", "client\Client.esproj", "{5DC3FCCF-9129-207D-CAD8-1B96C9FA47E2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
