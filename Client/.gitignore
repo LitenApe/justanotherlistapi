@@ -4,3 +4,14 @@
 # React Router
 /.react-router/
 /build/
+
+# Tests
+/coverage/
+__screenshots__/
+
+# Playwright
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
