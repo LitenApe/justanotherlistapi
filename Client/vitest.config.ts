@@ -27,7 +27,7 @@ export default defineConfig({
       include: ['src/**/*.ts', 'src/**/*.tsx'],
       exclude: ['src/routes/ts', 'src/root.tsx'],
     },
-    exclude: [...configDefaults.exclude, '**/test.e2e/**'],
+    exclude: [...configDefaults.exclude, '**/test/e2e/**'],
   },
   optimizeDeps: {
     include: ['react/jsx-dev-runtime'],
