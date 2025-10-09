@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="Aspire/Aspire.csproj" />
+  <Project Path="client/Client.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+  <Project Path="Core.Tests/Core.Tests.csproj" />
+  <Project Path="Core/Core.csproj" />
+</Solution>
