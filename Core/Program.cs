@@ -87,7 +87,7 @@ app.UseCors(policyBuilder => policyBuilder
     .AllowAnyMethod()
     .SetIsOriginAllowed(origin => true)
     .AllowCredentials());
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -98,7 +98,7 @@ app.MapOpenApi();
 app.MapScalarApiReference(opt =>
 {
     opt.AddPreferredSecuritySchemes("Bearer")
-        .WithDownloadButton(true)
+        .WithDocumentDownloadType(DocumentDownloadType.Both)
         .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.Curl);
 });
 

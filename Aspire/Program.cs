@@ -13,6 +13,6 @@ var core = builder.AddProject<Core>("Core")
 var client = builder.AddNpmApp("Client", "../Client", "dev")
     .WaitFor(core)
     .WithReference(core)
-    .WithUrl("http://localhost:5173");
+    .WithUrl("http://localhost:3000");
 
 builder.Build().Run();
