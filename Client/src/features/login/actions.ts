@@ -2,6 +2,9 @@
 
 import { HttpError, http } from '@/common/services/http';
 
+import { addTokens } from '@/common/services/auth/TokenCache.service';
+import { setSessionCookie } from '@/common/services/cookie/Cookie.service';
+
 export type AuthResult = {
   ok: boolean;
   formError?: string;
@@ -23,8 +26,12 @@ export async function authenticateUser(
       password,
     });
 
-    const body = response.data;
-    console.log(body);
+    const tokens = response.data;
+    const sessionId = await addTokens({
+      access: tokens.accessToken,
+      refresh: tokens.refreshToken,
+    });
+    await setSessionCookie(sessionId);
 
     return { ok: true, values };
   } catch (error: unknown) {

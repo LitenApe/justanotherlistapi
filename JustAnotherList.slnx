@@ -1,7 +1,7 @@
 <Solution>
   <Project Path="Aspire/Aspire.csproj" />
   <Project Path="client/Client.esproj">
-    <Build Solution="Release|*" />
+    <Build />
     <Deploy Solution="Release|*" />
   </Project>
   <Project Path="Core.Tests/Core.Tests.csproj" />
