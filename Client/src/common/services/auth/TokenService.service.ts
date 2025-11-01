@@ -15,15 +15,13 @@ export async function refreshToken(sessionId: string) {
     return false;
   }
 
-  const payload = {
-    refreshToken: tokens.refresh,
-  };
-
   try {
     console.info(`Refreshing tokens for [session=${sessionId}]`);
     const response = await http.post(
       'http://localhost:55733/refresh',
-      payload,
+      {
+        refreshToken: tokens.refresh,
+      },
       {
         headers: {
           Authorization: `Bearer ${tokens.access}`,
