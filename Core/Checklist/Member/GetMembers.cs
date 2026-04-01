@@ -10,7 +10,7 @@ public static class GetMembers
     public static void MapEndpoint(this RouteGroupBuilder builder)
     {
         builder.MapGet("/{itemGroupId:guid}/member", Execute)
-            .WithSummary("Get members of a item group")
+            .WithSummary("Get members of an item group")
             .WithTags(nameof(Member))
             .WithName(nameof(GetMembers));
     }

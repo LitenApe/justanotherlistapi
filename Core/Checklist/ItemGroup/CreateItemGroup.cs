@@ -1,4 +1,5 @@
-﻿using System.Data;
+﻿using System.ComponentModel;
+using System.Data;
 using System.Security.Claims;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -21,7 +22,7 @@ public static class CreateItemGroup
         IDbConnection db,
         CancellationToken ct = default)
     {
-        if (string.IsNullOrEmpty(request.Name.Trim()))
+        if (string.IsNullOrWhiteSpace(request.Name))
         {
             return TypedResults.BadRequest();
         }
@@ -32,7 +33,7 @@ public static class CreateItemGroup
             return TypedResults.Unauthorized();
         }
 
-        var itemGroup = await CreateData((Guid)userId, request, db, ct);
+        var itemGroup = await CreateData(userId.Value, request, db, ct);
         return TypedResults.Created($"/list/{itemGroup.Id}", itemGroup);
     }
 
@@ -64,6 +65,7 @@ public static class CreateItemGroup
 
     public record Request
     {
+        [Description("Name of the item group")]
         public required string Name { get; init; }
     }
 }

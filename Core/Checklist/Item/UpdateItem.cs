@@ -11,7 +11,7 @@ public static class UpdateItem
     public static void MapEndpoint(this RouteGroupBuilder builder)
     {
         builder.MapPut("/{itemGroupId:guid}/{itemId:guid}", Execute)
-            .WithSummary("Update a item")
+            .WithSummary("Update an item")
             .WithTags(nameof(Item))
             .WithName(nameof(UpdateItem));
     }
@@ -24,7 +24,7 @@ public static class UpdateItem
         IDbConnection db,
         CancellationToken ct = default)
     {
-        if (string.IsNullOrEmpty(request.Name.Trim()))
+        if (string.IsNullOrWhiteSpace(request.Name))
         {
             return TypedResults.BadRequest();
         }
