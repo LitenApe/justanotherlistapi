@@ -7,7 +7,7 @@ namespace Core.Checklist;
 
 public static class AddMember
 {
-    public static void MapEndpoint(this RouteGroupBuilder builder)
+    public static void MapEndpoint(this IEndpointRouteBuilder builder)
     {
         builder.MapPost("/{itemGroupId:guid}/member/{memberId:guid}", Execute)
             .WithSummary("Add a new member to an item group")

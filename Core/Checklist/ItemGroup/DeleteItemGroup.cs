@@ -7,7 +7,7 @@ namespace Core.Checklist;
 
 public static class DeleteItemGroup
 {
-    public static void MapEndpoint(this RouteGroupBuilder builder)
+    public static void MapEndpoint(this IEndpointRouteBuilder builder)
     {
         builder.MapDelete("/{itemGroupId:guid}", Execute)
             .WithSummary("Delete an item group")
