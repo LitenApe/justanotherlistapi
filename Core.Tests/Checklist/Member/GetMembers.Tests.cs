@@ -3,33 +3,34 @@ using Core.Checklist;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
 
-public class RemoveMemberTests
+namespace Core.Tests.Checklist.MemberTests;
+
+public class GetMembersTests
 {
     [Fact]
-    public async Task Execute_RemovesMember_WhenUserIsMember()
+    public async Task Execute_ReturnsAllMemberIds_WhenUserIsMember()
     {
         // Arrange
         var userId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-        var memberIdToRemove = Guid.NewGuid();
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
         await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = memberIdToRemove, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = otherUserId, ItemGroupId = itemGroupId });
 
         // Act
-        var result = await RemoveMember.Execute(itemGroupId, memberIdToRemove, claimsPrincipal, db, default);
+        var result = await GetMembers.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
-        Assert.IsType<NoContent>(result.Result);
-
-        // Confirm member is removed
-        var removed = await db.QueryFirstOrDefaultAsync<Member>(
-            "SELECT MemberId, ItemGroupId FROM Members WHERE ItemGroupId = @ItemGroupId AND MemberId = @MemberId",
-            new { ItemGroupId = itemGroupId, MemberId = memberIdToRemove });
-        Assert.Null(removed);
+        var ok = Assert.IsType<Ok<List<Guid>>>(result.Result);
+        var members = ok.Value;
+        Assert.NotNull(members);
+        Assert.Equal(2, members.Count);
+        Assert.Contains(userId, members);
+        Assert.Contains(otherUserId, members);
     }
 
     [Fact]
@@ -37,13 +38,12 @@ public class RemoveMemberTests
     {
         // Arrange
         var itemGroupId = Guid.NewGuid();
-        var memberIdToRemove = Guid.NewGuid();
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
 
         await using var db = await TestDatabase.CreateAsync();
 
         // Act
-        var result = await RemoveMember.Execute(itemGroupId, memberIdToRemove, claimsPrincipal, db, default);
+        var result = await GetMembers.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.IsType<UnauthorizedHttpResult>(result.Result);
@@ -55,38 +55,37 @@ public class RemoveMemberTests
         // Arrange
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-        var memberIdToRemove = Guid.NewGuid();
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
-        // User is not a member
+        // No member for this user
 
         // Act
-        var result = await RemoveMember.Execute(itemGroupId, memberIdToRemove, claimsPrincipal, db, default);
+        var result = await GetMembers.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.IsType<ForbidHttpResult>(result.Result);
     }
 
     [Fact]
-    public async Task Execute_NoError_WhenMemberDoesNotExist()
+    public async Task Execute_ReturnsForbid_WhenUserMembershipIsRevoked()
     {
         // Arrange
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-        var memberIdToRemove = Guid.NewGuid();
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
         await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
+        // Remove all members to simulate revoked membership
+        await db.ExecuteAsync("DELETE FROM Members WHERE ItemGroupId = @ItemGroupId", new { ItemGroupId = itemGroupId });
 
         // Act
-        var result = await RemoveMember.Execute(itemGroupId, memberIdToRemove, claimsPrincipal, db, default);
+        var result = await GetMembers.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
-        Assert.IsType<NoContent>(result.Result);
+        Assert.IsType<ForbidHttpResult>(result.Result);
     }
 }
-

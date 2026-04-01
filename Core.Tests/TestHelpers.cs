@@ -1,5 +1,7 @@
 using System.Security.Claims;
 
+namespace Core.Tests;
+
 internal static class TestHelpers
 {
     public static ClaimsPrincipal CreatePrincipal(Guid userId)

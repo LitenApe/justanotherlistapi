@@ -1,5 +1,6 @@
 using System.Security.Claims;
-using Core;
+
+namespace Core.Tests;
 
 public class ClaimsPrincipalExtensionTests
 {

@@ -2,6 +2,8 @@ using System.Data;
 using Dapper;
 using Microsoft.Data.Sqlite;
 
+namespace Core.Tests;
+
 /// <summary>
 /// Creates an in-memory SQLite connection with the application schema set up,
 /// for use in unit tests as a substitute for a real SQL Server connection.
