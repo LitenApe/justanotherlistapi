@@ -12,13 +12,7 @@ public class RemoveMemberTests
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var memberIdToRemove = Guid.NewGuid();
-
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, userId.ToString())
-        };
-        var identity = new ClaimsIdentity(claims, "TestAuthType");
-        var claimsPrincipal = new ClaimsPrincipal(identity);
+        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
@@ -29,21 +23,13 @@ public class RemoveMemberTests
         var result = await RemoveMember.Execute(itemGroupId, memberIdToRemove, claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> results)
-        {
-            Assert.IsType<NoContent>(results.Result);
+        Assert.IsType<NoContent>(result.Result);
 
-            // Confirm member is removed
-            var removed = await db.QueryFirstOrDefaultAsync<Member>(
-                "SELECT MemberId, ItemGroupId FROM Members WHERE ItemGroupId = @ItemGroupId AND MemberId = @MemberId",
-                new { ItemGroupId = itemGroupId, MemberId = memberIdToRemove });
-            Assert.Null(removed);
-        }
-        else
-        {
-            Assert.Fail("Expected Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>.");
-        }
+        // Confirm member is removed
+        var removed = await db.QueryFirstOrDefaultAsync<Member>(
+            "SELECT MemberId, ItemGroupId FROM Members WHERE ItemGroupId = @ItemGroupId AND MemberId = @MemberId",
+            new { ItemGroupId = itemGroupId, MemberId = memberIdToRemove });
+        Assert.Null(removed);
     }
 
     [Fact]
@@ -60,31 +46,17 @@ public class RemoveMemberTests
         var result = await RemoveMember.Execute(itemGroupId, memberIdToRemove, claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> results)
-        {
-            Assert.IsType<UnauthorizedHttpResult>(results.Result);
-        }
-        else
-        {
-            Assert.Fail("Expected Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>.");
-        }
+        Assert.IsType<UnauthorizedHttpResult>(result.Result);
     }
 
     [Fact]
     public async Task Execute_ReturnsForbid_WhenUserIsNotMember()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var memberIdToRemove = Guid.NewGuid();
-
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, userId)
-        };
-        var identity = new ClaimsIdentity(claims, "TestAuthType");
-        var claimsPrincipal = new ClaimsPrincipal(identity);
+        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
@@ -94,15 +66,7 @@ public class RemoveMemberTests
         var result = await RemoveMember.Execute(itemGroupId, memberIdToRemove, claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> results)
-        {
-            Assert.IsType<ForbidHttpResult>(results.Result);
-        }
-        else
-        {
-            Assert.Fail("Expected Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>.");
-        }
+        Assert.IsType<ForbidHttpResult>(result.Result);
     }
 
     [Fact]
@@ -112,13 +76,7 @@ public class RemoveMemberTests
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var memberIdToRemove = Guid.NewGuid();
-
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, userId.ToString())
-        };
-        var identity = new ClaimsIdentity(claims, "TestAuthType");
-        var claimsPrincipal = new ClaimsPrincipal(identity);
+        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
@@ -128,15 +86,7 @@ public class RemoveMemberTests
         var result = await RemoveMember.Execute(itemGroupId, memberIdToRemove, claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> results)
-        {
-            Assert.IsType<NoContent>(results.Result);
-        }
-        else
-        {
-            Assert.Fail("Expected Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>.");
-        }
+        Assert.IsType<NoContent>(result.Result);
     }
 }
 

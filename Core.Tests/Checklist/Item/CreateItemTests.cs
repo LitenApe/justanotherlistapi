@@ -17,13 +17,7 @@ public class CreateItemTests
             Description = "Test Description",
             IsComplete = false
         };
-
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, userId.ToString())
-        };
-        var identity = new ClaimsIdentity(claims, "TestAuthType");
-        var claimsPrincipal = new ClaimsPrincipal(identity);
+        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
@@ -33,32 +27,18 @@ public class CreateItemTests
         var result = await CreateItem.Execute(itemGroupId, request, claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<Created<Item>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> results)
-        {
-            if (results.Result is Created<Item> created)
-            {
-                var item = created.Value;
-                Assert.NotNull(item);
-                Assert.Equal(request.Name, item.Name);
-                Assert.Equal(request.Description, item.Description);
-                Assert.Equal(request.IsComplete, item.IsComplete);
-                Assert.Equal(itemGroupId, item.ItemGroupId);
+        var created = Assert.IsType<Created<Item>>(result.Result);
+        var item = created.Value;
+        Assert.NotNull(item);
+        Assert.Equal(request.Name, item.Name);
+        Assert.Equal(request.Description, item.Description);
+        Assert.Equal(request.IsComplete, item.IsComplete);
+        Assert.Equal(itemGroupId, item.ItemGroupId);
 
-                // Confirm DB write
-                var dbItem = await db.QueryFirstOrDefaultAsync<Item>(
-                    "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE Id = @Id", new { item.Id });
-                Assert.NotNull(dbItem);
-            }
-            else
-            {
-                Assert.Fail("Expected Created<Item> result.");
-            }
-        }
-        else
-        {
-            Assert.Fail("Expected Results<Created<Item>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult>.");
-        }
+        // Confirm DB write
+        var dbItem = await db.QueryFirstOrDefaultAsync<Item>(
+            "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE Id = @Id", new { item.Id });
+        Assert.NotNull(dbItem);
     }
 
     [Theory]
@@ -75,13 +55,7 @@ public class CreateItemTests
             Description = "Test Description",
             IsComplete = false
         };
-
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, userId.ToString())
-        };
-        var identity = new ClaimsIdentity(claims, "TestAuthType");
-        var claimsPrincipal = new ClaimsPrincipal(identity);
+        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
@@ -91,15 +65,7 @@ public class CreateItemTests
         var result = await CreateItem.Execute(itemGroupId, request, claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<Created<Item>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> results)
-        {
-            Assert.IsType<BadRequest>(results.Result);
-        }
-        else
-        {
-            Assert.Fail("Expected Results<Created<Item>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult>.");
-        }
+        Assert.IsType<BadRequest>(result.Result);
     }
 
     [Fact]
@@ -123,22 +89,14 @@ public class CreateItemTests
         var result = await CreateItem.Execute(itemGroupId, request, claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<Created<Item>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> results)
-        {
-            Assert.IsType<UnauthorizedHttpResult>(results.Result);
-        }
-        else
-        {
-            Assert.Fail("Expected Results<Created<Item>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult>.");
-        }
+        Assert.IsType<UnauthorizedHttpResult>(result.Result);
     }
 
     [Fact]
     public async Task Execute_ReturnsForbid_WhenUserIsNotMember()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var request = new CreateItem.Request
         {
@@ -146,13 +104,7 @@ public class CreateItemTests
             Description = "Test Description",
             IsComplete = false
         };
-
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, userId)
-        };
-        var identity = new ClaimsIdentity(claims, "TestAuthType");
-        var claimsPrincipal = new ClaimsPrincipal(identity);
+        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
@@ -162,15 +114,7 @@ public class CreateItemTests
         var result = await CreateItem.Execute(itemGroupId, request, claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<Created<Item>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> results)
-        {
-            Assert.IsType<ForbidHttpResult>(results.Result);
-        }
-        else
-        {
-            Assert.Fail("Expected Results<Created<Item>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult>.");
-        }
+        Assert.IsType<ForbidHttpResult>(result.Result);
     }
 }
 

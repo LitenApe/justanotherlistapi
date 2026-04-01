@@ -13,13 +13,7 @@ public class GetItemGroupsTests
         var otherUserId = Guid.NewGuid();
         var group1Id = Guid.NewGuid();
         var group2Id = Guid.NewGuid();
-
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, userId.ToString())
-        };
-        var identity = new ClaimsIdentity(claims, "TestAuthType");
-        var claimsPrincipal = new ClaimsPrincipal(identity);
+        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = group1Id, Name = "Group 1" });
@@ -37,42 +31,23 @@ public class GetItemGroupsTests
         var result = await GetItemGroups.Execute(claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<Ok<List<ItemGroup>>, UnauthorizedHttpResult> results)
-        {
-            if (results.Result is Ok<List<ItemGroup>> ok)
-            {
-                var groups = ok.Value;
-                Assert.NotNull(groups);
-                Assert.Equal(2, groups.Count);
-                var group1 = groups.FirstOrDefault(g => g.Id == group1Id);
-                Assert.NotNull(group1);
-                // Only incomplete items should be included
-                Assert.Single(group1.Items);
-                Assert.Equal("Incomplete", group1.Items.First().Name);
-            }
-            else
-            {
-                Assert.Fail("Expected Ok<List<ItemGroup>> result.");
-            }
-        }
-        else
-        {
-            Assert.Fail("Expected Results<Ok<List<ItemGroup>>, UnauthorizedHttpResult>.");
-        }
+        var ok = Assert.IsType<Ok<List<ItemGroup>>>(result.Result);
+        var groups = ok.Value;
+        Assert.NotNull(groups);
+        Assert.Equal(2, groups.Count);
+        var group1 = groups.FirstOrDefault(g => g.Id == group1Id);
+        Assert.NotNull(group1);
+        // Only incomplete items should be included
+        Assert.Single(group1.Items);
+        Assert.Equal("Incomplete", group1.Items.First().Name);
     }
 
     [Fact]
     public async Task Execute_ReturnsEmptyList_WhenUserHasNoGroups()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, userId)
-        };
-        var identity = new ClaimsIdentity(claims, "TestAuthType");
-        var claimsPrincipal = new ClaimsPrincipal(identity);
+        var userId = Guid.NewGuid();
+        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
         // No groups or members for this user
@@ -81,23 +56,9 @@ public class GetItemGroupsTests
         var result = await GetItemGroups.Execute(claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<Ok<List<ItemGroup>>, UnauthorizedHttpResult> results)
-        {
-            if (results.Result is Ok<List<ItemGroup>> ok)
-            {
-                Assert.NotNull(ok.Value);
-                Assert.Empty(ok.Value);
-            }
-            else
-            {
-                Assert.Fail("Expected Ok<List<ItemGroup>> result.");
-            }
-        }
-        else
-        {
-            Assert.Fail("Expected Results<Ok<List<ItemGroup>>, UnauthorizedHttpResult>.");
-        }
+        var ok = Assert.IsType<Ok<List<ItemGroup>>>(result.Result);
+        Assert.NotNull(ok.Value);
+        Assert.Empty(ok.Value);
     }
 
     [Fact]
@@ -112,15 +73,7 @@ public class GetItemGroupsTests
         var result = await GetItemGroups.Execute(claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<Ok<List<ItemGroup>>, UnauthorizedHttpResult> results)
-        {
-            Assert.IsType<UnauthorizedHttpResult>(results.Result);
-        }
-        else
-        {
-            Assert.Fail("Expected Results<Ok<List<ItemGroup>>, UnauthorizedHttpResult>.");
-        }
+        Assert.IsType<UnauthorizedHttpResult>(result.Result);
     }
 }
 

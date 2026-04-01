@@ -16,13 +16,7 @@ public class UpdateItemTests
         var newName = "Updated Item";
         var newDescription = "Updated Description";
         var newIsComplete = true;
-
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, userId.ToString())
-        };
-        var identity = new ClaimsIdentity(claims, "TestAuthType");
-        var claimsPrincipal = new ClaimsPrincipal(identity);
+        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
@@ -41,24 +35,16 @@ public class UpdateItemTests
         var result = await UpdateItem.Execute(itemGroupId, itemId, request, claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> results)
-        {
-            Assert.IsType<NoContent>(results.Result);
+        Assert.IsType<NoContent>(result.Result);
 
-            // Confirm DB update
-            var updated = await db.QueryFirstOrDefaultAsync<Item>(
-                "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE Id = @Id AND ItemGroupId = @ItemGroupId",
-                new { Id = itemId, ItemGroupId = itemGroupId });
-            Assert.NotNull(updated);
-            Assert.Equal(newName, updated.Name);
-            Assert.Equal(newDescription, updated.Description);
-            Assert.Equal(newIsComplete, updated.IsComplete);
-        }
-        else
-        {
-            Assert.Fail("Expected Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult>.");
-        }
+        // Confirm DB update
+        var updated = await db.QueryFirstOrDefaultAsync<Item>(
+            "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE Id = @Id AND ItemGroupId = @ItemGroupId",
+            new { Id = itemId, ItemGroupId = itemGroupId });
+        Assert.NotNull(updated);
+        Assert.Equal(newName, updated.Name);
+        Assert.Equal(newDescription, updated.Description);
+        Assert.Equal(newIsComplete, updated.IsComplete);
     }
 
     [Theory]
@@ -70,13 +56,7 @@ public class UpdateItemTests
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, userId.ToString())
-        };
-        var identity = new ClaimsIdentity(claims, "TestAuthType");
-        var claimsPrincipal = new ClaimsPrincipal(identity);
+        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
@@ -90,15 +70,7 @@ public class UpdateItemTests
         var result = await UpdateItem.Execute(itemGroupId, itemId, request, claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> results)
-        {
-            Assert.IsType<BadRequest>(results.Result);
-        }
-        else
-        {
-            Assert.Fail("Expected Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult>.");
-        }
+        Assert.IsType<BadRequest>(result.Result);
     }
 
     [Fact]
@@ -119,32 +91,18 @@ public class UpdateItemTests
         var result = await UpdateItem.Execute(itemGroupId, itemId, request, claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> results)
-        {
-            Assert.IsType<UnauthorizedHttpResult>(results.Result);
-        }
-        else
-        {
-            Assert.Fail("Expected Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult>.");
-        }
+        Assert.IsType<UnauthorizedHttpResult>(result.Result);
     }
 
     [Fact]
     public async Task Execute_ReturnsForbid_WhenUserIsNotMember()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
         var request = new UpdateItem.Request { Name = "Name", Description = "Desc", IsComplete = false };
-
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, userId)
-        };
-        var identity = new ClaimsIdentity(claims, "TestAuthType");
-        var claimsPrincipal = new ClaimsPrincipal(identity);
+        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
@@ -155,15 +113,7 @@ public class UpdateItemTests
         var result = await UpdateItem.Execute(itemGroupId, itemId, request, claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> results)
-        {
-            Assert.IsType<ForbidHttpResult>(results.Result);
-        }
-        else
-        {
-            Assert.Fail("Expected Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult>.");
-        }
+        Assert.IsType<ForbidHttpResult>(result.Result);
     }
 
     [Fact]
@@ -174,13 +124,7 @@ public class UpdateItemTests
         var itemGroupId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
         var request = new UpdateItem.Request { Name = "Name", Description = "Desc", IsComplete = false };
-
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, userId.ToString())
-        };
-        var identity = new ClaimsIdentity(claims, "TestAuthType");
-        var claimsPrincipal = new ClaimsPrincipal(identity);
+        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
@@ -190,21 +134,13 @@ public class UpdateItemTests
         var result = await UpdateItem.Execute(itemGroupId, itemId, request, claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> results)
-        {
-            Assert.IsType<NoContent>(results.Result);
+        Assert.IsType<NoContent>(result.Result);
 
-            // Confirm item still does not exist
-            var updated = await db.QueryFirstOrDefaultAsync<Item>(
-                "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE Id = @Id AND ItemGroupId = @ItemGroupId",
-                new { Id = itemId, ItemGroupId = itemGroupId });
-            Assert.Null(updated);
-        }
-        else
-        {
-            Assert.Fail("Expected Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult>.");
-        }
+        // Confirm item still does not exist
+        var updated = await db.QueryFirstOrDefaultAsync<Item>(
+            "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE Id = @Id AND ItemGroupId = @ItemGroupId",
+            new { Id = itemId, ItemGroupId = itemGroupId });
+        Assert.Null(updated);
     }
 }
 
