@@ -12,7 +12,7 @@ public static class GetMembers
         builder.MapGet("/{itemGroupId:guid}/member", Execute)
             .WithSummary("Get members of an item group")
             .WithDescription("Returns the list of user IDs that are members of the specified item group. The authenticated user must already be a member.")
-            .WithTags(nameof(Member))
+            .WithTags("Member")
             .WithName(nameof(GetMembers));
     }
 

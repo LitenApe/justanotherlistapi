@@ -14,5 +14,5 @@ public record ItemGroup
     public List<Item> Items { get; init; } = [];
 
     [Description("Members of the item group")]
-    public List<Member> Members { get; init; } = [];
+    public List<Guid> Members { get; init; } = [];
 }

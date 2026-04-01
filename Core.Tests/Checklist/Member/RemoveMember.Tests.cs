@@ -28,8 +28,8 @@ public class RemoveMemberTests
         Assert.IsType<NoContent>(result.Result);
 
         // Confirm member is removed
-        var removed = await db.QueryFirstOrDefaultAsync<Member>(
-            "SELECT MemberId, ItemGroupId FROM Members WHERE ItemGroupId = @ItemGroupId AND MemberId = @MemberId",
+        var removed = await db.QueryFirstOrDefaultAsync<Guid?>(
+            "SELECT MemberId FROM Members WHERE ItemGroupId = @ItemGroupId AND MemberId = @MemberId",
             new { ItemGroupId = itemGroupId, MemberId = memberIdToRemove });
         Assert.Null(removed);
     }

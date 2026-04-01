@@ -12,7 +12,7 @@ public static class RemoveMember
         builder.MapDelete("/{itemGroupId:guid}/member/{memberId:guid}", Execute)
             .WithSummary("Remove member from item group")
             .WithDescription("Revokes a user's access to an item group by removing them as a member. The authenticated user must be a member of the group.")
-            .WithTags(nameof(Member))
+            .WithTags("Member")
             .WithName(nameof(RemoveMember));
     }
 

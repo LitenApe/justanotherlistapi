@@ -60,7 +60,7 @@ public static class CreateItemGroup
 
         return itemGroup with
         {
-            Members = [new Member { MemberId = userId, ItemGroupId = itemGroup.Id }]
+            Members = [userId]
         };
     }
 

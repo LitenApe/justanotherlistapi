@@ -60,8 +60,8 @@ public class GetItemGroupTests
         Assert.Contains(returnedGroup.Items, i => i.Name == "Item 1");
         Assert.Contains(returnedGroup.Items, i => i.Name == "Item 2");
         Assert.Equal(2, returnedGroup.Members.Count);
-        Assert.Contains(returnedGroup.Members, m => m.MemberId == userId);
-        Assert.Contains(returnedGroup.Members, m => m.MemberId == member2Id);
+        Assert.Contains(returnedGroup.Members, m => m == userId);
+        Assert.Contains(returnedGroup.Members, m => m == member2Id);
     }
 
     [Fact]

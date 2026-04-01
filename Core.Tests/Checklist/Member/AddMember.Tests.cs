@@ -27,8 +27,8 @@ public class AddMemberTests
         Assert.IsType<NoContent>(result.Result);
 
         // Confirm DB write
-        var added = await db.QueryFirstOrDefaultAsync<Member>(
-            "SELECT MemberId, ItemGroupId FROM Members WHERE ItemGroupId = @ItemGroupId AND MemberId = @MemberId",
+        var added = await db.QueryFirstOrDefaultAsync<Guid?>(
+            "SELECT MemberId FROM Members WHERE ItemGroupId = @ItemGroupId AND MemberId = @MemberId",
             new { ItemGroupId = itemGroupId, MemberId = newMemberId });
         Assert.NotNull(added);
     }

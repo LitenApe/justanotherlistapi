@@ -12,7 +12,7 @@ public static class AddMember
         builder.MapPost("/{itemGroupId:guid}/member/{memberId:guid}", Execute)
             .WithSummary("Add a new member to an item group")
             .WithDescription("Grants another user access to an item group by adding them as a member. The authenticated user must already be a member. Returns 409 Conflict if the user is already a member.")
-            .WithTags(nameof(Member))
+            .WithTags("Member")
             .WithName(nameof(AddMember));
     }
 

@@ -56,7 +56,7 @@ public class DeleteItemGroupTests
             "SELECT Id FROM Items WHERE ItemGroupId = @ItemGroupId", new { ItemGroupId = itemGroupId });
         Assert.Empty(remainingItems);
 
-        var remainingMembers = await db.QueryAsync<Member>(
+        var remainingMembers = await db.QueryAsync<Guid>(
             "SELECT MemberId FROM Members WHERE ItemGroupId = @ItemGroupId", new { ItemGroupId = itemGroupId });
         Assert.Empty(remainingMembers);
     }
