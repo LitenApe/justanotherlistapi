@@ -4,7 +4,7 @@ using Microsoft.OpenApi;
 
 namespace Core.Utility;
 
-public class BearerSecuritySchemeTransformer(
+public sealed class BearerSecuritySchemeTransformer(
     IAuthenticationSchemeProvider schemeProvider,
     IConfiguration configuration
 ) : IOpenApiDocumentTransformer

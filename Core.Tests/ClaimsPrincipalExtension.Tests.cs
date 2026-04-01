@@ -2,7 +2,7 @@ using System.Security.Claims;
 
 namespace Core.Tests;
 
-public class ClaimsPrincipalExtensionTests
+public sealed class ClaimsPrincipalExtensionTests
 {
     [Fact]
     public void GetUserId_ReturnsGuid_WhenNameIdentifierClaimIsPresent()

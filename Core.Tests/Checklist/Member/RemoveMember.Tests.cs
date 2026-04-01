@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Core.Tests.Checklist.MemberTests;
 
-public class RemoveMemberTests
+public sealed class RemoveMemberTests
 {
     [Fact]
     public async Task Execute_RemovesMember_WhenUserIsMember()

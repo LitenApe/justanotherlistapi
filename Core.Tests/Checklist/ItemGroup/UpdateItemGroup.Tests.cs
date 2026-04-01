@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Core.Tests.Checklist.ItemGroupTests;
 
-public class UpdateItemGroupTests
+public sealed class UpdateItemGroupTests
 {
     [Fact]
     public async Task Execute_UpdatesItemGroup_WhenUserIsMember()

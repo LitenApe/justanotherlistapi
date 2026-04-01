@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Core.Tests.Checklist.ItemGroupTests;
 
-public class GetItemGroupTests
+public sealed class GetItemGroupTests
 {
     [Fact]
     public async Task Execute_ReturnsOk_WhenUserIsMember_AndItemGroupExists()

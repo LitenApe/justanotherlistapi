@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Core.Tests.Checklist.ItemGroupTests;
 
-public class CreateItemGroupTests
+public sealed class CreateItemGroupTests
 {
     [Fact]
     public async Task Execute_ReturnsCreated_WhenUserIsAuthenticated()
