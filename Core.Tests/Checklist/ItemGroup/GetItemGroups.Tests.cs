@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Core.Tests.Checklist.ItemGroupTests;
 
-public class GetItemGroupsTests
+public sealed class GetItemGroupsTests
 {
     [Fact]
     public async Task Execute_ReturnsAllItemGroups_ForAuthenticatedUser()

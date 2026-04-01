@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Core.Tests.Checklist.ItemTests;
 
-public class DeleteItemTests
+public sealed class DeleteItemTests
 {
     [Fact]
     public async Task Execute_DeletesItem_WhenUserIsMember()

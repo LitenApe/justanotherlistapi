@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Core.Tests.Checklist.MemberTests;
 
-public class GetMembersTests
+public sealed class GetMembersTests
 {
     [Fact]
     public async Task Execute_ReturnsAllMemberIds_WhenUserIsMember()

@@ -2,7 +2,7 @@ using System.ComponentModel;
 
 namespace Core.Checklist;
 
-public record Item
+public sealed record Item
 {
     [Description("Unique identifier of the item")]
     public Guid Id { get; init; }

@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Core.Tests.Checklist.ItemTests;
 
-public class CreateItemTests
+public sealed class CreateItemTests
 {
     [Fact]
     public async Task Execute_CreatesItem_WhenUserIsMember()

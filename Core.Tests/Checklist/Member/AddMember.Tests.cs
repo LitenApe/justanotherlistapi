@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Core.Tests.Checklist.MemberTests;
 
-public class AddMemberTests
+public sealed class AddMemberTests
 {
     [Fact]
     public async Task Execute_AddsMember_WhenUserIsMember()
