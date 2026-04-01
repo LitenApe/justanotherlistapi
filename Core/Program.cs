@@ -18,11 +18,6 @@ builder.Logging.AddOpenTelemetry(logging =>
     logging.IncludeScopes = true;
 });
 builder.Services.AddOpenTelemetry()
-    .WithTracing(metrics =>
-    {
-        // Metrics provider from OpenTelemetry
-        metrics.AddAspNetCoreInstrumentation();
-    })
     .WithTracing(tracing =>
     {
         tracing.AddAspNetCoreInstrumentation();

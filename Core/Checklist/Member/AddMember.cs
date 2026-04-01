@@ -15,7 +15,7 @@ public static class AddMember
             .WithName(nameof(AddMember));
     }
 
-    public static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
+    public static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult, Conflict>> Execute(
         Guid itemGroupId,
         Guid memberId,
         ClaimsPrincipal claimsPrincipal,
@@ -32,6 +32,12 @@ public static class AddMember
         if (!isMember)
         {
             return TypedResults.Forbid();
+        }
+
+        var alreadyMember = await db.IsMember(itemGroupId, memberId, ct);
+        if (alreadyMember)
+        {
+            return TypedResults.Conflict();
         }
 
         await CreateData(itemGroupId, memberId, db, ct);
