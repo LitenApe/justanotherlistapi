@@ -1,4 +1,6 @@
-﻿using System.Security.Claims;
+﻿using System.Data;
+using System.Security.Claims;
+using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Core.Checklist;
@@ -16,7 +18,7 @@ public static class CreateItemGroup
     public static async Task<Results<Created<ItemGroup>, BadRequest, UnauthorizedHttpResult>> Execute(
         Request request,
         ClaimsPrincipal claimsPrincipal,
-        DatabaseContext db,
+        IDbConnection db,
         CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(request.Name.Trim()))
@@ -34,19 +36,34 @@ public static class CreateItemGroup
         return TypedResults.Created($"/list/{itemGroup.Id}", itemGroup);
     }
 
-    internal static async Task<ItemGroup> CreateData(Guid userId, Request request, DatabaseContext db, CancellationToken ct)
+    internal static async Task<ItemGroup> CreateData(Guid userId, Request request, IDbConnection db, CancellationToken ct)
     {
-        var itemGroup = new ItemGroup { Name = request.Name };
-        await db.ItemGroups.AddAsync(itemGroup, ct);
+        var itemGroup = new ItemGroup { Id = Guid.NewGuid(), Name = request.Name };
 
-        var member = new Member { ItemGroupId = itemGroup.Id, MemberId = userId };
-        await db.Members.AddAsync(member, ct);
-        await db.SaveChangesAsync(ct);
-        return itemGroup;
+        using var tx = db.BeginTransaction();
+
+        await db.ExecuteAsync(new CommandDefinition(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { itemGroup.Id, itemGroup.Name },
+            transaction: tx,
+            cancellationToken: ct));
+
+        await db.ExecuteAsync(new CommandDefinition(
+            "INSERT INTO Members (ItemGroupId, MemberId) VALUES (@ItemGroupId, @MemberId)",
+            new { ItemGroupId = itemGroup.Id, MemberId = userId },
+            transaction: tx,
+            cancellationToken: ct));
+
+        tx.Commit();
+
+        return itemGroup with
+        {
+            Members = [new Member { MemberId = userId, ItemGroupId = itemGroup.Id }]
+        };
     }
 
-    public class Request
+    public record Request
     {
-        public required string Name { get; set; }
+        public required string Name { get; init; }
     }
 }

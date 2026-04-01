@@ -1,6 +1,7 @@
-﻿using System.Security.Claims;
+﻿using System.Data;
+using System.Security.Claims;
+using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
 
 namespace Core.Checklist;
 
@@ -18,7 +19,7 @@ public static class RemoveMember
         Guid itemGroupId,
         Guid memberId,
         ClaimsPrincipal claimsPrincipal,
-        DatabaseContext db,
+        IDbConnection db,
         CancellationToken ct)
     {
         var userId = claimsPrincipal.GetUserId();
@@ -37,26 +38,11 @@ public static class RemoveMember
         return TypedResults.NoContent();
     }
 
-    internal static async Task RemoveData(Guid itemGroupId, Guid memberId, DatabaseContext db, CancellationToken ct)
+    internal static async Task RemoveData(Guid itemGroupId, Guid memberId, IDbConnection db, CancellationToken ct)
     {
-        try
-        {
-            var member = await db.Members.FirstOrDefaultAsync(m => m.ItemGroupId == itemGroupId && m.MemberId == memberId, ct);
-            if (member != null)
-            {
-                db.Members.Remove(member);
-                await db.SaveChangesAsync(ct);
-            }
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            // If the member does not exist, we can ignore this exception
-            // as it means the member was already removed or never existed.
-        }
-        catch (Exception ex)
-        {
-            // Log the exception if necessary
-            throw new InvalidOperationException("Failed to remove member from item group.", ex);
-        }
+        await db.ExecuteAsync(new CommandDefinition(
+            "DELETE FROM Members WHERE MemberId = @MemberId AND ItemGroupId = @ItemGroupId",
+            new { MemberId = memberId, ItemGroupId = itemGroupId },
+            cancellationToken: ct));
     }
 }

@@ -1,5 +1,7 @@
 ﻿using System.ComponentModel;
+using System.Data;
 using System.Security.Claims;
+using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Core.Checklist;
@@ -18,7 +20,7 @@ public static class UpdateItemGroup
         Guid itemGroupId,
         Request request,
         ClaimsPrincipal claimsPrincipal,
-        DatabaseContext db,
+        IDbConnection db,
         CancellationToken ct)
     {
         if (string.IsNullOrEmpty(request.Name.Trim()))
@@ -42,23 +44,17 @@ public static class UpdateItemGroup
         return TypedResults.NoContent();
     }
 
-    internal static async Task UpdateData(Guid itemGroupId, Request request, DatabaseContext db, CancellationToken ct)
+    internal static async Task UpdateData(Guid itemGroupId, Request request, IDbConnection db, CancellationToken ct)
     {
-        var itemGroup = await db.ItemGroups.FindAsync([itemGroupId], cancellationToken: ct);
-        if (itemGroup is null)
-        {
-            return;
-        }
-
-        itemGroup.Name = request.Name;
-
-        db.ItemGroups.Update(itemGroup);
-        await db.SaveChangesAsync(ct);
+        await db.ExecuteAsync(new CommandDefinition(
+            "UPDATE ItemGroups SET Name = @Name WHERE Id = @Id",
+            new { Id = itemGroupId, Name = request.Name },
+            cancellationToken: ct));
     }
 
-    public class Request
+    public record Request
     {
         [Description("Name of the item group")]
-        public required string Name { get; set; }
+        public required string Name { get; init; }
     }
 }

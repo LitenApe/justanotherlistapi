@@ -1,8 +1,10 @@
-﻿using System.Security.Claims;
+﻿using System.Data;
+using System.Security.Claims;
+using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
 
 namespace Core.Checklist;
+
 public static class DeleteItem
 {
     public static void MapEndpoint(this RouteGroupBuilder builder)
@@ -17,7 +19,7 @@ public static class DeleteItem
         Guid itemGroupId,
         Guid itemId,
         ClaimsPrincipal claimsPrincipal,
-        DatabaseContext db,
+        IDbConnection db,
         CancellationToken ct = default)
     {
         var userId = claimsPrincipal.GetUserId();
@@ -36,15 +38,11 @@ public static class DeleteItem
         return TypedResults.NoContent();
     }
 
-    internal static async Task DeleteData(Guid itemGroupId, Guid itemId, DatabaseContext db, CancellationToken ct)
+    internal static async Task DeleteData(Guid itemGroupId, Guid itemId, IDbConnection db, CancellationToken ct)
     {
-        var item = await db.Items.FirstOrDefaultAsync(i => i.Id == itemId && i.ItemGroupId == itemGroupId, cancellationToken: ct);
-        if (item is null)
-        {
-            return;
-        }
-
-        db.Items.Remove(item);
-        await db.SaveChangesAsync(ct);
+        await db.ExecuteAsync(new CommandDefinition(
+            "DELETE FROM Items WHERE Id = @Id AND ItemGroupId = @ItemGroupId",
+            new { Id = itemId, ItemGroupId = itemGroupId },
+            cancellationToken: ct));
     }
 }

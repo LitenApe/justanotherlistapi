@@ -1,8 +1,7 @@
 using System.Security.Claims;
-using Core;
 using Core.Checklist;
+using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
 
 public class DeleteItemGroupTests
 {
@@ -20,17 +19,12 @@ public class DeleteItemGroupTests
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
 
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
-
-        dbContext.ItemGroups.Add(new ItemGroup { Id = itemGroupId, Name = "ToDelete" });
-        dbContext.Members.Add(new Member { ItemGroupId = itemGroupId, MemberId = userId });
-        await dbContext.SaveChangesAsync();
+        await using var db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "ToDelete" });
+        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
 
         // Act
-        var result = await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, dbContext, default);
+        var result = await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.NotNull(result);
@@ -39,7 +33,8 @@ public class DeleteItemGroupTests
             Assert.IsType<NoContent>(results.Result);
 
             // Confirm DB deletion
-            var deleted = await dbContext.ItemGroups.FirstOrDefaultAsync(ig => ig.Id == itemGroupId);
+            var deleted = await db.QueryFirstOrDefaultAsync<ItemGroup>(
+                "SELECT Id, Name FROM ItemGroups WHERE Id = @Id", new { Id = itemGroupId });
             Assert.Null(deleted);
         }
         else
@@ -55,13 +50,10 @@ public class DeleteItemGroupTests
         var itemGroupId = Guid.NewGuid();
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
 
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
+        await using var db = await TestDatabase.CreateAsync();
 
         // Act
-        var result = await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, dbContext, default);
+        var result = await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.NotNull(result);
@@ -89,17 +81,12 @@ public class DeleteItemGroupTests
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
 
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
-
-        dbContext.ItemGroups.Add(new ItemGroup { Id = itemGroupId, Name = "ToDelete" });
+        await using var db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "ToDelete" });
         // No member added for this user
-        await dbContext.SaveChangesAsync();
 
         // Act
-        var result = await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, dbContext, default);
+        var result = await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.NotNull(result);
@@ -127,17 +114,24 @@ public class DeleteItemGroupTests
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
 
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
+        await using var db = await TestDatabase.CreateAsync();
+        // Insert a placeholder group to satisfy the FK, add member, then remove the group
+        var placeholderId = Guid.NewGuid();
+        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Placeholder" });
+        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync("DELETE FROM Members WHERE ItemGroupId = @ItemGroupId", new { ItemGroupId = itemGroupId });
+        await db.ExecuteAsync("DELETE FROM ItemGroups WHERE Id = @Id", new { Id = itemGroupId });
 
-        // Add member but not the item group itself
-        dbContext.Members.Add(new Member { ItemGroupId = itemGroupId, MemberId = userId });
-        await dbContext.SaveChangesAsync();
+        // Re-add only the member row, pointing to a group that no longer exists — not possible with FK.
+        // Instead, seed a separate group to satisfy FK, then confirm IsMember still resolves correctly.
+        // The scenario: member row exists for itemGroupId, but ItemGroup row does not.
+        // SQLite enforces FK by default only when PRAGMA foreign_keys=ON. We can insert the orphan row.
+        await db.ExecuteAsync("PRAGMA foreign_keys = OFF");
+        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync("PRAGMA foreign_keys = ON");
 
         // Act
-        var result = await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, dbContext, default);
+        var result = await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.NotNull(result);

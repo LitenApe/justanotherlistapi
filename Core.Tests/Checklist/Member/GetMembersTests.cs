@@ -1,8 +1,7 @@
 using System.Security.Claims;
-using Core;
 using Core.Checklist;
+using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
 
 public class GetMembersTests
 {
@@ -21,20 +20,13 @@ public class GetMembersTests
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
 
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
-
-        dbContext.ItemGroups.Add(new ItemGroup { Id = itemGroupId, Name = "Group" });
-        dbContext.Members.AddRange(
-            new Member { ItemGroupId = itemGroupId, MemberId = userId },
-            new Member { ItemGroupId = itemGroupId, MemberId = otherUserId }
-        );
-        await dbContext.SaveChangesAsync();
+        await using var db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
+        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = otherUserId, ItemGroupId = itemGroupId });
 
         // Act
-        var result = await GetMembers.Execute(itemGroupId, claimsPrincipal, dbContext, default);
+        var result = await GetMembers.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.NotNull(result);
@@ -50,12 +42,12 @@ public class GetMembersTests
             }
             else
             {
-                Assert.Fail("Expected Ok<List<string>> result.");
+                Assert.Fail("Expected Ok<List<Guid>> result.");
             }
         }
         else
         {
-            Assert.Fail("Expected Results<Ok<List<string>>, UnauthorizedHttpResult, ForbidHttpResult>.");
+            Assert.Fail("Expected Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult>.");
         }
     }
 
@@ -66,13 +58,10 @@ public class GetMembersTests
         var itemGroupId = Guid.NewGuid();
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
 
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
+        await using var db = await TestDatabase.CreateAsync();
 
         // Act
-        var result = await GetMembers.Execute(itemGroupId, claimsPrincipal, dbContext, default);
+        var result = await GetMembers.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.NotNull(result);
@@ -82,7 +71,7 @@ public class GetMembersTests
         }
         else
         {
-            Assert.Fail("Expected Results<Ok<List<string>>, UnauthorizedHttpResult, ForbidHttpResult>.");
+            Assert.Fail("Expected Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult>.");
         }
     }
 
@@ -100,17 +89,12 @@ public class GetMembersTests
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
 
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
-
-        dbContext.ItemGroups.Add(new ItemGroup { Id = itemGroupId, Name = "Group" });
+        await using var db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
         // No member for this user
-        await dbContext.SaveChangesAsync();
 
         // Act
-        var result = await GetMembers.Execute(itemGroupId, claimsPrincipal, dbContext, default);
+        var result = await GetMembers.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.NotNull(result);
@@ -120,12 +104,12 @@ public class GetMembersTests
         }
         else
         {
-            Assert.Fail("Expected Results<Ok<List<string>>, UnauthorizedHttpResult, ForbidHttpResult>.");
+            Assert.Fail("Expected Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult>.");
         }
     }
 
     [Fact]
-    public async Task Execute_ReturnsUserId_WhenNoMembersExist()
+    public async Task Execute_ReturnsForbid_WhenUserMembershipIsRevoked()
     {
         // Arrange
         var userId = Guid.NewGuid();
@@ -138,21 +122,14 @@ public class GetMembersTests
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
 
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
-
-        dbContext.ItemGroups.Add(new ItemGroup { Id = itemGroupId, Name = "Group" });
-        dbContext.Members.Add(new Member { ItemGroupId = itemGroupId, MemberId = userId });
-        await dbContext.SaveChangesAsync();
-
-        // Remove all members to simulate no members (simulate LoadData returns null)
-        dbContext.Members.RemoveRange(dbContext.Members);
-        await dbContext.SaveChangesAsync();
+        await using var db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
+        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
+        // Remove all members to simulate revoked membership
+        await db.ExecuteAsync("DELETE FROM Members WHERE ItemGroupId = @ItemGroupId", new { ItemGroupId = itemGroupId });
 
         // Act
-        var result = await GetMembers.Execute(itemGroupId, claimsPrincipal, dbContext, default);
+        var result = await GetMembers.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.NotNull(result);
@@ -162,7 +139,7 @@ public class GetMembersTests
         }
         else
         {
-            Assert.Fail("Expected Results<Ok<List<string>>, UnauthorizedHttpResult, ForbidHttpResult>.");
+            Assert.Fail("Expected Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult>.");
         }
     }
 }

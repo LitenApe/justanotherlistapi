@@ -1,5 +1,7 @@
 ﻿using System.ComponentModel;
+using System.Data;
 using System.Security.Claims;
+using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Core.Checklist;
@@ -18,7 +20,7 @@ public static class CreateItem
         Guid itemGroupId,
         Request request,
         ClaimsPrincipal claimsPrincipal,
-        DatabaseContext db,
+        IDbConnection db,
         CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(request.Name.Trim()))
@@ -42,30 +44,35 @@ public static class CreateItem
         return TypedResults.Created($"/list/{itemGroupId}/{data.Id}", data);
     }
 
-    internal static async Task<Item> CreateData(Guid itemGroupId, Request request, DatabaseContext db, CancellationToken ct)
+    internal static async Task<Item> CreateData(Guid itemGroupId, Request request, IDbConnection db, CancellationToken ct)
     {
         var item = new Item
         {
+            Id = Guid.NewGuid(),
             ItemGroupId = itemGroupId,
             Name = request.Name,
             Description = request.Description,
             IsComplete = request.IsComplete
         };
-        await db.Items.AddAsync(item, ct);
-        await db.SaveChangesAsync(ct);
+
+        await db.ExecuteAsync(new CommandDefinition(
+            "INSERT INTO Items (Id, Name, Description, IsComplete, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @ItemGroupId)",
+            new { item.Id, item.Name, item.Description, item.IsComplete, item.ItemGroupId },
+            cancellationToken: ct));
+
         return item;
     }
 
-    public class Request
+    public record Request
     {
         [Description("Name of the item")]
-        public required string Name { get; set; }
+        public required string Name { get; init; }
 
         [Description("Description of the item")]
-        public string? Description { get; set; }
+        public string? Description { get; init; }
 
         [DefaultValue(false)]
         [Description("Indicates whether the item is complete")]
-        public bool IsComplete { get; set; }
+        public bool IsComplete { get; init; }
     }
 }

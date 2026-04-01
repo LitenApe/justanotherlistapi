@@ -1,8 +1,7 @@
 using System.Security.Claims;
-using Core;
 using Core.Checklist;
+using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
 
 public class UpdateItemGroupTests
 {
@@ -15,7 +14,6 @@ public class UpdateItemGroupTests
         var oldName = "Old Name";
         var newName = "New Name";
 
-        // ClaimsPrincipal with userId
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, userId.ToString())
@@ -23,19 +21,14 @@ public class UpdateItemGroupTests
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
 
-        // In-memory DB with existing ItemGroup and Member
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
-        dbContext.ItemGroups.Add(new ItemGroup { Id = itemGroupId, Name = oldName });
-        dbContext.Members.Add(new Member { ItemGroupId = itemGroupId, MemberId = userId });
-        await dbContext.SaveChangesAsync();
+        await using var db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = oldName });
+        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
 
         var request = new UpdateItemGroup.Request { Name = newName };
 
         // Act
-        var result = await UpdateItemGroup.Execute(itemGroupId, request, claimsPrincipal, dbContext, default);
+        var result = await UpdateItemGroup.Execute(itemGroupId, request, claimsPrincipal, db, default);
 
         // Assert
         Assert.NotNull(result);
@@ -44,7 +37,8 @@ public class UpdateItemGroupTests
             Assert.IsType<NoContent>(results.Result);
 
             // Confirm DB update
-            var updated = await dbContext.ItemGroups.FirstOrDefaultAsync(ig => ig.Id == itemGroupId);
+            var updated = await db.QueryFirstOrDefaultAsync<ItemGroup>(
+                "SELECT Id, Name FROM ItemGroups WHERE Id = @Id", new { Id = itemGroupId });
             Assert.NotNull(updated);
             Assert.Equal(newName, updated.Name);
         }
@@ -68,15 +62,12 @@ public class UpdateItemGroupTests
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
 
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
+        await using var db = await TestDatabase.CreateAsync();
 
         var request = new UpdateItemGroup.Request { Name = "" };
 
         // Act
-        var result = await UpdateItemGroup.Execute(itemGroupId, request, claimsPrincipal, dbContext, default);
+        var result = await UpdateItemGroup.Execute(itemGroupId, request, claimsPrincipal, db, default);
 
         // Assert
         Assert.NotNull(result);
@@ -96,17 +87,12 @@ public class UpdateItemGroupTests
         // Arrange
         var itemGroupId = Guid.NewGuid();
         var request = new UpdateItemGroup.Request { Name = "Any Name" };
-
-        // ClaimsPrincipal with no userId
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
 
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
+        await using var db = await TestDatabase.CreateAsync();
 
         // Act
-        var result = await UpdateItemGroup.Execute(itemGroupId, request, claimsPrincipal, dbContext, default);
+        var result = await UpdateItemGroup.Execute(itemGroupId, request, claimsPrincipal, db, default);
 
         // Assert
         Assert.NotNull(result);
@@ -134,19 +120,14 @@ public class UpdateItemGroupTests
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
 
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
-
+        await using var db = await TestDatabase.CreateAsync();
         // Add ItemGroup but not Member
-        dbContext.ItemGroups.Add(new ItemGroup { Id = itemGroupId, Name = "Old Name" });
-        await dbContext.SaveChangesAsync();
+        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Old Name" });
 
         var request = new UpdateItemGroup.Request { Name = "New Name" };
 
         // Act
-        var result = await UpdateItemGroup.Execute(itemGroupId, request, claimsPrincipal, dbContext, default);
+        var result = await UpdateItemGroup.Execute(itemGroupId, request, claimsPrincipal, db, default);
 
         // Assert
         Assert.NotNull(result);

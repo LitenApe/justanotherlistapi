@@ -1,8 +1,7 @@
 ﻿using System.Security.Claims;
-using Core;
 using Core.Checklist;
+using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
 
 public class CreateItemGroupTests
 {
@@ -13,7 +12,6 @@ public class CreateItemGroupTests
         var request = new CreateItemGroup.Request { Name = "Test Group" };
         var userId = Guid.NewGuid();
 
-        // Mock ClaimsPrincipal
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, userId.ToString())
@@ -21,14 +19,10 @@ public class CreateItemGroupTests
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
 
-        // Mock DatabaseContext
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
+        await using var db = await TestDatabase.CreateAsync();
 
         // Act
-        var result = await CreateItemGroup.Execute(request, claimsPrincipal, dbContext);
+        var result = await CreateItemGroup.Execute(request, claimsPrincipal, db);
 
         // Assert
         Assert.NotNull(result);
@@ -59,7 +53,6 @@ public class CreateItemGroupTests
         var request = new CreateItemGroup.Request { Name = "Test Group" };
         var userId = Guid.NewGuid();
 
-        // Mock ClaimsPrincipal
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, userId.ToString())
@@ -67,14 +60,10 @@ public class CreateItemGroupTests
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
 
-        // Mock DatabaseContext
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
+        await using var db = await TestDatabase.CreateAsync();
 
         // Act
-        var result = await CreateItemGroup.Execute(request, claimsPrincipal, dbContext);
+        var result = await CreateItemGroup.Execute(request, claimsPrincipal, db);
 
         // Assert
         Assert.NotNull(result);
@@ -85,8 +74,8 @@ public class CreateItemGroupTests
                 var itemGroup = createdResult.Value;
                 Assert.NotNull(itemGroup);
 
-                var dataEntry = await dbContext.ItemGroups
-                    .FirstOrDefaultAsync(ig => ig.Id == itemGroup.Id);
+                var dataEntry = await db.QueryFirstOrDefaultAsync<ItemGroup>(
+                    "SELECT Id, Name FROM ItemGroups WHERE Id = @Id", new { itemGroup.Id });
 
                 Assert.NotNull(dataEntry);
                 Assert.Equal(request.Name, dataEntry.Name);
@@ -110,7 +99,6 @@ public class CreateItemGroupTests
         var request = new CreateItemGroup.Request { Name = "Test Group" };
         var userId = Guid.NewGuid();
 
-        // Mock ClaimsPrincipal
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, userId.ToString())
@@ -118,14 +106,10 @@ public class CreateItemGroupTests
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
 
-        // Mock DatabaseContext
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
+        await using var db = await TestDatabase.CreateAsync();
 
         // Act
-        var result = await CreateItemGroup.Execute(request, claimsPrincipal, dbContext);
+        var result = await CreateItemGroup.Execute(request, claimsPrincipal, db);
 
         // Assert
         Assert.NotNull(result);
@@ -136,10 +120,14 @@ public class CreateItemGroupTests
                 var itemGroup = createdResult.Value;
                 Assert.NotNull(itemGroup);
 
-                var dataEntry = await dbContext.Members
-                    .FirstOrDefaultAsync(m => m.MemberId == userId && m.ItemGroupId == itemGroup.Id);
+                var dataEntry = await db.QueryFirstOrDefaultAsync<Member>(
+                    "SELECT MemberId, ItemGroupId FROM Members WHERE MemberId = @MemberId AND ItemGroupId = @ItemGroupId",
+                    new { MemberId = userId, ItemGroupId = itemGroup.Id });
 
                 Assert.NotNull(dataEntry);
+                Assert.Single(itemGroup.Members);
+                Assert.Equal(userId, itemGroup.Members[0].MemberId);
+                Assert.Equal(itemGroup.Id, itemGroup.Members[0].ItemGroupId);
             }
             else
             {
@@ -161,7 +149,6 @@ public class CreateItemGroupTests
         var request = new CreateItemGroup.Request { Name = name };
         var userId = Guid.NewGuid();
 
-        // Mock ClaimsPrincipal
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, userId.ToString())
@@ -169,14 +156,10 @@ public class CreateItemGroupTests
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
 
-        // Mock DatabaseContext
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
+        await using var db = await TestDatabase.CreateAsync();
 
         // Act
-        var result = await CreateItemGroup.Execute(request, claimsPrincipal, dbContext);
+        var result = await CreateItemGroup.Execute(request, claimsPrincipal, db);
 
         // Assert
         Assert.NotNull(result);

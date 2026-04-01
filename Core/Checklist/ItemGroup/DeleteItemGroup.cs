@@ -1,4 +1,6 @@
-﻿using System.Security.Claims;
+﻿using System.Data;
+using System.Security.Claims;
+using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Core.Checklist;
@@ -16,7 +18,7 @@ public static class DeleteItemGroup
     public static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
         Guid itemGroupId,
         ClaimsPrincipal claimsPrincipal,
-        DatabaseContext db,
+        IDbConnection db,
         CancellationToken ct = default)
     {
         var userId = claimsPrincipal.GetUserId();
@@ -35,15 +37,11 @@ public static class DeleteItemGroup
         return TypedResults.NoContent();
     }
 
-    internal static async Task RemoveData(Guid itemGroupId, DatabaseContext db, CancellationToken ct)
+    internal static async Task RemoveData(Guid itemGroupId, IDbConnection db, CancellationToken ct)
     {
-        var itemGroup = await db.ItemGroups.FindAsync([itemGroupId], cancellationToken: ct);
-        if (itemGroup is null)
-        {
-            return;
-        }
-
-        db.ItemGroups.Remove(itemGroup);
-        await db.SaveChangesAsync(ct);
+        await db.ExecuteAsync(new CommandDefinition(
+            "DELETE FROM ItemGroups WHERE Id = @Id",
+            new { Id = itemGroupId },
+            cancellationToken: ct));
     }
 }

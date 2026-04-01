@@ -1,7 +1,7 @@
+using System.Data;
 using Core;
 using Core.Utility;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
 using OpenTelemetry;
 using OpenTelemetry.Trace;
 using Scalar.AspNetCore;
@@ -32,51 +32,35 @@ builder.Services.AddOpenTelemetry()
 
 // Database
 builder.AddSqlServerClient(connectionName: "database");
-builder.Services.AddDbContext<DatabaseContext>(opt =>
-{
-    opt.UseSqlServer(builder.Configuration.GetConnectionString("database"));
-});
-builder.Services.AddDatabaseDeveloperPageExceptionFilter();
+builder.Services.AddScoped<IDbConnection>(sp => sp.GetRequiredService<SqlConnection>());
 
 // Authentication & Authorization
 builder.Services.AddAuthentication()
-    .AddJwtBearer();
+    .AddJwtBearer(options =>
+    {
+        var authority = builder.Configuration["OAuth:Authority"];
+        if (!string.IsNullOrEmpty(authority))
+        {
+            options.Authority = authority;
+            options.RequireHttpsMetadata = !authority.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
+        }
+
+        var audience = builder.Configuration["OAuth:Audience"];
+        if (!string.IsNullOrEmpty(audience))
+        {
+            options.Audience = audience;
+        }
+        else
+        {
+            // No audience configured — disable validation. Set OAuth:Audience in production.
+            options.TokenValidationParameters.ValidateAudience = false;
+        }
+    });
 builder.Services.AddAuthorization();
-builder.Services.AddIdentityApiEndpoints<IdentityUser>()
-    .AddEntityFrameworkStores<DatabaseContext>();
 
 // API Documentation
 builder.Services.AddOpenApi(opt =>
     opt.AddDocumentTransformer<BearerSecuritySchemeTransformer>());
-
-// Identity Options
-builder.Services.Configure<IdentityOptions>(opt =>
-{
-    opt.Password.RequireDigit = true;
-    opt.Password.RequireLowercase = true;
-    opt.Password.RequireNonAlphanumeric = true;
-    opt.Password.RequireUppercase = true;
-    opt.Password.RequiredLength = 6;
-    opt.Password.RequiredUniqueChars = 1;
-
-    opt.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(3);
-    opt.Lockout.MaxFailedAccessAttempts = 7;
-    opt.Lockout.AllowedForNewUsers = true;
-
-    opt.User.AllowedUserNameCharacters =
-        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
-    opt.User.RequireUniqueEmail = false;
-});
-
-// Cookie Settings
-builder.Services.ConfigureApplicationCookie(opt =>
-{
-    opt.Cookie.HttpOnly = true;
-    opt.ExpireTimeSpan = TimeSpan.FromDays(30);
-    opt.LoginPath = "/auth/login";
-    opt.AccessDeniedPath = "/auth/denied";
-    opt.SlidingExpiration = true;
-});
 
 var app = builder.Build();
 
@@ -87,27 +71,38 @@ app.UseCors(policyBuilder => policyBuilder
     .AllowAnyMethod()
     .SetIsOriginAllowed(origin => true)
     .AllowCredentials());
-//app.UseHttpsRedirection();
+app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapIdentityApi<IdentityUser>();
 app.MapChecklistApi();
 
 app.MapOpenApi();
 app.MapScalarApiReference(opt =>
 {
-    opt.AddPreferredSecuritySchemes("Bearer")
-        .WithDocumentDownloadType(DocumentDownloadType.Both)
-        .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.Curl);
+    var authority = app.Configuration["OAuth:Authority"];
+    if (!string.IsNullOrEmpty(authority))
+    {
+        opt.AddPreferredSecuritySchemes("OAuth2")
+            .AddClientCredentialsFlow("OAuth2", flow =>
+            {
+                flow.WithClientId("00000000-0000-0000-0000-000000000001").WithClientSecret("dev");
+            });
+    }
+    else
+    {
+        opt.AddPreferredSecuritySchemes("Bearer");
+    }
+    opt.WithDocumentDownloadType(DocumentDownloadType.Both)
+       .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.Curl);
 });
 
 // --- Database Initialization ---
 
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
-    await db.Database.MigrateAsync();
+    var connection = scope.ServiceProvider.GetRequiredService<SqlConnection>();
+    await DatabaseInitializer.InitializeAsync(connection);
 }
 
 await app.RunAsync();

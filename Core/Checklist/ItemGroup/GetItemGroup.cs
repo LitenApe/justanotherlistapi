@@ -1,6 +1,7 @@
-﻿using System.Security.Claims;
+﻿using System.Data;
+using System.Security.Claims;
+using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
 
 namespace Core.Checklist;
 
@@ -17,7 +18,7 @@ public static class GetItemGroup
     public static async Task<Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
         Guid itemGroupId,
         ClaimsPrincipal claimsPrincipal,
-        DatabaseContext db,
+        IDbConnection db,
         CancellationToken ct)
     {
         var userId = claimsPrincipal.GetUserId();
@@ -41,12 +42,29 @@ public static class GetItemGroup
         return TypedResults.Ok(itemGroup);
     }
 
-    internal static Task<ItemGroup?> LoadData(Guid itemGroupId, DatabaseContext db, CancellationToken ct)
+    internal static async Task<ItemGroup?> LoadData(Guid itemGroupId, IDbConnection db, CancellationToken ct)
     {
-        return db.ItemGroups
-            .AsNoTracking()
-            .Include(ig => ig.Items)
-            .Include(ig => ig.Members)
-            .FirstOrDefaultAsync(ig => ig.Id == itemGroupId, ct);
+        var itemGroup = await db.QueryFirstOrDefaultAsync<ItemGroup>(new CommandDefinition(
+            "SELECT Id, Name FROM ItemGroups WHERE Id = @Id",
+            new { Id = itemGroupId },
+            cancellationToken: ct));
+
+        if (itemGroup is null) return null;
+
+        var items = await db.QueryAsync<Item>(new CommandDefinition(
+            "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE ItemGroupId = @ItemGroupId",
+            new { ItemGroupId = itemGroupId },
+            cancellationToken: ct));
+
+        var members = await db.QueryAsync<Member>(new CommandDefinition(
+            "SELECT MemberId, ItemGroupId FROM Members WHERE ItemGroupId = @ItemGroupId",
+            new { ItemGroupId = itemGroupId },
+            cancellationToken: ct));
+
+        return itemGroup with
+        {
+            Items = items.ToList(),
+            Members = members.ToList()
+        };
     }
 }

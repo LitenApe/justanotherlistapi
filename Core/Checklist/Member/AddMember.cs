@@ -1,4 +1,6 @@
-﻿using System.Security.Claims;
+﻿using System.Data;
+using System.Security.Claims;
+using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Core.Checklist;
@@ -17,7 +19,7 @@ public static class AddMember
         Guid itemGroupId,
         Guid memberId,
         ClaimsPrincipal claimsPrincipal,
-        DatabaseContext db,
+        IDbConnection db,
         CancellationToken ct)
     {
         var userId = claimsPrincipal.GetUserId();
@@ -36,14 +38,11 @@ public static class AddMember
         return TypedResults.NoContent();
     }
 
-    internal static async Task CreateData(Guid itemGroupId, Guid memberId, DatabaseContext db, CancellationToken ct)
+    internal static async Task CreateData(Guid itemGroupId, Guid memberId, IDbConnection db, CancellationToken ct)
     {
-        var member = new Member
-        {
-            ItemGroupId = itemGroupId,
-            MemberId = memberId
-        };
-        db.Members.Add(member);
-        await db.SaveChangesAsync(ct);
+        await db.ExecuteAsync(new CommandDefinition(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = memberId, ItemGroupId = itemGroupId },
+            cancellationToken: ct));
     }
 }

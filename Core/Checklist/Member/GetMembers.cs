@@ -1,6 +1,7 @@
-﻿using System.Security.Claims;
+﻿using System.Data;
+using System.Security.Claims;
+using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
 
 namespace Core.Checklist;
 
@@ -17,7 +18,7 @@ public static class GetMembers
     public static async Task<Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
         Guid itemGroupId,
         ClaimsPrincipal claimsPrincipal,
-        DatabaseContext db,
+        IDbConnection db,
         CancellationToken ct)
     {
         var userId = claimsPrincipal.GetUserId();
@@ -33,20 +34,15 @@ public static class GetMembers
         }
 
         var data = await LoadData(itemGroupId, db, ct);
-        if (data is null)
-        {
-            return TypedResults.Forbid();
-        }
-
         return TypedResults.Ok(data);
     }
 
-    internal static async Task<List<Guid>> LoadData(Guid itemGroupId, DatabaseContext db, CancellationToken ct)
+    internal static async Task<List<Guid>> LoadData(Guid itemGroupId, IDbConnection db, CancellationToken ct)
     {
-        return await db.Members
-            .AsNoTracking()
-            .Where(m => m.ItemGroupId == itemGroupId)
-            .Select(m => m.MemberId)
-            .ToListAsync(ct);
+        var result = await db.QueryAsync<Guid>(new CommandDefinition(
+            "SELECT MemberId FROM Members WHERE ItemGroupId = @ItemGroupId",
+            new { ItemGroupId = itemGroupId },
+            cancellationToken: ct));
+        return result.ToList();
     }
 }

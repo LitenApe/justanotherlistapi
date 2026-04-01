@@ -1,9 +1,11 @@
 ﻿using System.ComponentModel;
+using System.Data;
 using System.Security.Claims;
+using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
 
 namespace Core.Checklist;
+
 public static class UpdateItem
 {
     public static void MapEndpoint(this RouteGroupBuilder builder)
@@ -19,7 +21,7 @@ public static class UpdateItem
         Guid itemId,
         Request request,
         ClaimsPrincipal claimsPrincipal,
-        DatabaseContext db,
+        IDbConnection db,
         CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(request.Name.Trim()))
@@ -43,32 +45,24 @@ public static class UpdateItem
         return TypedResults.NoContent();
     }
 
-    internal static async Task UpdateData(Guid itemGroupId, Guid itemId, Request request, DatabaseContext db, CancellationToken ct)
+    internal static async Task UpdateData(Guid itemGroupId, Guid itemId, Request request, IDbConnection db, CancellationToken ct)
     {
-        var item = await db.Items.FirstOrDefaultAsync((i) => i.Id == itemId && i.ItemGroupId == itemGroupId, cancellationToken: ct);
-        if (item is null)
-        {
-            return;
-        }
-
-        item.Name = request.Name;
-        item.Description = request.Description;
-        item.IsComplete = request.IsComplete;
-
-        db.Update(item);
-        await db.SaveChangesAsync(ct);
+        await db.ExecuteAsync(new CommandDefinition(
+            "UPDATE Items SET Name = @Name, Description = @Description, IsComplete = @IsComplete WHERE Id = @Id AND ItemGroupId = @ItemGroupId",
+            new { Id = itemId, ItemGroupId = itemGroupId, request.Name, request.Description, request.IsComplete },
+            cancellationToken: ct));
     }
 
-    public class Request
+    public record Request
     {
         [Description("Name of the item")]
-        public required string Name { get; set; }
+        public required string Name { get; init; }
 
         [Description("Description of the item")]
-        public string? Description { get; set; }
+        public string? Description { get; init; }
 
         [DefaultValue(false)]
         [Description("Indicates if the item is complete")]
-        public bool IsComplete { get; set; }
+        public bool IsComplete { get; init; }
     }
 }
