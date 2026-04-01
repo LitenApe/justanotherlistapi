@@ -10,7 +10,7 @@ public static class GetItemGroup
     public static void MapEndpoint(this RouteGroupBuilder builder)
     {
         builder.MapGet("/{itemGroupId:guid}", Execute)
-            .WithSummary("Get a item group")
+            .WithSummary("Get an item group")
             .WithTags(nameof(ItemGroup))
             .WithName(nameof(GetItemGroup));
     }
@@ -19,7 +19,7 @@ public static class GetItemGroup
         Guid itemGroupId,
         ClaimsPrincipal claimsPrincipal,
         IDbConnection db,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         var userId = claimsPrincipal.GetUserId();
         if (userId is null)

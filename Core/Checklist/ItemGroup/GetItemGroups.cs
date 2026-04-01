@@ -18,7 +18,7 @@ public static class GetItemGroups
     public static async Task<Results<Ok<List<ItemGroup>>, UnauthorizedHttpResult>> Execute(
         ClaimsPrincipal claimsPrincipal,
         IDbConnection db,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         var userId = claimsPrincipal.GetUserId();
         if (userId is null)
@@ -26,7 +26,7 @@ public static class GetItemGroups
             return TypedResults.Unauthorized();
         }
 
-        var itemGroups = await LoadData((Guid)userId, db, ct);
+        var itemGroups = await LoadData(userId.Value, db, ct);
         return TypedResults.Ok(itemGroups);
     }
 

@@ -10,7 +10,7 @@ public static class AddMember
     public static void MapEndpoint(this RouteGroupBuilder builder)
     {
         builder.MapPost("/{itemGroupId:guid}/member/{memberId:guid}", Execute)
-            .WithSummary("Add a new member to a item group")
+            .WithSummary("Add a new member to an item group")
             .WithTags(nameof(Member))
             .WithName(nameof(AddMember));
     }
@@ -20,7 +20,7 @@ public static class AddMember
         Guid memberId,
         ClaimsPrincipal claimsPrincipal,
         IDbConnection db,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         var userId = claimsPrincipal.GetUserId();
         if (userId is null)

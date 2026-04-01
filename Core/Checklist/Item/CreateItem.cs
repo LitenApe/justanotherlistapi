@@ -11,7 +11,7 @@ public static class CreateItem
     public static void MapEndpoint(this RouteGroupBuilder builder)
     {
         builder.MapPost("/{itemGroupId:guid}", Execute)
-            .WithSummary("Create a item")
+            .WithSummary("Create an item")
             .WithTags(nameof(Item))
             .WithName(nameof(CreateItem));
     }
@@ -23,7 +23,7 @@ public static class CreateItem
         IDbConnection db,
         CancellationToken ct = default)
     {
-        if (string.IsNullOrEmpty(request.Name.Trim()))
+        if (string.IsNullOrWhiteSpace(request.Name))
         {
             return TypedResults.BadRequest();
         }

@@ -10,7 +10,7 @@ public static class DeleteItem
     public static void MapEndpoint(this RouteGroupBuilder builder)
     {
         builder.MapDelete("/{itemGroupId:guid}/{itemId:guid}", Execute)
-            .WithSummary("Delete a item")
+            .WithSummary("Delete an item")
             .WithTags(nameof(Item))
             .WithName(nameof(DeleteItem));
     }
