@@ -55,7 +55,24 @@ builder.Services.AddAuthorization();
 
 // API Documentation
 builder.Services.AddOpenApi(opt =>
-    opt.AddDocumentTransformer<BearerSecuritySchemeTransformer>());
+{
+    opt.AddDocumentTransformer((document, context, ct) =>
+    {
+        document.Info.Title = "JustAnotherList API";
+        document.Info.Version = "v1";
+        document.Info.Description = """
+            A collaborative checklist API.
+
+            **Item groups** are shared lists that multiple users can collaborate on.
+            **Items** are tasks within a group that can be marked as complete.
+            **Members** are users who have access to an item group.
+
+            All endpoints require a valid Bearer token.
+            """;
+        return Task.CompletedTask;
+    });
+    opt.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+});
 
 var app = builder.Build();
 

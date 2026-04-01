@@ -11,6 +11,7 @@ public static class GetItemGroups
     {
         builder.MapGet("/", Execute)
             .WithSummary("Get all item groups related to authenticated user with uncompleted items")
+            .WithDescription("Returns all item groups where the authenticated user is a member, each populated with their incomplete items only.")
             .WithTags(nameof(ItemGroup))
             .WithName(nameof(GetItemGroups));
     }

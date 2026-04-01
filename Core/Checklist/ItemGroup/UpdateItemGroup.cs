@@ -12,6 +12,7 @@ public static class UpdateItemGroup
     {
         builder.MapPut("/{itemGroupId:guid}", Execute)
             .WithSummary("Update an item group")
+            .WithDescription("Updates the name of an existing item group. The authenticated user must be a member of the group.")
             .WithTags(nameof(ItemGroup))
             .WithName(nameof(UpdateItemGroup));
     }

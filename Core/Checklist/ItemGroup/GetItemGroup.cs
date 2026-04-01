@@ -11,6 +11,7 @@ public static class GetItemGroup
     {
         builder.MapGet("/{itemGroupId:guid}", Execute)
             .WithSummary("Get an item group")
+            .WithDescription("Returns a single item group by ID, including all its items and members. The authenticated user must be a member of the group.")
             .WithTags(nameof(ItemGroup))
             .WithName(nameof(GetItemGroup));
     }

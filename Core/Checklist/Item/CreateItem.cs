@@ -12,6 +12,7 @@ public static class CreateItem
     {
         builder.MapPost("/{itemGroupId:guid}", Execute)
             .WithSummary("Create an item")
+            .WithDescription("Creates a new item within the specified item group. The authenticated user must be a member of the group.")
             .WithTags(nameof(Item))
             .WithName(nameof(CreateItem));
     }

@@ -12,6 +12,7 @@ public static class CreateItemGroup
     {
         builder.MapPost("/", Execute)
             .WithSummary("Create a new item group")
+            .WithDescription("Creates a new item group and automatically adds the authenticated user as its first member.")
             .WithTags(nameof(ItemGroup))
             .WithName(nameof(CreateItemGroup));
     }
