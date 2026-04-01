@@ -34,8 +34,10 @@ public class UpdateItemGroupTests
         Assert.Equal(newName, updated.Name);
     }
 
-    [Fact]
-    public async Task Execute_ReturnsBadRequest_WhenNameIsEmpty()
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Execute_ReturnsBadRequest_WhenNameIsEmptyOrWhitespace(string name)
     {
         // Arrange
         var userId = Guid.NewGuid();
@@ -44,7 +46,7 @@ public class UpdateItemGroupTests
 
         await using var db = await TestDatabase.CreateAsync();
 
-        var request = new UpdateItemGroup.Request { Name = "" };
+        var request = new UpdateItemGroup.Request { Name = name };
 
         // Act
         var result = await UpdateItemGroup.Execute(itemGroupId, request, claimsPrincipal, db, default);
