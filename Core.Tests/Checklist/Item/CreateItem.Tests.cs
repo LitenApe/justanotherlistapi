@@ -17,13 +17,19 @@ public class CreateItemTests
         {
             Name = "Test Item",
             Description = "Test Description",
-            IsComplete = false
+            IsComplete = false,
         };
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
 
         // Act
         var result = await CreateItem.Execute(itemGroupId, request, claimsPrincipal, db, default);
@@ -39,7 +45,9 @@ public class CreateItemTests
 
         // Confirm DB write
         var dbItem = await db.QueryFirstOrDefaultAsync<Item>(
-            "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE Id = @Id", new { item.Id });
+            "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE Id = @Id",
+            new { item.Id }
+        );
         Assert.NotNull(dbItem);
     }
 
@@ -55,13 +63,19 @@ public class CreateItemTests
         {
             Name = name,
             Description = "Test Description",
-            IsComplete = false
+            IsComplete = false,
         };
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
 
         // Act
         var result = await CreateItem.Execute(itemGroupId, request, claimsPrincipal, db, default);
@@ -79,13 +93,16 @@ public class CreateItemTests
         {
             Name = "Test Item",
             Description = "Test Description",
-            IsComplete = false
+            IsComplete = false,
         };
 
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
 
         // Act
         var result = await CreateItem.Execute(itemGroupId, request, claimsPrincipal, db, default);
@@ -104,12 +121,15 @@ public class CreateItemTests
         {
             Name = "Test Item",
             Description = "Test Description",
-            IsComplete = false
+            IsComplete = false,
         };
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
         // No member for this user
 
         // Act
@@ -119,4 +139,3 @@ public class CreateItemTests
         Assert.IsType<ForbidHttpResult>(result.Result);
     }
 }
-

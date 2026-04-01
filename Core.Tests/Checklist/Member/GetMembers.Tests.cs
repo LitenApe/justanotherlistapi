@@ -17,9 +17,18 @@ public class GetMembersTests
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = otherUserId, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = otherUserId, ItemGroupId = itemGroupId }
+        );
 
         // Act
         var result = await GetMembers.Execute(itemGroupId, claimsPrincipal, db, default);
@@ -58,7 +67,10 @@ public class GetMembersTests
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
         // No member for this user
 
         // Act
@@ -77,10 +89,19 @@ public class GetMembersTests
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
         // Remove all members to simulate revoked membership
-        await db.ExecuteAsync("DELETE FROM Members WHERE ItemGroupId = @ItemGroupId", new { ItemGroupId = itemGroupId });
+        await db.ExecuteAsync(
+            "DELETE FROM Members WHERE ItemGroupId = @ItemGroupId",
+            new { ItemGroupId = itemGroupId }
+        );
 
         // Act
         var result = await GetMembers.Execute(itemGroupId, claimsPrincipal, db, default);

@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Data;
 using System.Security.Claims;
 using Dapper;
@@ -10,19 +10,25 @@ public static class CreateItem
 {
     public static void MapEndpoint(this IEndpointRouteBuilder builder)
     {
-        builder.MapPost("/{itemGroupId:guid}", Execute)
+        builder
+            .MapPost("/{itemGroupId:guid}", Execute)
             .WithSummary("Create an item")
-            .WithDescription("Creates a new item within the specified item group. The authenticated user must be a member of the group.")
+            .WithDescription(
+                "Creates a new item within the specified item group. The authenticated user must be a member of the group."
+            )
             .WithTags(nameof(Item))
             .WithName(nameof(CreateItem));
     }
 
-    public static async Task<Results<Created<Item>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
+    public static async Task<
+        Results<Created<Item>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult>
+    > Execute(
         Guid itemGroupId,
         Request request,
         ClaimsPrincipal claimsPrincipal,
         IDbConnection db,
-        CancellationToken ct = default)
+        CancellationToken ct = default
+    )
     {
         if (string.IsNullOrWhiteSpace(request.Name))
         {
@@ -35,7 +41,7 @@ public static class CreateItem
             return TypedResults.Unauthorized();
         }
 
-        var isMember = await db.IsMember(itemGroupId, userId, ct);
+        bool isMember = await db.IsMember(itemGroupId, userId, ct);
         if (!isMember)
         {
             return TypedResults.Forbid();
@@ -45,7 +51,12 @@ public static class CreateItem
         return TypedResults.Created($"/list/{itemGroupId}/{data.Id}", data);
     }
 
-    internal static async Task<Item> CreateData(Guid itemGroupId, Request request, IDbConnection db, CancellationToken ct)
+    internal static async Task<Item> CreateData(
+        Guid itemGroupId,
+        Request request,
+        IDbConnection db,
+        CancellationToken ct
+    )
     {
         var item = new Item
         {
@@ -53,13 +64,23 @@ public static class CreateItem
             ItemGroupId = itemGroupId,
             Name = request.Name,
             Description = request.Description,
-            IsComplete = request.IsComplete
+            IsComplete = request.IsComplete,
         };
 
-        await db.ExecuteAsync(new CommandDefinition(
-            "INSERT INTO Items (Id, Name, Description, IsComplete, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @ItemGroupId)",
-            new { item.Id, item.Name, item.Description, item.IsComplete, item.ItemGroupId },
-            cancellationToken: ct));
+        await db.ExecuteAsync(
+            new CommandDefinition(
+                "INSERT INTO Items (Id, Name, Description, IsComplete, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @ItemGroupId)",
+                new
+                {
+                    item.Id,
+                    item.Name,
+                    item.Description,
+                    item.IsComplete,
+                    item.ItemGroupId,
+                },
+                cancellationToken: ct
+            )
+        );
 
         return item;
     }

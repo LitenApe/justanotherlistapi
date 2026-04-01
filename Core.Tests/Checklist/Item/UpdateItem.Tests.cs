@@ -14,27 +14,49 @@ public class UpdateItemTests
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        var oldName = "Old Item";
-        var newName = "Updated Item";
-        var newDescription = "Updated Description";
-        var newIsComplete = true;
+        string oldName = "Old Item";
+        string newName = "Updated Item";
+        string newDescription = "Updated Description";
+        bool newIsComplete = true;
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
-        await db.ExecuteAsync("INSERT INTO Items (Id, Name, Description, IsComplete, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @ItemGroupId)",
-            new { Id = itemId, Name = oldName, Description = "Old Description", IsComplete = false, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Items (Id, Name, Description, IsComplete, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @ItemGroupId)",
+            new
+            {
+                Id = itemId,
+                Name = oldName,
+                Description = "Old Description",
+                IsComplete = false,
+                ItemGroupId = itemGroupId,
+            }
+        );
 
         var request = new UpdateItem.Request
         {
             Name = newName,
             Description = newDescription,
-            IsComplete = newIsComplete
+            IsComplete = newIsComplete,
         };
 
         // Act
-        var result = await UpdateItem.Execute(itemGroupId, itemId, request, claimsPrincipal, db, default);
+        var result = await UpdateItem.Execute(
+            itemGroupId,
+            itemId,
+            request,
+            claimsPrincipal,
+            db,
+            default
+        );
 
         // Assert
         Assert.IsType<NoContent>(result.Result);
@@ -42,7 +64,8 @@ public class UpdateItemTests
         // Confirm DB update
         var updated = await db.QueryFirstOrDefaultAsync<Item>(
             "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE Id = @Id AND ItemGroupId = @ItemGroupId",
-            new { Id = itemId, ItemGroupId = itemGroupId });
+            new { Id = itemId, ItemGroupId = itemGroupId }
+        );
         Assert.NotNull(updated);
         Assert.Equal(newName, updated.Name);
         Assert.Equal(newDescription, updated.Description);
@@ -61,15 +84,42 @@ public class UpdateItemTests
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
-        await db.ExecuteAsync("INSERT INTO Items (Id, Name, Description, IsComplete, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @ItemGroupId)",
-            new { Id = itemId, Name = "Old", Description = "Old", IsComplete = false, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Items (Id, Name, Description, IsComplete, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @ItemGroupId)",
+            new
+            {
+                Id = itemId,
+                Name = "Old",
+                Description = "Old",
+                IsComplete = false,
+                ItemGroupId = itemGroupId,
+            }
+        );
 
-        var request = new UpdateItem.Request { Name = name, Description = "Desc", IsComplete = false };
+        var request = new UpdateItem.Request
+        {
+            Name = name,
+            Description = "Desc",
+            IsComplete = false,
+        };
 
         // Act
-        var result = await UpdateItem.Execute(itemGroupId, itemId, request, claimsPrincipal, db, default);
+        var result = await UpdateItem.Execute(
+            itemGroupId,
+            itemId,
+            request,
+            claimsPrincipal,
+            db,
+            default
+        );
 
         // Assert
         Assert.IsType<BadRequest>(result.Result);
@@ -81,16 +131,40 @@ public class UpdateItemTests
         // Arrange
         var itemGroupId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        var request = new UpdateItem.Request { Name = "Name", Description = "Desc", IsComplete = false };
+        var request = new UpdateItem.Request
+        {
+            Name = "Name",
+            Description = "Desc",
+            IsComplete = false,
+        };
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
-        await db.ExecuteAsync("INSERT INTO Items (Id, Name, Description, IsComplete, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @ItemGroupId)",
-            new { Id = itemId, Name = "Old", Description = "Old", IsComplete = false, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Items (Id, Name, Description, IsComplete, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @ItemGroupId)",
+            new
+            {
+                Id = itemId,
+                Name = "Old",
+                Description = "Old",
+                IsComplete = false,
+                ItemGroupId = itemGroupId,
+            }
+        );
 
         // Act
-        var result = await UpdateItem.Execute(itemGroupId, itemId, request, claimsPrincipal, db, default);
+        var result = await UpdateItem.Execute(
+            itemGroupId,
+            itemId,
+            request,
+            claimsPrincipal,
+            db,
+            default
+        );
 
         // Assert
         Assert.IsType<UnauthorizedHttpResult>(result.Result);
@@ -103,16 +177,40 @@ public class UpdateItemTests
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        var request = new UpdateItem.Request { Name = "Name", Description = "Desc", IsComplete = false };
+        var request = new UpdateItem.Request
+        {
+            Name = "Name",
+            Description = "Desc",
+            IsComplete = false,
+        };
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
-        await db.ExecuteAsync("INSERT INTO Items (Id, Name, Description, IsComplete, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @ItemGroupId)",
-            new { Id = itemId, Name = "Old", Description = "Old", IsComplete = false, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Items (Id, Name, Description, IsComplete, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @ItemGroupId)",
+            new
+            {
+                Id = itemId,
+                Name = "Old",
+                Description = "Old",
+                IsComplete = false,
+                ItemGroupId = itemGroupId,
+            }
+        );
 
         // Act
-        var result = await UpdateItem.Execute(itemGroupId, itemId, request, claimsPrincipal, db, default);
+        var result = await UpdateItem.Execute(
+            itemGroupId,
+            itemId,
+            request,
+            claimsPrincipal,
+            db,
+            default
+        );
 
         // Assert
         Assert.IsType<ForbidHttpResult>(result.Result);
@@ -125,15 +223,33 @@ public class UpdateItemTests
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        var request = new UpdateItem.Request { Name = "Name", Description = "Desc", IsComplete = false };
+        var request = new UpdateItem.Request
+        {
+            Name = "Name",
+            Description = "Desc",
+            IsComplete = false,
+        };
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
 
         // Act
-        var result = await UpdateItem.Execute(itemGroupId, itemId, request, claimsPrincipal, db, default);
+        var result = await UpdateItem.Execute(
+            itemGroupId,
+            itemId,
+            request,
+            claimsPrincipal,
+            db,
+            default
+        );
 
         // Assert
         Assert.IsType<NoContent>(result.Result);
@@ -141,8 +257,8 @@ public class UpdateItemTests
         // Confirm item still does not exist
         var updated = await db.QueryFirstOrDefaultAsync<Item>(
             "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE Id = @Id AND ItemGroupId = @ItemGroupId",
-            new { Id = itemId, ItemGroupId = itemGroupId });
+            new { Id = itemId, ItemGroupId = itemGroupId }
+        );
         Assert.Null(updated);
     }
 }
-

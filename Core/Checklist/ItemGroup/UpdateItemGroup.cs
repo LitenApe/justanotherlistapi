@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Data;
 using System.Security.Claims;
 using Dapper;
@@ -10,19 +10,25 @@ public static class UpdateItemGroup
 {
     public static void MapEndpoint(this IEndpointRouteBuilder builder)
     {
-        builder.MapPut("/{itemGroupId:guid}", Execute)
+        builder
+            .MapPut("/{itemGroupId:guid}", Execute)
             .WithSummary("Update an item group")
-            .WithDescription("Updates the name of an existing item group. The authenticated user must be a member of the group.")
+            .WithDescription(
+                "Updates the name of an existing item group. The authenticated user must be a member of the group."
+            )
             .WithTags(nameof(ItemGroup))
             .WithName(nameof(UpdateItemGroup));
     }
 
-    public static async Task<Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
+    public static async Task<
+        Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult>
+    > Execute(
         Guid itemGroupId,
         Request request,
         ClaimsPrincipal claimsPrincipal,
         IDbConnection db,
-        CancellationToken ct = default)
+        CancellationToken ct = default
+    )
     {
         if (string.IsNullOrWhiteSpace(request.Name))
         {
@@ -35,7 +41,7 @@ public static class UpdateItemGroup
             return TypedResults.Unauthorized();
         }
 
-        var isMember = await db.IsMember(itemGroupId, userId, ct);
+        bool isMember = await db.IsMember(itemGroupId, userId, ct);
         if (!isMember)
         {
             return TypedResults.Forbid();
@@ -45,12 +51,20 @@ public static class UpdateItemGroup
         return TypedResults.NoContent();
     }
 
-    internal static async Task UpdateData(Guid itemGroupId, Request request, IDbConnection db, CancellationToken ct)
+    internal static async Task UpdateData(
+        Guid itemGroupId,
+        Request request,
+        IDbConnection db,
+        CancellationToken ct
+    )
     {
-        await db.ExecuteAsync(new CommandDefinition(
-            "UPDATE ItemGroups SET Name = @Name WHERE Id = @Id",
-            new { Id = itemGroupId, Name = request.Name },
-            cancellationToken: ct));
+        await db.ExecuteAsync(
+            new CommandDefinition(
+                "UPDATE ItemGroups SET Name = @Name WHERE Id = @Id",
+                new { Id = itemGroupId, Name = request.Name },
+                cancellationToken: ct
+            )
+        );
     }
 
     public record Request

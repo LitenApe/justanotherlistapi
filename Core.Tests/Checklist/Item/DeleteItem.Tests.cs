@@ -17,10 +17,25 @@ public class DeleteItemTests
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
-        await db.ExecuteAsync("INSERT INTO Items (Id, Name, Description, IsComplete, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @ItemGroupId)",
-            new { Id = itemId, Name = "Item", Description = "Desc", IsComplete = false, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Items (Id, Name, Description, IsComplete, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @ItemGroupId)",
+            new
+            {
+                Id = itemId,
+                Name = "Item",
+                Description = "Desc",
+                IsComplete = false,
+                ItemGroupId = itemGroupId,
+            }
+        );
 
         // Act
         var result = await DeleteItem.Execute(itemGroupId, itemId, claimsPrincipal, db, default);
@@ -31,7 +46,8 @@ public class DeleteItemTests
         // Confirm item is deleted
         var deleted = await db.QueryFirstOrDefaultAsync<Item>(
             "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE Id = @Id AND ItemGroupId = @ItemGroupId",
-            new { Id = itemId, ItemGroupId = itemGroupId });
+            new { Id = itemId, ItemGroupId = itemGroupId }
+        );
         Assert.Null(deleted);
     }
 
@@ -46,11 +62,29 @@ public class DeleteItemTests
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = otherGroupId, Name = "Other Group" });
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
-        await db.ExecuteAsync("INSERT INTO Items (Id, Name, Description, IsComplete, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @ItemGroupId)",
-            new { Id = itemId, Name = "Item", Description = "Desc", IsComplete = false, ItemGroupId = otherGroupId });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = otherGroupId, Name = "Other Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Items (Id, Name, Description, IsComplete, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @ItemGroupId)",
+            new
+            {
+                Id = itemId,
+                Name = "Item",
+                Description = "Desc",
+                IsComplete = false,
+                ItemGroupId = otherGroupId,
+            }
+        );
 
         // Act
         var result = await DeleteItem.Execute(itemGroupId, itemId, claimsPrincipal, db, default);
@@ -61,7 +95,8 @@ public class DeleteItemTests
         // Confirm item is NOT deleted because it belongs to another group
         var item = await db.QueryFirstOrDefaultAsync<Item>(
             "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE Id = @Id AND ItemGroupId = @ItemGroupId",
-            new { Id = itemId, ItemGroupId = otherGroupId });
+            new { Id = itemId, ItemGroupId = otherGroupId }
+        );
         Assert.NotNull(item);
     }
 
@@ -92,9 +127,21 @@ public class DeleteItemTests
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
-        await db.ExecuteAsync("INSERT INTO Items (Id, Name, Description, IsComplete, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @ItemGroupId)",
-            new { Id = itemId, Name = "Item", Description = "Desc", IsComplete = false, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Items (Id, Name, Description, IsComplete, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @ItemGroupId)",
+            new
+            {
+                Id = itemId,
+                Name = "Item",
+                Description = "Desc",
+                IsComplete = false,
+                ItemGroupId = itemGroupId,
+            }
+        );
 
         // Act
         var result = await DeleteItem.Execute(itemGroupId, itemId, claimsPrincipal, db, default);
@@ -113,8 +160,14 @@ public class DeleteItemTests
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
 
         // Act
         var result = await DeleteItem.Execute(itemGroupId, itemId, claimsPrincipal, db, default);
@@ -125,7 +178,8 @@ public class DeleteItemTests
         // Confirm item still does not exist
         var deleted = await db.QueryFirstOrDefaultAsync<Item>(
             "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE Id = @Id AND ItemGroupId = @ItemGroupId",
-            new { Id = itemId, ItemGroupId = itemGroupId });
+            new { Id = itemId, ItemGroupId = itemGroupId }
+        );
         Assert.Null(deleted);
     }
 }

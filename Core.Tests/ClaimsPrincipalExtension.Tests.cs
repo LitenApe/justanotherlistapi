@@ -57,7 +57,7 @@ public class ClaimsPrincipalExtensionTests
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, nameIdentifierGuid.ToString()),
-            new("sub", subGuid.ToString())
+            new("sub", subGuid.ToString()),
         };
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuthType"));
 

@@ -1,4 +1,4 @@
-﻿using Core.Checklist;
+using Core.Checklist;
 
 namespace Core;
 
@@ -8,8 +8,7 @@ public static class ChecklistApiEndpointRouteBuilderExtension
     {
         ArgumentNullException.ThrowIfNull(app);
 
-        var checklistGroup = app.MapGroup("/api/list")
-            .RequireAuthorization();
+        var checklistGroup = app.MapGroup("/api/list").RequireAuthorization();
 
         // Item Group
         GetItemGroup.MapEndpoint(checklistGroup);

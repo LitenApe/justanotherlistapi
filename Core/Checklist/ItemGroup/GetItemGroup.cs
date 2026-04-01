@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using System.Security.Claims;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -9,18 +9,24 @@ public static class GetItemGroup
 {
     public static void MapEndpoint(this IEndpointRouteBuilder builder)
     {
-        builder.MapGet("/{itemGroupId:guid}", Execute)
+        builder
+            .MapGet("/{itemGroupId:guid}", Execute)
             .WithSummary("Get an item group")
-            .WithDescription("Returns a single item group by ID, including all its items and members. The authenticated user must be a member of the group.")
+            .WithDescription(
+                "Returns a single item group by ID, including all its items and members. The authenticated user must be a member of the group."
+            )
             .WithTags(nameof(ItemGroup))
             .WithName(nameof(GetItemGroup));
     }
 
-    public static async Task<Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
+    public static async Task<
+        Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult>
+    > Execute(
         Guid itemGroupId,
         ClaimsPrincipal claimsPrincipal,
         IDbConnection db,
-        CancellationToken ct = default)
+        CancellationToken ct = default
+    )
     {
         var userId = claimsPrincipal.GetUserId();
         if (userId is null)
@@ -28,7 +34,7 @@ public static class GetItemGroup
             return TypedResults.Unauthorized();
         }
 
-        var isMember = await db.IsMember(itemGroupId, userId, ct);
+        bool isMember = await db.IsMember(itemGroupId, userId, ct);
         if (!isMember)
         {
             return TypedResults.Forbid();
@@ -43,29 +49,45 @@ public static class GetItemGroup
         return TypedResults.Ok(itemGroup);
     }
 
-    internal static async Task<ItemGroup?> LoadData(Guid itemGroupId, IDbConnection db, CancellationToken ct)
+    internal static async Task<ItemGroup?> LoadData(
+        Guid itemGroupId,
+        IDbConnection db,
+        CancellationToken ct
+    )
     {
-        var itemGroup = await db.QueryFirstOrDefaultAsync<ItemGroup>(new CommandDefinition(
-            "SELECT Id, Name FROM ItemGroups WHERE Id = @Id",
-            new { Id = itemGroupId },
-            cancellationToken: ct));
+        var itemGroup = await db.QueryFirstOrDefaultAsync<ItemGroup>(
+            new CommandDefinition(
+                "SELECT Id, Name FROM ItemGroups WHERE Id = @Id",
+                new { Id = itemGroupId },
+                cancellationToken: ct
+            )
+        );
 
-        if (itemGroup is null) return null;
+        if (itemGroup is null)
+        {
+            return null;
+        }
 
-        var items = await db.QueryAsync<Item>(new CommandDefinition(
-            "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE ItemGroupId = @ItemGroupId",
-            new { ItemGroupId = itemGroupId },
-            cancellationToken: ct));
+        var items = await db.QueryAsync<Item>(
+            new CommandDefinition(
+                "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE ItemGroupId = @ItemGroupId",
+                new { ItemGroupId = itemGroupId },
+                cancellationToken: ct
+            )
+        );
 
-        var members = await db.QueryAsync<Guid>(new CommandDefinition(
-            "SELECT MemberId FROM Members WHERE ItemGroupId = @ItemGroupId",
-            new { ItemGroupId = itemGroupId },
-            cancellationToken: ct));
+        var members = await db.QueryAsync<Guid>(
+            new CommandDefinition(
+                "SELECT MemberId FROM Members WHERE ItemGroupId = @ItemGroupId",
+                new { ItemGroupId = itemGroupId },
+                cancellationToken: ct
+            )
+        );
 
         return itemGroup with
         {
             Items = items.ToList(),
-            Members = members.ToList()
+            Members = members.ToList(),
         };
     }
 }

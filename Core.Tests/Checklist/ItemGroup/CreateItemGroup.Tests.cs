@@ -1,4 +1,4 @@
-﻿using Core.Checklist;
+using Core.Checklist;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -46,7 +46,9 @@ public class CreateItemGroupTests
         Assert.NotNull(itemGroup);
 
         var dataEntry = await db.QueryFirstOrDefaultAsync<ItemGroup>(
-            "SELECT Id, Name FROM ItemGroups WHERE Id = @Id", new { itemGroup.Id });
+            "SELECT Id, Name FROM ItemGroups WHERE Id = @Id",
+            new { itemGroup.Id }
+        );
 
         Assert.NotNull(dataEntry);
         Assert.Equal(request.Name, dataEntry.Name);
@@ -73,7 +75,8 @@ public class CreateItemGroupTests
 
         var dataEntry = await db.QueryFirstOrDefaultAsync<Guid?>(
             "SELECT MemberId FROM Members WHERE MemberId = @MemberId AND ItemGroupId = @ItemGroupId",
-            new { MemberId = userId, ItemGroupId = itemGroup.Id });
+            new { MemberId = userId, ItemGroupId = itemGroup.Id }
+        );
 
         Assert.NotNull(dataEntry);
         Assert.Single(itemGroup.Members);
@@ -104,7 +107,9 @@ public class CreateItemGroupTests
     {
         // Arrange
         var request = new CreateItemGroup.Request { Name = "Test Group" };
-        var claimsPrincipal = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity());
+        var claimsPrincipal = new System.Security.Claims.ClaimsPrincipal(
+            new System.Security.Claims.ClaimsIdentity()
+        );
 
         await using var db = await TestDatabase.CreateAsync();
 
