@@ -11,6 +11,7 @@ public static class DeleteItemGroup
     {
         builder.MapDelete("/{itemGroupId:guid}", Execute)
             .WithSummary("Delete an item group")
+            .WithDescription("Permanently deletes an item group and all its associated items and members. The authenticated user must be a member of the group.")
             .WithTags(nameof(ItemGroup))
             .WithName(nameof(DeleteItemGroup));
     }
