@@ -29,7 +29,7 @@ public class AddMemberTests
 
         // Assert
         Assert.NotNull(result);
-        if (result is Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> results)
+        if (result is Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult, Conflict> results)
         {
             Assert.IsType<NoContent>(results.Result);
 
@@ -41,7 +41,7 @@ public class AddMemberTests
         }
         else
         {
-            Assert.Fail("Expected Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>.");
+            Assert.Fail("Expected Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult, Conflict>.");
         }
     }
 
@@ -60,13 +60,13 @@ public class AddMemberTests
 
         // Assert
         Assert.NotNull(result);
-        if (result is Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> results)
+        if (result is Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult, Conflict> results)
         {
             Assert.IsType<UnauthorizedHttpResult>(results.Result);
         }
         else
         {
-            Assert.Fail("Expected Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>.");
+            Assert.Fail("Expected Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult, Conflict>.");
         }
     }
 
@@ -94,13 +94,48 @@ public class AddMemberTests
 
         // Assert
         Assert.NotNull(result);
-        if (result is Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> results)
+        if (result is Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult, Conflict> results)
         {
             Assert.IsType<ForbidHttpResult>(results.Result);
         }
         else
         {
-            Assert.Fail("Expected Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>.");
+            Assert.Fail("Expected Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult, Conflict>.");
+        }
+    }
+
+    [Fact]
+    public async Task Execute_ReturnsConflict_WhenMemberAlreadyExists()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var itemGroupId = Guid.NewGuid();
+        var existingMemberId = Guid.NewGuid();
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, userId.ToString())
+        };
+        var identity = new ClaimsIdentity(claims, "TestAuthType");
+        var claimsPrincipal = new ClaimsPrincipal(identity);
+
+        await using var db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
+        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = existingMemberId, ItemGroupId = itemGroupId });
+
+        // Act
+        var result = await AddMember.Execute(itemGroupId, existingMemberId, claimsPrincipal, db, default);
+
+        // Assert
+        Assert.NotNull(result);
+        if (result is Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult, Conflict> results)
+        {
+            Assert.IsType<Conflict>(results.Result);
+        }
+        else
+        {
+            Assert.Fail("Expected Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult, Conflict>.");
         }
     }
 }
