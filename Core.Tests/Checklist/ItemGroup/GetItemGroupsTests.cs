@@ -75,5 +75,28 @@ public class GetItemGroupsTests
         // Assert
         Assert.IsType<UnauthorizedHttpResult>(result.Result);
     }
+
+    [Fact]
+    public async Task Execute_ReturnsEmptyMembersForEachGroup()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        var otherMemberId = Guid.NewGuid();
+        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+
+        await using var db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = groupId, Name = "Group" });
+        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = groupId });
+        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = otherMemberId, ItemGroupId = groupId });
+
+        // Act
+        var result = await GetItemGroups.Execute(claimsPrincipal, db, default);
+
+        // Assert — the list endpoint intentionally does not load members
+        var ok = Assert.IsType<Ok<List<ItemGroup>>>(result.Result);
+        var group = Assert.Single(ok.Value!);
+        Assert.Empty(group.Members);
+    }
 }
 

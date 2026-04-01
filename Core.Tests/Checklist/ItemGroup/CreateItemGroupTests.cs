@@ -97,4 +97,20 @@ public class CreateItemGroupTests
         // Assert
         Assert.IsType<BadRequest>(result.Result);
     }
+
+    [Fact]
+    public async Task Execute_ReturnsUnauthorized_WhenUserIsNull()
+    {
+        // Arrange
+        var request = new CreateItemGroup.Request { Name = "Test Group" };
+        var claimsPrincipal = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity());
+
+        await using var db = await TestDatabase.CreateAsync();
+
+        // Act
+        var result = await CreateItemGroup.Execute(request, claimsPrincipal, db);
+
+        // Assert
+        Assert.IsType<UnauthorizedHttpResult>(result.Result);
+    }
 }
