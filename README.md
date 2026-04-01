@@ -1,87 +1,158 @@
 # JustAnotherList
 
-JustAnotherList is an open-source, minimalist app for organizing life into shareable lists. From last minute grocery runs to longterm project checklists. Create unlimited lists, invite friends or family to collaborate, and keep everything you need in one simple, fast interface. Built to be easy to extend, it pairs an ASP.NET Core + EF Core backend with a Next.js frontend so you can focus on features, not plumbing.
+JustAnotherList is an open-source, minimalist app for organising life into shareable checklists. Create unlimited lists, invite collaborators, and track items — all through a clean REST API.
 
-## Key features
+## Tech stack
 
-- Create and manage unlimited shopping lists and items.
-- Share lists and invite collaborators (membership endpoints).
-- Clean API surface with EF Core migrations and a reactive Next.js UI.
-- Designed to be easy to extend and deploy.
+| Layer | Technology |
+|---|---|
+| Runtime | .NET 10 |
+| Backend | ASP.NET Core 10 (Minimal API) |
+| Data access | Dapper + SQL Server |
+| Authentication | JWT Bearer — delegated to an external OAuth 2.0 / OIDC provider |
+| API docs | Scalar (OpenAPI) |
+| Observability | OpenTelemetry (traces + logs, OTLP export) |
+| Dev orchestration | .NET Aspire |
 
-## Requirements
+## Project structure
 
-- .NET SDK 9
-- Node.js 24
-- Docker/Rancher
-
-### Why Docker (or another container/runtime)?
-
-The Aspire host used for development creates and migrates a persistent Microsoft SQL Server instance at startup. The backend expects a reachable SQL Server when it starts. Docker provides the simplest, reproducible way to run a disposable SQL Server host with a persistent volume for development. If you prefer, you can run a local SQL Server Developer/Express install or point the app to an external SQL endpoint by updating configuration.
-
-Dev Docker example (MSSQL 2022):
-
-```bash
-docker run -e 'ACCEPT_EULA=Y' -e 'SA_PASSWORD=Your_password123' \
-  -p 1433:1433 --name justanotherlist-db \
-  -v justanotherlist-mssql-data:/var/opt/mssql -d mcr.microsoft.com/mssql/server:2022-latest
+```
+Aspire/          - .NET Aspire AppHost — wires all services for local development
+Core/            - ASP.NET Core backend
+  Checklist/     - All API endpoint handlers (Item, ItemGroup, Member)
+  Utility/       - OpenAPI transformer
+  DatabaseInitializer.cs  - Runs idempotent CREATE TABLE statements at startup
+  Program.cs     - Application composition root
+Core.Tests/      - xUnit unit tests (SQLite in-memory, no running server needed)
 ```
 
-Example connection string (appsettings.json key: `ConnectionStrings:database`):
+## API endpoints
+
+All endpoints live under `/api/list` and require a valid Bearer token.
+
+| Method | Route | Description |
+|---|---|---|
+| `GET` | `/api/list` | Get all item groups for the authenticated user |
+| `POST` | `/api/list` | Create a new item group |
+| `GET` | `/api/list/{id}` | Get a single item group with all its items and members |
+| `PUT` | `/api/list/{id}` | Rename an item group |
+| `DELETE` | `/api/list/{id}` | Delete an item group |
+| `POST` | `/api/list/{id}` | Create an item in an item group |
+| `PUT` | `/api/list/{groupId}/{itemId}` | Update an item |
+| `DELETE` | `/api/list/{groupId}/{itemId}` | Delete an item |
+| `GET` | `/api/list/{id}/member` | List member IDs of an item group |
+| `POST` | `/api/list/{id}/member/{memberId}` | Add a member to an item group |
+| `DELETE` | `/api/list/{id}/member/{memberId}` | Remove a member from an item group |
+
+Interactive docs (Scalar UI) are available at `/scalar/v1` when the app is running.
+
+## Authentication
+
+The API validates JWT Bearer tokens issued by an external OAuth 2.0 / OIDC provider. Configure the provider's issuer URL via:
 
 ```json
 {
-  "ConnectionStrings": {
-    "database": "Server=localhost,1433;Database=JustAnotherListDb;User Id=sa;Password=Your_password123;TrustServerCertificate=True;"
+  "OAuth": {
+    "Authority": "https://your-provider.com/tenant"
   }
 }
 ```
 
-Note: use a strong SA password for local development.
+The authority is passed to `AddJwtBearer` at startup. `RequireHttpsMetadata` is automatically disabled when the authority URL starts with `http://` to support the local mock server.
 
-## Quickstart (development)
+### User identity
+
+Every protected operation reads the caller's identity from the `sub` claim of the incoming JWT. This claim must be a valid `Guid`. All other claim shapes are ignored.
+
+## Database
+
+The schema is managed without a migration framework. On each startup, `DatabaseInitializer` runs three idempotent `CREATE TABLE IF NOT EXISTS` statements against SQL Server:
+
+| Table | Purpose |
+|---|---|
+| `ItemGroups` | A named list owned by one or more members |
+| `Items` | Individual checklist entries belonging to an item group |
+| `Members` | Join table linking users (by `Guid` identity) to item groups |
+
+Because the initializer is idempotent it is safe to run against an existing database and requires no CLI tooling to manage schema changes. To update the schema, modify `Core/DatabaseInitializer.cs` directly.
+
+## Requirements
+
+- .NET SDK 10
+- Docker (or another OCI-compatible runtime)
+
+Docker is required because Aspire spins up SQL Server and the OAuth mock server as persistent containers at startup.
+
+## Quickstart (local development)
 
 1. Clone the repo:
 
    ```bash
    git clone <repo-url>
-   cd JustAnotherListApi
+   cd justanotherlistapi
    ```
 
-2. Start the distributed development host (recommended):
+2. Start the Aspire host:
 
    ```bash
    dotnet run --project Aspire
    ```
 
-   Aspire will ensure the configured SQL Server is reachable, apply EF Core migrations, then start the backend and frontend dev workflow.
+   Aspire will start and health-check the following containers before launching the backend:
+   - **SQL Server** (persistent volume — data survives restarts)
+   - **mock-oauth2-server** (`ghcr.io/navikt/mock-oauth2-server:2.1.10`) on port `8080`
 
-3. Optional: run the frontend only:
-   ```bash
-   cd Client
-   npm install
-   npm run dev
-   ```
-   The client dev server runs on http://localhost:3000 by default.
+   The backend starts once all dependencies are healthy.
 
-## Database & migrations
+## Getting a token locally
 
-- Migrations live in `Core/Migrations`. Aspire applies migrations at startup. To run migrations manually, use the EF Core CLI targeted at the `Core` project.
+When the app is running with Aspire, the Scalar UI at `/scalar/v1` is pre-configured with `client_id: dev` and `client_secret: dev`. Click **Authorize → Get Token** in Scalar to fetch a token directly from the mock server — no copy-pasting required.
+
+Alternatively, fetch a token manually:
+
+```bash
+curl -X POST http://localhost:8080/default/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials&client_id=00000000-0000-0000-0000-000000000001&client_secret=dev"
+```
+
+Copy the returned `access_token` and supply it as a `Bearer` token in any HTTP client. The `sub` claim in the token will be used as the authenticated user's ID — make sure it is a valid `Guid` (the mock server generates one by default).
+
+## Running without Aspire (alternative setup)
+
+If you prefer a local SQL Server install or an external endpoint, set the connection string directly:
+
+```json
+{
+  "ConnectionStrings": {
+    "database": "Server=localhost,1433;Database=JustAnotherListDb;User Id=sa;Password=Your_password123;TrustServerCertificate=True;"
+  },
+  "OAuth": {
+    "Authority": "https://your-provider.com/tenant"
+  }
+}
+```
+
+Then run the backend directly:
+
+```bash
+dotnet run --project Core
+```
+
+The database tables will be created automatically on first startup.
 
 ## Tests
 
-- Run backend tests with:
-  ```bash
-  dotnet test
-  ```
-- The client currently has no tests.
+Backend unit tests use xUnit and an in-memory SQLite database — no running SQL Server or OAuth server is needed.
 
-## Running notes
+```bash
+dotnet test
+```
 
-- Development: start the `Aspire` project as described above. There is no production-ready run configuration yet.
-- The Aspire host wires the SQL database, Core backend and Client app at runtime (see `Aspire/Program.cs`).
+The test project (`Core.Tests`) references `Core` internals via `InternalsVisibleTo` so individual handler methods can be tested directly without spinning up an HTTP server.
 
-## Contributing & Maintainer
+## Contributing
 
 - Author / maintainer: Son Thanh Vo
 - Contributions and forks are welcome. Open issues or PRs for changes.
+

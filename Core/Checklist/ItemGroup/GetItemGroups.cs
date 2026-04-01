@@ -1,6 +1,7 @@
-﻿using System.Security.Claims;
+﻿using System.Data;
+using System.Security.Claims;
+using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
 
 namespace Core.Checklist;
 
@@ -14,7 +15,10 @@ public static class GetItemGroups
             .WithName(nameof(GetItemGroups));
     }
 
-    public static async Task<Results<Ok<List<ItemGroup>>, UnauthorizedHttpResult>> Execute(ClaimsPrincipal claimsPrincipal, DatabaseContext db, CancellationToken ct)
+    public static async Task<Results<Ok<List<ItemGroup>>, UnauthorizedHttpResult>> Execute(
+        ClaimsPrincipal claimsPrincipal,
+        IDbConnection db,
+        CancellationToken ct)
     {
         var userId = claimsPrincipal.GetUserId();
         if (userId is null)
@@ -23,26 +27,32 @@ public static class GetItemGroups
         }
 
         var itemGroups = await LoadData((Guid)userId, db, ct);
-        if (itemGroups is null)
-        {
-            return TypedResults.Ok(new List<ItemGroup>());
-        }
-
         return TypedResults.Ok(itemGroups);
     }
 
-    internal static async Task<List<ItemGroup>> LoadData(Guid userId, DatabaseContext db, CancellationToken ct)
+    internal static async Task<List<ItemGroup>> LoadData(Guid userId, IDbConnection db, CancellationToken ct)
     {
-        var memberDb = db.Members.AsNoTracking();
-        var itemGroupDb = db.ItemGroups.AsNoTracking();
+        var groups = (await db.QueryAsync<ItemGroup>(new CommandDefinition(
+            """
+            SELECT ig.Id, ig.Name
+            FROM ItemGroups ig
+            INNER JOIN Members m ON m.ItemGroupId = ig.Id
+            WHERE m.MemberId = @UserId
+            """,
+            new { UserId = userId },
+            cancellationToken: ct))).ToList();
 
-        return await memberDb
-            .Where(
-            m => m.MemberId == userId)
-            .Join(itemGroupDb.Include(ig => ig.Items.Where(i => !i.IsComplete)),
-            ig => ig.ItemGroupId,
-            m => m.Id,
-            (m, ig) => ig)
-            .ToListAsync(ct);
+        if (groups.Count == 0) return groups;
+
+        var groupIds = groups.Select(g => g.Id).ToList();
+        var items = (await db.QueryAsync<Item>(new CommandDefinition(
+            "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE ItemGroupId IN @GroupIds AND IsComplete = 0",
+            new { GroupIds = groupIds },
+            cancellationToken: ct))).ToList();
+
+        return groups.Select(group => group with
+        {
+            Items = items.Where(i => i.ItemGroupId == group.Id).ToList()
+        }).ToList();
     }
 }

@@ -1,30 +1,18 @@
 using System.ComponentModel;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Core.Checklist;
 
-public class ItemGroup
+public record ItemGroup
 {
     [Description("Unique identifier of the item group")]
-    public Guid Id { get; set; }
+    public Guid Id { get; init; }
 
     [Description("Name of the item group")]
-    public required string Name { get; set; }
+    public required string Name { get; init; }
 
     [Description("Description of the item group")]
-    public ICollection<Item> Items { get; } = [];
+    public List<Item> Items { get; init; } = [];
 
     [Description("Members of the item group")]
-    public ICollection<Member> Members { get; } = [];
-}
-
-public class ItemGroupConfiguration : IEntityTypeConfiguration<ItemGroup>
-{
-    public void Configure(EntityTypeBuilder<ItemGroup> builder)
-    {
-        builder.HasKey(ig => ig.Id);
-        builder.HasIndex(ig => ig.Id);
-        builder.Property(ig => ig.Id).ValueGeneratedOnAdd();
-    }
+    public List<Member> Members { get; init; } = [];
 }

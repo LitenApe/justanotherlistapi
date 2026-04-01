@@ -1,8 +1,7 @@
 using System.Security.Claims;
-using Core;
 using Core.Checklist;
+using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
 
 public class GetItemGroupTests
 {
@@ -20,18 +19,12 @@ public class GetItemGroupTests
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
 
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
-
-        var itemGroup = new ItemGroup { Id = itemGroupId, Name = "My Group" };
-        dbContext.ItemGroups.Add(itemGroup);
-        dbContext.Members.Add(new Member { ItemGroupId = itemGroupId, MemberId = userId });
-        await dbContext.SaveChangesAsync();
+        await using var db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "My Group" });
+        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
 
         // Act
-        var result = await GetItemGroup.Execute(itemGroupId, claimsPrincipal, dbContext, default);
+        var result = await GetItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.NotNull(result);
@@ -60,6 +53,9 @@ public class GetItemGroupTests
         // Arrange
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
+        var item1Id = Guid.NewGuid();
+        var item2Id = Guid.NewGuid();
+        var member2Id = Guid.NewGuid();
 
         var claims = new List<Claim>
         {
@@ -68,25 +64,17 @@ public class GetItemGroupTests
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
 
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
-
-        // Add item group, items, and members
-        var itemGroup = new ItemGroup { Id = itemGroupId, Name = "Group" };
-        var item1 = new Item { Id = Guid.NewGuid(), Name = "Item 1", ItemGroupId = itemGroupId };
-        var item2 = new Item { Id = Guid.NewGuid(), Name = "Item 2", ItemGroupId = itemGroupId };
-        var member1 = new Member { ItemGroupId = itemGroupId, MemberId = userId };
-        var member2 = new Member { ItemGroupId = itemGroupId, MemberId = Guid.NewGuid() };
-
-        dbContext.ItemGroups.Add(itemGroup);
-        dbContext.Items.AddRange(item1, item2);
-        dbContext.Members.AddRange(member1, member2);
-        await dbContext.SaveChangesAsync();
+        await using var db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
+        await db.ExecuteAsync("INSERT INTO Items (Id, Name, IsComplete, ItemGroupId) VALUES (@Id, @Name, @IsComplete, @ItemGroupId)",
+            new { Id = item1Id, Name = "Item 1", IsComplete = false, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync("INSERT INTO Items (Id, Name, IsComplete, ItemGroupId) VALUES (@Id, @Name, @IsComplete, @ItemGroupId)",
+            new { Id = item2Id, Name = "Item 2", IsComplete = false, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = member2Id, ItemGroupId = itemGroupId });
 
         // Act
-        var result = await GetItemGroup.Execute(itemGroupId, claimsPrincipal, dbContext, default);
+        var result = await GetItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.NotNull(result);
@@ -101,7 +89,7 @@ public class GetItemGroupTests
                 Assert.Contains(returnedGroup.Items, i => i.Name == "Item 2");
                 Assert.Equal(2, returnedGroup.Members.Count);
                 Assert.Contains(returnedGroup.Members, m => m.MemberId == userId);
-                Assert.Contains(returnedGroup.Members, m => m.MemberId == member2.MemberId);
+                Assert.Contains(returnedGroup.Members, m => m.MemberId == member2Id);
             }
             else
             {
@@ -121,13 +109,10 @@ public class GetItemGroupTests
         var itemGroupId = Guid.NewGuid();
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
 
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
+        await using var db = await TestDatabase.CreateAsync();
 
         // Act
-        var result = await GetItemGroup.Execute(itemGroupId, claimsPrincipal, dbContext, default);
+        var result = await GetItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.NotNull(result);
@@ -155,17 +140,12 @@ public class GetItemGroupTests
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
 
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
-
-        dbContext.ItemGroups.Add(new ItemGroup { Id = itemGroupId, Name = "My Group" });
+        await using var db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "My Group" });
         // No member for this user
-        await dbContext.SaveChangesAsync();
 
         // Act
-        var result = await GetItemGroup.Execute(itemGroupId, claimsPrincipal, dbContext, default);
+        var result = await GetItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.NotNull(result);
@@ -193,17 +173,14 @@ public class GetItemGroupTests
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
 
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
-
-        // Add member but not the item group itself
-        dbContext.Members.Add(new Member { ItemGroupId = itemGroupId, MemberId = userId });
-        await dbContext.SaveChangesAsync();
+        await using var db = await TestDatabase.CreateAsync();
+        // Insert member pointing to non-existent group (disable FK for this edge case)
+        await db.ExecuteAsync("PRAGMA foreign_keys = OFF");
+        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync("PRAGMA foreign_keys = ON");
 
         // Act
-        var result = await GetItemGroup.Execute(itemGroupId, claimsPrincipal, dbContext, default);
+        var result = await GetItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.NotNull(result);

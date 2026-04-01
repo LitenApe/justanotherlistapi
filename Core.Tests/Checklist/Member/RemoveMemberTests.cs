@@ -1,8 +1,7 @@
 using System.Security.Claims;
-using Core;
 using Core.Checklist;
+using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
 
 public class RemoveMemberTests
 {
@@ -21,18 +20,13 @@ public class RemoveMemberTests
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
 
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
-
-        dbContext.ItemGroups.Add(new ItemGroup { Id = itemGroupId, Name = "Group" });
-        dbContext.Members.Add(new Member { ItemGroupId = itemGroupId, MemberId = userId });
-        dbContext.Members.Add(new Member { ItemGroupId = itemGroupId, MemberId = memberIdToRemove });
-        await dbContext.SaveChangesAsync();
+        await using var db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
+        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = memberIdToRemove, ItemGroupId = itemGroupId });
 
         // Act
-        var result = await RemoveMember.Execute(itemGroupId, memberIdToRemove, claimsPrincipal, dbContext, default);
+        var result = await RemoveMember.Execute(itemGroupId, memberIdToRemove, claimsPrincipal, db, default);
 
         // Assert
         Assert.NotNull(result);
@@ -41,7 +35,9 @@ public class RemoveMemberTests
             Assert.IsType<NoContent>(results.Result);
 
             // Confirm member is removed
-            var removed = await dbContext.Members.FirstOrDefaultAsync(m => m.ItemGroupId == itemGroupId && m.MemberId == memberIdToRemove);
+            var removed = await db.QueryFirstOrDefaultAsync<Member>(
+                "SELECT MemberId, ItemGroupId FROM Members WHERE ItemGroupId = @ItemGroupId AND MemberId = @MemberId",
+                new { ItemGroupId = itemGroupId, MemberId = memberIdToRemove });
             Assert.Null(removed);
         }
         else
@@ -58,13 +54,10 @@ public class RemoveMemberTests
         var memberIdToRemove = Guid.NewGuid();
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
 
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
+        await using var db = await TestDatabase.CreateAsync();
 
         // Act
-        var result = await RemoveMember.Execute(itemGroupId, memberIdToRemove, claimsPrincipal, dbContext, default);
+        var result = await RemoveMember.Execute(itemGroupId, memberIdToRemove, claimsPrincipal, db, default);
 
         // Assert
         Assert.NotNull(result);
@@ -93,17 +86,12 @@ public class RemoveMemberTests
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
 
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
-
-        dbContext.ItemGroups.Add(new ItemGroup { Id = itemGroupId, Name = "Group" });
+        await using var db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
         // User is not a member
-        await dbContext.SaveChangesAsync();
 
         // Act
-        var result = await RemoveMember.Execute(itemGroupId, memberIdToRemove, claimsPrincipal, dbContext, default);
+        var result = await RemoveMember.Execute(itemGroupId, memberIdToRemove, claimsPrincipal, db, default);
 
         // Assert
         Assert.NotNull(result);
@@ -132,17 +120,12 @@ public class RemoveMemberTests
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
 
-        var options = new DbContextOptionsBuilder<DatabaseContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new DatabaseContext(options);
-
-        dbContext.ItemGroups.Add(new ItemGroup { Id = itemGroupId, Name = "Group" });
-        dbContext.Members.Add(new Member { ItemGroupId = itemGroupId, MemberId = userId });
-        await dbContext.SaveChangesAsync();
+        await using var db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
+        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
 
         // Act
-        var result = await RemoveMember.Execute(itemGroupId, memberIdToRemove, claimsPrincipal, dbContext, default);
+        var result = await RemoveMember.Execute(itemGroupId, memberIdToRemove, claimsPrincipal, db, default);
 
         // Assert
         Assert.NotNull(result);
@@ -156,3 +139,4 @@ public class RemoveMemberTests
         }
     }
 }
+
