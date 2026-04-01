@@ -57,8 +57,8 @@ public static class GetItemGroup
             new { ItemGroupId = itemGroupId },
             cancellationToken: ct));
 
-        var members = await db.QueryAsync<Member>(new CommandDefinition(
-            "SELECT MemberId, ItemGroupId FROM Members WHERE ItemGroupId = @ItemGroupId",
+        var members = await db.QueryAsync<Guid>(new CommandDefinition(
+            "SELECT MemberId FROM Members WHERE ItemGroupId = @ItemGroupId",
             new { ItemGroupId = itemGroupId },
             cancellationToken: ct));
 

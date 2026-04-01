@@ -71,14 +71,13 @@ public class CreateItemGroupTests
         var itemGroup = createdResult.Value;
         Assert.NotNull(itemGroup);
 
-        var dataEntry = await db.QueryFirstOrDefaultAsync<Member>(
-            "SELECT MemberId, ItemGroupId FROM Members WHERE MemberId = @MemberId AND ItemGroupId = @ItemGroupId",
+        var dataEntry = await db.QueryFirstOrDefaultAsync<Guid?>(
+            "SELECT MemberId FROM Members WHERE MemberId = @MemberId AND ItemGroupId = @ItemGroupId",
             new { MemberId = userId, ItemGroupId = itemGroup.Id });
 
         Assert.NotNull(dataEntry);
         Assert.Single(itemGroup.Members);
-        Assert.Equal(userId, itemGroup.Members[0].MemberId);
-        Assert.Equal(itemGroup.Id, itemGroup.Members[0].ItemGroupId);
+        Assert.Equal(userId, itemGroup.Members[0]);
     }
 
     [Theory]
