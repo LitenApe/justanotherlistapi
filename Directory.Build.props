@@ -1,0 +1,30 @@
+<Project>
+  <PropertyGroup>
+    <!-- Enable all .NET SDK code quality analyzers at the latest recommended level -->
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <!-- Enforce .editorconfig code style rules as build errors/warnings during build -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- All warnings are errors — no warnings can be silently ignored -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Enforce nullable reference types across all projects — any new project is covered -->
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Roslynator: large collection of 500+ analyzers and code fixes (like ESLint for C#) -->
+    <PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <!-- Roslynator.Formatting.Analyzers: structural formatting rules (blank lines, attribute placement, etc.) -->
+    <PackageReference Include="Roslynator.Formatting.Analyzers" Version="4.15.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <!-- Meziantou.Analyzer: ~140 additional quality rules covering string handling, culture, async patterns, etc. -->
+    <PackageReference Include="Meziantou.Analyzer" Version="3.0.43">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+</Project>

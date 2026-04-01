@@ -151,6 +151,42 @@ dotnet test
 
 The test project (`Core.Tests`) references `Core` internals via `InternalsVisibleTo` so individual handler methods can be tested directly without spinning up an HTTP server.
 
+## Code quality
+
+Formatting and linting are enforced automatically on every `dotnet build`.
+
+| Tool | Purpose |
+|---|---|
+| [CSharpier](https://csharpier.com) | Opinionated code formatter (like Prettier) |
+| [.editorconfig](.editorconfig) | Formatting and naming conventions read by the IDE and `dotnet format` |
+| .NET SDK analyzers (`AnalysisLevel=latest-recommended`) | Built-in code quality rules |
+| [Roslynator](https://github.com/dotnet/roslynator) | 500+ additional code quality and formatting rules |
+| [Meziantou.Analyzer](https://github.com/meziantou/Meziantou.Analyzer) | ~140 additional rules covering string handling, culture safety, async patterns, and more |
+
+All warnings are treated as errors — the build fails if any rule is violated.
+
+### Useful commands
+
+```bash
+# Format all code (rewrites files in place)
+dotnet csharpier format .
+
+# Check formatting without writing changes (used by the build)
+dotnet csharpier check .
+
+# Auto-fix Roslyn style violations (explicit types, braces, etc.)
+dotnet format
+
+# Skip the CSharpier check for a single build (e.g. mid-refactor)
+dotnet build -p:CSharpierDisable=true
+```
+
+After cloning, restore the local tools to get the pinned CSharpier version:
+
+```bash
+dotnet tool restore
+```
+
 ## Contributing
 
 - Author / maintainer: Son Thanh Vo

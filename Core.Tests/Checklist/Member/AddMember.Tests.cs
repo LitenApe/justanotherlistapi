@@ -17,11 +17,23 @@ public class AddMemberTests
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
 
         // Act
-        var result = await AddMember.Execute(itemGroupId, newMemberId, claimsPrincipal, db, default);
+        var result = await AddMember.Execute(
+            itemGroupId,
+            newMemberId,
+            claimsPrincipal,
+            db,
+            default
+        );
 
         // Assert
         Assert.IsType<NoContent>(result.Result);
@@ -29,7 +41,8 @@ public class AddMemberTests
         // Confirm DB write
         var added = await db.QueryFirstOrDefaultAsync<Guid?>(
             "SELECT MemberId FROM Members WHERE ItemGroupId = @ItemGroupId AND MemberId = @MemberId",
-            new { ItemGroupId = itemGroupId, MemberId = newMemberId });
+            new { ItemGroupId = itemGroupId, MemberId = newMemberId }
+        );
         Assert.NotNull(added);
     }
 
@@ -44,7 +57,13 @@ public class AddMemberTests
         await using var db = await TestDatabase.CreateAsync();
 
         // Act
-        var result = await AddMember.Execute(itemGroupId, newMemberId, claimsPrincipal, db, default);
+        var result = await AddMember.Execute(
+            itemGroupId,
+            newMemberId,
+            claimsPrincipal,
+            db,
+            default
+        );
 
         // Assert
         Assert.IsType<UnauthorizedHttpResult>(result.Result);
@@ -60,11 +79,20 @@ public class AddMemberTests
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
         // User is not a member
 
         // Act
-        var result = await AddMember.Execute(itemGroupId, newMemberId, claimsPrincipal, db, default);
+        var result = await AddMember.Execute(
+            itemGroupId,
+            newMemberId,
+            claimsPrincipal,
+            db,
+            default
+        );
 
         // Assert
         Assert.IsType<ForbidHttpResult>(result.Result);
@@ -80,15 +108,29 @@ public class AddMemberTests
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = existingMemberId, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = existingMemberId, ItemGroupId = itemGroupId }
+        );
 
         // Act
-        var result = await AddMember.Execute(itemGroupId, existingMemberId, claimsPrincipal, db, default);
+        var result = await AddMember.Execute(
+            itemGroupId,
+            existingMemberId,
+            claimsPrincipal,
+            db,
+            default
+        );
 
         // Assert
         Assert.IsType<Conflict>(result.Result);
     }
 }
-

@@ -17,7 +17,8 @@ builder.Logging.AddOpenTelemetry(logging =>
     logging.IncludeFormattedMessage = true;
     logging.IncludeScopes = true;
 });
-builder.Services.AddOpenTelemetry()
+builder
+    .Services.AddOpenTelemetry()
     .WithTracing(tracing =>
     {
         tracing.AddAspNetCoreInstrumentation();
@@ -30,17 +31,21 @@ builder.AddSqlServerClient(connectionName: "database");
 builder.Services.AddScoped<IDbConnection>(sp => sp.GetRequiredService<SqlConnection>());
 
 // Authentication & Authorization
-builder.Services.AddAuthentication()
+builder
+    .Services.AddAuthentication()
     .AddJwtBearer(options =>
     {
-        var authority = builder.Configuration["OAuth:Authority"];
+        string? authority = builder.Configuration["OAuth:Authority"];
         if (!string.IsNullOrEmpty(authority))
         {
             options.Authority = authority;
-            options.RequireHttpsMetadata = !authority.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
+            options.RequireHttpsMetadata = !authority.StartsWith(
+                "http://",
+                StringComparison.OrdinalIgnoreCase
+            );
         }
 
-        var audience = builder.Configuration["OAuth:Audience"];
+        string? audience = builder.Configuration["OAuth:Audience"];
         if (!string.IsNullOrEmpty(audience))
         {
             options.Audience = audience;
@@ -56,11 +61,12 @@ builder.Services.AddAuthorization();
 // API Documentation
 builder.Services.AddOpenApi(opt =>
 {
-    opt.AddDocumentTransformer((document, context, ct) =>
-    {
-        document.Info.Title = "JustAnotherList API";
-        document.Info.Version = "v1";
-        document.Info.Description = """
+    opt.AddDocumentTransformer(
+        (document, context, ct) =>
+        {
+            document.Info.Title = "JustAnotherList API";
+            document.Info.Version = "v1";
+            document.Info.Description = """
             A collaborative checklist API.
 
             **Item groups** are shared lists that multiple users can collaborate on.
@@ -69,8 +75,9 @@ builder.Services.AddOpenApi(opt =>
 
             All endpoints require a valid Bearer token.
             """;
-        return Task.CompletedTask;
-    });
+            return Task.CompletedTask;
+        }
+    );
     opt.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
 });
 
@@ -78,11 +85,13 @@ var app = builder.Build();
 
 // --- Middleware Pipeline ---
 
-app.UseCors(policyBuilder => policyBuilder
-    .AllowAnyHeader()
-    .AllowAnyMethod()
-    .SetIsOriginAllowed(origin => true)
-    .AllowCredentials());
+app.UseCors(policyBuilder =>
+    policyBuilder
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .SetIsOriginAllowed(origin => true)
+        .AllowCredentials()
+);
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -92,21 +101,25 @@ app.MapChecklistApi();
 app.MapOpenApi();
 app.MapScalarApiReference(opt =>
 {
-    var authority = app.Configuration["OAuth:Authority"];
+    string? authority = app.Configuration["OAuth:Authority"];
     if (!string.IsNullOrEmpty(authority))
     {
         opt.AddPreferredSecuritySchemes("OAuth2")
-            .AddClientCredentialsFlow("OAuth2", flow =>
-            {
-                flow.WithClientId("00000000-0000-0000-0000-000000000001").WithClientSecret("dev");
-            });
+            .AddClientCredentialsFlow(
+                "OAuth2",
+                flow =>
+                {
+                    flow.WithClientId("00000000-0000-0000-0000-000000000001")
+                        .WithClientSecret("dev");
+                }
+            );
     }
     else
     {
         opt.AddPreferredSecuritySchemes("Bearer");
     }
     opt.WithDocumentDownloadType(DocumentDownloadType.Both)
-       .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.Curl);
+        .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.Curl);
 });
 
 // --- Database Initialization ---

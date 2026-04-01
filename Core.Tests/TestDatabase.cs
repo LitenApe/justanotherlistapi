@@ -48,15 +48,15 @@ internal static class TestDatabase
                 PRIMARY KEY (MemberId, ItemGroupId),
                 FOREIGN KEY (ItemGroupId) REFERENCES ItemGroups(Id) ON DELETE CASCADE
             );
-            """);
+            """
+        );
     }
 }
 
-internal class GuidTypeHandler : SqlMapper.TypeHandler<Guid>
+internal sealed class GuidTypeHandler : SqlMapper.TypeHandler<Guid>
 {
-    public override void SetValue(IDbDataParameter parameter, Guid value)
-        => parameter.Value = value.ToString();
+    public override void SetValue(IDbDataParameter parameter, Guid value) =>
+        parameter.Value = value.ToString();
 
-    public override Guid Parse(object value)
-        => Guid.Parse((string)value);
+    public override Guid Parse(object value) => Guid.Parse((string)value);
 }

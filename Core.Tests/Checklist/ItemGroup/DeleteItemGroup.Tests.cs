@@ -16,8 +16,14 @@ public class DeleteItemGroupTests
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "ToDelete" });
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "ToDelete" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
 
         // Act
         var result = await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
@@ -27,7 +33,9 @@ public class DeleteItemGroupTests
 
         // Confirm DB deletion
         var deleted = await db.QueryFirstOrDefaultAsync<ItemGroup>(
-            "SELECT Id, Name FROM ItemGroups WHERE Id = @Id", new { Id = itemGroupId });
+            "SELECT Id, Name FROM ItemGroups WHERE Id = @Id",
+            new { Id = itemGroupId }
+        );
         Assert.Null(deleted);
     }
 
@@ -42,22 +50,43 @@ public class DeleteItemGroupTests
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = otherMemberId, ItemGroupId = itemGroupId });
-        await db.ExecuteAsync("INSERT INTO Items (Id, Name, IsComplete, ItemGroupId) VALUES (@Id, @Name, @IsComplete, @ItemGroupId)",
-            new { Id = itemId, Name = "Item", IsComplete = false, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = otherMemberId, ItemGroupId = itemGroupId }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Items (Id, Name, IsComplete, ItemGroupId) VALUES (@Id, @Name, @IsComplete, @ItemGroupId)",
+            new
+            {
+                Id = itemId,
+                Name = "Item",
+                IsComplete = false,
+                ItemGroupId = itemGroupId,
+            }
+        );
 
         // Act
         await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert — cascade delete should remove items and members
         var remainingItems = await db.QueryAsync<Item>(
-            "SELECT Id FROM Items WHERE ItemGroupId = @ItemGroupId", new { ItemGroupId = itemGroupId });
+            "SELECT Id FROM Items WHERE ItemGroupId = @ItemGroupId",
+            new { ItemGroupId = itemGroupId }
+        );
         Assert.Empty(remainingItems);
 
         var remainingMembers = await db.QueryAsync<Guid>(
-            "SELECT MemberId FROM Members WHERE ItemGroupId = @ItemGroupId", new { ItemGroupId = itemGroupId });
+            "SELECT MemberId FROM Members WHERE ItemGroupId = @ItemGroupId",
+            new { ItemGroupId = itemGroupId }
+        );
         Assert.Empty(remainingMembers);
     }
 
@@ -86,7 +115,10 @@ public class DeleteItemGroupTests
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "ToDelete" });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "ToDelete" }
+        );
         // No member added for this user
 
         // Act
@@ -107,9 +139,18 @@ public class DeleteItemGroupTests
         await using var db = await TestDatabase.CreateAsync();
         // Insert a placeholder group to satisfy the FK, add member, then remove the group
         var placeholderId = Guid.NewGuid();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Placeholder" });
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
-        await db.ExecuteAsync("DELETE FROM Members WHERE ItemGroupId = @ItemGroupId", new { ItemGroupId = itemGroupId });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Placeholder" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
+        await db.ExecuteAsync(
+            "DELETE FROM Members WHERE ItemGroupId = @ItemGroupId",
+            new { ItemGroupId = itemGroupId }
+        );
         await db.ExecuteAsync("DELETE FROM ItemGroups WHERE Id = @Id", new { Id = itemGroupId });
 
         // Re-add only the member row, pointing to a group that no longer exists — not possible with FK.
@@ -117,7 +158,10 @@ public class DeleteItemGroupTests
         // The scenario: member row exists for itemGroupId, but ItemGroup row does not.
         // SQLite enforces FK by default only when PRAGMA foreign_keys=ON. We can insert the orphan row.
         await db.ExecuteAsync("PRAGMA foreign_keys = OFF");
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
         await db.ExecuteAsync("PRAGMA foreign_keys = ON");
 
         // Act

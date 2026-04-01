@@ -16,8 +16,14 @@ public class GetItemGroupTests
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "My Group" });
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "My Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
 
         // Act
         var result = await GetItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
@@ -41,13 +47,38 @@ public class GetItemGroupTests
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
-        await db.ExecuteAsync("INSERT INTO Items (Id, Name, IsComplete, ItemGroupId) VALUES (@Id, @Name, @IsComplete, @ItemGroupId)",
-            new { Id = item1Id, Name = "Item 1", IsComplete = false, ItemGroupId = itemGroupId });
-        await db.ExecuteAsync("INSERT INTO Items (Id, Name, IsComplete, ItemGroupId) VALUES (@Id, @Name, @IsComplete, @ItemGroupId)",
-            new { Id = item2Id, Name = "Item 2", IsComplete = false, ItemGroupId = itemGroupId });
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = member2Id, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Items (Id, Name, IsComplete, ItemGroupId) VALUES (@Id, @Name, @IsComplete, @ItemGroupId)",
+            new
+            {
+                Id = item1Id,
+                Name = "Item 1",
+                IsComplete = false,
+                ItemGroupId = itemGroupId,
+            }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Items (Id, Name, IsComplete, ItemGroupId) VALUES (@Id, @Name, @IsComplete, @ItemGroupId)",
+            new
+            {
+                Id = item2Id,
+                Name = "Item 2",
+                IsComplete = false,
+                ItemGroupId = itemGroupId,
+            }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = member2Id, ItemGroupId = itemGroupId }
+        );
 
         // Act
         var result = await GetItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
@@ -57,8 +88,14 @@ public class GetItemGroupTests
         var returnedGroup = ok.Value;
         Assert.NotNull(returnedGroup);
         Assert.Equal(2, returnedGroup.Items.Count);
-        Assert.Contains(returnedGroup.Items, i => i.Name == "Item 1");
-        Assert.Contains(returnedGroup.Items, i => i.Name == "Item 2");
+        Assert.Contains(
+            returnedGroup.Items,
+            i => string.Equals(i.Name, "Item 1", StringComparison.Ordinal)
+        );
+        Assert.Contains(
+            returnedGroup.Items,
+            i => string.Equals(i.Name, "Item 2", StringComparison.Ordinal)
+        );
         Assert.Equal(2, returnedGroup.Members.Count);
         Assert.Contains(returnedGroup.Members, m => m == userId);
         Assert.Contains(returnedGroup.Members, m => m == member2Id);
@@ -89,7 +126,10 @@ public class GetItemGroupTests
         var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "My Group" });
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "My Group" }
+        );
         // No member for this user
 
         // Act
@@ -110,7 +150,10 @@ public class GetItemGroupTests
         await using var db = await TestDatabase.CreateAsync();
         // Insert member pointing to non-existent group (disable FK for this edge case)
         await db.ExecuteAsync("PRAGMA foreign_keys = OFF");
-        await db.ExecuteAsync("INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)", new { MemberId = userId, ItemGroupId = itemGroupId });
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
         await db.ExecuteAsync("PRAGMA foreign_keys = ON");
 
         // Act

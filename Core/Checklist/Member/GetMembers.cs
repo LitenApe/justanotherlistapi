@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using System.Security.Claims;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -9,18 +9,24 @@ public static class GetMembers
 {
     public static void MapEndpoint(this IEndpointRouteBuilder builder)
     {
-        builder.MapGet("/{itemGroupId:guid}/member", Execute)
+        builder
+            .MapGet("/{itemGroupId:guid}/member", Execute)
             .WithSummary("Get members of an item group")
-            .WithDescription("Returns the list of user IDs that are members of the specified item group. The authenticated user must already be a member.")
+            .WithDescription(
+                "Returns the list of user IDs that are members of the specified item group. The authenticated user must already be a member."
+            )
             .WithTags("Member")
             .WithName(nameof(GetMembers));
     }
 
-    public static async Task<Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
+    public static async Task<
+        Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult>
+    > Execute(
         Guid itemGroupId,
         ClaimsPrincipal claimsPrincipal,
         IDbConnection db,
-        CancellationToken ct)
+        CancellationToken ct
+    )
     {
         var userId = claimsPrincipal.GetUserId();
         if (userId is null)
@@ -28,7 +34,7 @@ public static class GetMembers
             return TypedResults.Unauthorized();
         }
 
-        var isMember = await db.IsMember(itemGroupId, userId, ct);
+        bool isMember = await db.IsMember(itemGroupId, userId, ct);
         if (!isMember)
         {
             return TypedResults.Forbid();
@@ -38,12 +44,19 @@ public static class GetMembers
         return TypedResults.Ok(data);
     }
 
-    internal static async Task<List<Guid>> LoadData(Guid itemGroupId, IDbConnection db, CancellationToken ct)
+    internal static async Task<List<Guid>> LoadData(
+        Guid itemGroupId,
+        IDbConnection db,
+        CancellationToken ct
+    )
     {
-        var result = await db.QueryAsync<Guid>(new CommandDefinition(
-            "SELECT MemberId FROM Members WHERE ItemGroupId = @ItemGroupId",
-            new { ItemGroupId = itemGroupId },
-            cancellationToken: ct));
+        var result = await db.QueryAsync<Guid>(
+            new CommandDefinition(
+                "SELECT MemberId FROM Members WHERE ItemGroupId = @ItemGroupId",
+                new { ItemGroupId = itemGroupId },
+                cancellationToken: ct
+            )
+        );
         return result.ToList();
     }
 }

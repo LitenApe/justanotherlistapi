@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Data;
 using System.Security.Claims;
 using Dapper;
@@ -10,18 +10,24 @@ public static class CreateItemGroup
 {
     public static void MapEndpoint(this IEndpointRouteBuilder builder)
     {
-        builder.MapPost("/", Execute)
+        builder
+            .MapPost("/", Execute)
             .WithSummary("Create a new item group")
-            .WithDescription("Creates a new item group and automatically adds the authenticated user as its first member.")
+            .WithDescription(
+                "Creates a new item group and automatically adds the authenticated user as its first member."
+            )
             .WithTags(nameof(ItemGroup))
             .WithName(nameof(CreateItemGroup));
     }
 
-    public static async Task<Results<Created<ItemGroup>, BadRequest, UnauthorizedHttpResult>> Execute(
+    public static async Task<
+        Results<Created<ItemGroup>, BadRequest, UnauthorizedHttpResult>
+    > Execute(
         Request request,
         ClaimsPrincipal claimsPrincipal,
         IDbConnection db,
-        CancellationToken ct = default)
+        CancellationToken ct = default
+    )
     {
         if (string.IsNullOrWhiteSpace(request.Name))
         {
@@ -38,29 +44,40 @@ public static class CreateItemGroup
         return TypedResults.Created($"/list/{itemGroup.Id}", itemGroup);
     }
 
-    internal static async Task<ItemGroup> CreateData(Guid userId, Request request, IDbConnection db, CancellationToken ct)
+    internal static async Task<ItemGroup> CreateData(
+        Guid userId,
+        Request request,
+        IDbConnection db,
+        CancellationToken ct
+    )
     {
         var itemGroup = new ItemGroup { Id = Guid.NewGuid(), Name = request.Name };
 
         using var tx = db.BeginTransaction();
 
-        await db.ExecuteAsync(new CommandDefinition(
-            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
-            new { itemGroup.Id, itemGroup.Name },
-            transaction: tx,
-            cancellationToken: ct));
+        await db.ExecuteAsync(
+            new CommandDefinition(
+                "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+                new { itemGroup.Id, itemGroup.Name },
+                transaction: tx,
+                cancellationToken: ct
+            )
+        );
 
-        await db.ExecuteAsync(new CommandDefinition(
-            "INSERT INTO Members (ItemGroupId, MemberId) VALUES (@ItemGroupId, @MemberId)",
-            new { ItemGroupId = itemGroup.Id, MemberId = userId },
-            transaction: tx,
-            cancellationToken: ct));
+        await db.ExecuteAsync(
+            new CommandDefinition(
+                "INSERT INTO Members (ItemGroupId, MemberId) VALUES (@ItemGroupId, @MemberId)",
+                new { ItemGroupId = itemGroup.Id, MemberId = userId },
+                transaction: tx,
+                cancellationToken: ct
+            )
+        );
 
         tx.Commit();
 
         return itemGroup with
         {
-            Members = [userId]
+            Members = [userId],
         };
     }
 

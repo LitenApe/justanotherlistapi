@@ -1,0 +1,14 @@
+<Project>
+  <!--
+    Run CSharpier formatting check before every CLI build.
+    Skipped inside Visual Studio (design-time / incremental builds) to avoid slowing down the IDE.
+    To temporarily disable: dotnet build -p:CSharpierDisable=true
+  -->
+  <Target
+    Name="CSharpierCheck"
+    BeforeTargets="Build"
+    Condition="'$(DesignTimeBuild)' != 'true' AND '$(BuildingInsideVisualStudio)' != 'true' AND '$(CSharpierDisable)' != 'true'"
+  >
+    <Exec Command="dotnet csharpier check ." WorkingDirectory="$(MSBuildThisFileDirectory)" />
+  </Target>
+</Project>

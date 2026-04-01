@@ -11,8 +11,8 @@ public record ItemGroup
     public required string Name { get; init; }
 
     [Description("Description of the item group")]
-    public List<Item> Items { get; init; } = [];
+    public IReadOnlyList<Item> Items { get; init; } = [];
 
     [Description("Members of the item group")]
-    public List<Guid> Members { get; init; } = [];
+    public IReadOnlyList<Guid> Members { get; init; } = [];
 }
