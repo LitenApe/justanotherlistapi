@@ -11,13 +11,7 @@ public class DeleteItemGroupTests
         // Arrange
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, userId.ToString())
-        };
-        var identity = new ClaimsIdentity(claims, "TestAuthType");
-        var claimsPrincipal = new ClaimsPrincipal(identity);
+        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "ToDelete" });
@@ -27,20 +21,12 @@ public class DeleteItemGroupTests
         var result = await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> results)
-        {
-            Assert.IsType<NoContent>(results.Result);
+        Assert.IsType<NoContent>(result.Result);
 
-            // Confirm DB deletion
-            var deleted = await db.QueryFirstOrDefaultAsync<ItemGroup>(
-                "SELECT Id, Name FROM ItemGroups WHERE Id = @Id", new { Id = itemGroupId });
-            Assert.Null(deleted);
-        }
-        else
-        {
-            Assert.Fail("Expected Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>.");
-        }
+        // Confirm DB deletion
+        var deleted = await db.QueryFirstOrDefaultAsync<ItemGroup>(
+            "SELECT Id, Name FROM ItemGroups WHERE Id = @Id", new { Id = itemGroupId });
+        Assert.Null(deleted);
     }
 
     [Fact]
@@ -56,30 +42,16 @@ public class DeleteItemGroupTests
         var result = await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> results)
-        {
-            Assert.IsType<UnauthorizedHttpResult>(results.Result);
-        }
-        else
-        {
-            Assert.Fail("Expected Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>.");
-        }
+        Assert.IsType<UnauthorizedHttpResult>(result.Result);
     }
 
     [Fact]
     public async Task Execute_ReturnsForbid_WhenUserIsNotMember()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, userId)
-        };
-        var identity = new ClaimsIdentity(claims, "TestAuthType");
-        var claimsPrincipal = new ClaimsPrincipal(identity);
+        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "ToDelete" });
@@ -89,15 +61,7 @@ public class DeleteItemGroupTests
         var result = await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> results)
-        {
-            Assert.IsType<ForbidHttpResult>(results.Result);
-        }
-        else
-        {
-            Assert.Fail("Expected Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>.");
-        }
+        Assert.IsType<ForbidHttpResult>(result.Result);
     }
 
     [Fact]
@@ -106,13 +70,7 @@ public class DeleteItemGroupTests
         // Arrange
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, userId.ToString())
-        };
-        var identity = new ClaimsIdentity(claims, "TestAuthType");
-        var claimsPrincipal = new ClaimsPrincipal(identity);
+        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
         // Insert a placeholder group to satisfy the FK, add member, then remove the group
@@ -134,14 +92,6 @@ public class DeleteItemGroupTests
         var result = await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> results)
-        {
-            Assert.IsType<NoContent>(results.Result);
-        }
-        else
-        {
-            Assert.Fail("Expected Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>.");
-        }
+        Assert.IsType<NoContent>(result.Result);
     }
 }

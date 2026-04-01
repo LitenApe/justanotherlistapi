@@ -10,7 +10,7 @@ public static class GetItemGroups
     public static void MapEndpoint(this RouteGroupBuilder builder)
     {
         builder.MapGet("/", Execute)
-            .WithSummary("Get all item groups related to authenticated user")
+            .WithSummary("Get all item groups related to authenticated user with uncompleted items")
             .WithTags(nameof(ItemGroup))
             .WithName(nameof(GetItemGroups));
     }

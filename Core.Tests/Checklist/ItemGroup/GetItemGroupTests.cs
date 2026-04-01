@@ -11,13 +11,7 @@ public class GetItemGroupTests
         // Arrange
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, userId.ToString())
-        };
-        var identity = new ClaimsIdentity(claims, "TestAuthType");
-        var claimsPrincipal = new ClaimsPrincipal(identity);
+        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "My Group" });
@@ -27,24 +21,10 @@ public class GetItemGroupTests
         var result = await GetItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult> results)
-        {
-            if (results.Result is Ok<ItemGroup> ok)
-            {
-                Assert.NotNull(ok.Value);
-                Assert.Equal(itemGroupId, ok.Value.Id);
-                Assert.Equal("My Group", ok.Value.Name);
-            }
-            else
-            {
-                Assert.Fail("Expected Ok<ItemGroup> result.");
-            }
-        }
-        else
-        {
-            Assert.Fail("Expected Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult>.");
-        }
+        var ok = Assert.IsType<Ok<ItemGroup>>(result.Result);
+        Assert.NotNull(ok.Value);
+        Assert.Equal(itemGroupId, ok.Value.Id);
+        Assert.Equal("My Group", ok.Value.Name);
     }
 
     [Fact]
@@ -56,13 +36,7 @@ public class GetItemGroupTests
         var item1Id = Guid.NewGuid();
         var item2Id = Guid.NewGuid();
         var member2Id = Guid.NewGuid();
-
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, userId.ToString())
-        };
-        var identity = new ClaimsIdentity(claims, "TestAuthType");
-        var claimsPrincipal = new ClaimsPrincipal(identity);
+        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "Group" });
@@ -77,29 +51,15 @@ public class GetItemGroupTests
         var result = await GetItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult> results)
-        {
-            if (results.Result is Ok<ItemGroup> ok)
-            {
-                var returnedGroup = ok.Value;
-                Assert.NotNull(returnedGroup);
-                Assert.Equal(2, returnedGroup.Items.Count);
-                Assert.Contains(returnedGroup.Items, i => i.Name == "Item 1");
-                Assert.Contains(returnedGroup.Items, i => i.Name == "Item 2");
-                Assert.Equal(2, returnedGroup.Members.Count);
-                Assert.Contains(returnedGroup.Members, m => m.MemberId == userId);
-                Assert.Contains(returnedGroup.Members, m => m.MemberId == member2Id);
-            }
-            else
-            {
-                Assert.Fail("Expected Ok<ItemGroup> result.");
-            }
-        }
-        else
-        {
-            Assert.Fail("Expected Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult>.");
-        }
+        var ok = Assert.IsType<Ok<ItemGroup>>(result.Result);
+        var returnedGroup = ok.Value;
+        Assert.NotNull(returnedGroup);
+        Assert.Equal(2, returnedGroup.Items.Count);
+        Assert.Contains(returnedGroup.Items, i => i.Name == "Item 1");
+        Assert.Contains(returnedGroup.Items, i => i.Name == "Item 2");
+        Assert.Equal(2, returnedGroup.Members.Count);
+        Assert.Contains(returnedGroup.Members, m => m.MemberId == userId);
+        Assert.Contains(returnedGroup.Members, m => m.MemberId == member2Id);
     }
 
     [Fact]
@@ -115,30 +75,16 @@ public class GetItemGroupTests
         var result = await GetItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult> results)
-        {
-            Assert.IsType<UnauthorizedHttpResult>(results.Result);
-        }
-        else
-        {
-            Assert.Fail("Expected Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult>.");
-        }
+        Assert.IsType<UnauthorizedHttpResult>(result.Result);
     }
 
     [Fact]
     public async Task Execute_ReturnsForbid_WhenUserIsNotMember()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, userId)
-        };
-        var identity = new ClaimsIdentity(claims, "TestAuthType");
-        var claimsPrincipal = new ClaimsPrincipal(identity);
+        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync("INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)", new { Id = itemGroupId, Name = "My Group" });
@@ -148,15 +94,7 @@ public class GetItemGroupTests
         var result = await GetItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult> results)
-        {
-            Assert.IsType<ForbidHttpResult>(results.Result);
-        }
-        else
-        {
-            Assert.Fail("Expected Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult>.");
-        }
+        Assert.IsType<ForbidHttpResult>(result.Result);
     }
 
     [Fact]
@@ -165,13 +103,7 @@ public class GetItemGroupTests
         // Arrange
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, userId.ToString())
-        };
-        var identity = new ClaimsIdentity(claims, "TestAuthType");
-        var claimsPrincipal = new ClaimsPrincipal(identity);
+        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
         await using var db = await TestDatabase.CreateAsync();
         // Insert member pointing to non-existent group (disable FK for this edge case)
@@ -183,14 +115,6 @@ public class GetItemGroupTests
         var result = await GetItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
-        Assert.NotNull(result);
-        if (result is Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult> results)
-        {
-            Assert.IsType<NotFound>(results.Result);
-        }
-        else
-        {
-            Assert.Fail("Expected Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult>.");
-        }
+        Assert.IsType<NotFound>(result.Result);
     }
 }
