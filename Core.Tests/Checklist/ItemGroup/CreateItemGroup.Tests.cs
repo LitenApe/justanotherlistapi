@@ -2,6 +2,8 @@
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
 
+namespace Core.Tests.Checklist.ItemGroupTests;
+
 public class CreateItemGroupTests
 {
     [Fact]

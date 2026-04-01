@@ -3,6 +3,8 @@ using Core.Checklist;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
 
+namespace Core.Tests.Checklist.MemberTests;
+
 public class AddMemberTests
 {
     [Fact]
