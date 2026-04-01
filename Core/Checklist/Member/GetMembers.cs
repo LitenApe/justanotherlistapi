@@ -7,7 +7,7 @@ namespace Core.Checklist;
 
 public static class GetMembers
 {
-    public static void MapEndpoint(this RouteGroupBuilder builder)
+    public static void MapEndpoint(this IEndpointRouteBuilder builder)
     {
         builder.MapGet("/{itemGroupId:guid}/member", Execute)
             .WithSummary("Get members of an item group")

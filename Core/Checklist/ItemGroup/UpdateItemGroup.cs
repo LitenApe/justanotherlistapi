@@ -8,7 +8,7 @@ namespace Core.Checklist;
 
 public static class UpdateItemGroup
 {
-    public static void MapEndpoint(this RouteGroupBuilder builder)
+    public static void MapEndpoint(this IEndpointRouteBuilder builder)
     {
         builder.MapPut("/{itemGroupId:guid}", Execute)
             .WithSummary("Update an item group")

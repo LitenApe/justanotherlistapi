@@ -7,7 +7,7 @@ namespace Core.Checklist;
 
 public static class GetItemGroups
 {
-    public static void MapEndpoint(this RouteGroupBuilder builder)
+    public static void MapEndpoint(this IEndpointRouteBuilder builder)
     {
         builder.MapGet("/", Execute)
             .WithSummary("Get all item groups related to authenticated user with uncompleted items")

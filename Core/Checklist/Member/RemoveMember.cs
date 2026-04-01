@@ -7,7 +7,7 @@ namespace Core.Checklist;
 
 public static class RemoveMember
 {
-    public static void MapEndpoint(this RouteGroupBuilder builder)
+    public static void MapEndpoint(this IEndpointRouteBuilder builder)
     {
         builder.MapDelete("/{itemGroupId:guid}/member/{memberId:guid}", Execute)
             .WithSummary("Remove member from item group")

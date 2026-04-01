@@ -7,7 +7,7 @@ namespace Core.Checklist;
 
 public static class GetItemGroup
 {
-    public static void MapEndpoint(this RouteGroupBuilder builder)
+    public static void MapEndpoint(this IEndpointRouteBuilder builder)
     {
         builder.MapGet("/{itemGroupId:guid}", Execute)
             .WithSummary("Get an item group")
