@@ -13,13 +13,15 @@ public static class RemoveMember
             .MapDelete("/{itemGroupId:guid}/member/{memberId:guid}", Execute)
             .WithSummary("Remove member from item group")
             .WithDescription(
-                "Revokes a user's access to an item group by removing them as a member. The authenticated user must be a member of the group."
+                "Revokes a user's access to an item group by removing them as a member. The authenticated user must be a member of the group. Returns 409 Conflict if the target member is the last member of the group, as removing them would leave the group permanently unreachable."
             )
             .WithTags("Member")
             .WithName(nameof(RemoveMember));
     }
 
-    public static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
+    public static async Task<
+        Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult, Conflict>
+    > Execute(
         Guid itemGroupId,
         Guid memberId,
         ClaimsPrincipal claimsPrincipal,
@@ -37,6 +39,12 @@ public static class RemoveMember
         if (!isMember)
         {
             return TypedResults.Forbid();
+        }
+
+        bool isLastMember = await db.IsLastMember(itemGroupId, memberId, ct);
+        if (isLastMember)
+        {
+            return TypedResults.Conflict();
         }
 
         await RemoveData(itemGroupId, memberId, db, ct);
