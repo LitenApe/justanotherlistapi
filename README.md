@@ -232,7 +232,7 @@ All endpoints are under `/api/list` and require a valid Bearer token. Interactiv
 |---|---|---|
 | `GET` | `/api/list/{id}/member` | List member IDs of a group |
 | `POST` | `/api/list/{id}/member/{memberId}` | Add a member to a group |
-| `DELETE` | `/api/list/{id}/member/{memberId}` | Remove a member from a group |
+| `DELETE` | `/api/list/{id}/member/{memberId}` | Remove a member from a group. Returns `409 Conflict` if the target is the last member. |
 
 ### Request / response shapes
 
@@ -309,7 +309,7 @@ Idempotent — no error if `memberId` is not a member.
 | `401 Unauthorized` | Missing or invalid Bearer token, or `sub` claim is not a valid `Guid` |
 | `403 Forbidden` | Caller is authenticated but is not a member of the requested group |
 | `404 Not Found` | Group does not exist (only `GET /api/list/{id}`) |
-| `409 Conflict` | Target is already a member (`POST …/member/{memberId}`) |
+| `409 Conflict` | Target is already a member (`POST …/member/{memberId}`), or target is the last member of the group (`DELETE …/member/{memberId}`) |
 
 ## Tests
 
@@ -340,7 +340,7 @@ dotnet test
 | `DeleteItem.Tests.cs` | Deletion scoped by `ItemGroupId`, cross-group safety, auth |
 | `AddMember.Tests.cs` | Add new member, conflict on duplicate, membership gate, auth |
 | `GetMembers.Tests.cs` | List member IDs, membership gate, auth |
-| `RemoveMember.Tests.cs` | Remove member (idempotent), membership gate, auth |
+| `RemoveMember.Tests.cs` | Remove member (idempotent), last-member conflict, membership gate, auth |
 
 ## Code quality
 
