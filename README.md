@@ -49,10 +49,11 @@ Core/                               - ASP.NET Core backend
     ClaimsPrincipalExtension.cs     - GetUserId(): reads sub / NameIdentifier / user_id claim → Guid?
   Utility/
     BearerSecuritySchemeTransformer.cs  - Adds Bearer + OAuth2 security schemes to OpenAPI doc
-Core.Tests/                         - xUnit unit tests (SQLite in-memory, no running server needed)
+Core.Tests/                         - xUnit tests (SQLite in-memory, no running server needed)
+  ApiFactory.cs                     - WebApplicationFactory<Program> with SQLite + TestAuthHandler
   TestDatabase.cs                   - Creates in-memory SQLite with matching schema + GuidTypeHandler
-  TestHelpers.cs                    - CreatePrincipal(Guid): builds a ClaimsPrincipal for tests
-  Checklist/                        - Handler tests mirroring the Core/Checklist structure
+  TestHelpers.cs                    - CreatePrincipal(Guid): builds a ClaimsPrincipal for unit tests
+  Checklist/                        - Unit + HTTP integration tests mirroring the Core/Checklist structure
 Directory.Build.props               - Solution-wide MSBuild settings and analyzer packages
 Directory.Build.targets             - CSharpier format check wired into every CLI build
 dotnet-tools.json                   - Pins CSharpier version for local tool restore
@@ -321,9 +322,18 @@ dotnet test
 
 ### How tests work
 
+`Core.Tests` contains two kinds of tests:
+
+**Unit tests** call handler `Execute()` methods directly against an in-memory SQLite connection.
+
 - `Core.Tests` references `Core` internals via `InternalsVisibleTo`, so individual handler `Execute()` methods are called directly — no HTTP server is spun up.
 - `TestDatabase` creates an in-memory SQLite connection and runs the same schema (with SQLite-compatible types: `TEXT` instead of `UNIQUEIDENTIFIER`, `INTEGER` instead of `BIT`). A `GuidTypeHandler` is registered with Dapper so `Guid` ↔ `TEXT` mapping works transparently.
 - `TestHelpers.CreatePrincipal(Guid)` builds a `ClaimsPrincipal` with a `ClaimTypes.NameIdentifier` claim for the given user ID.
+
+**HTTP integration tests** boot the full ASP.NET Core app via `WebApplicationFactory` and make real HTTP requests, covering route registration and middleware.
+
+- `ApiFactory` replaces the SQL Server connection with the same in-memory SQLite connection and swaps JWT Bearer authentication for a `TestAuthHandler` that always authenticates as a fixed user ID.
+- The app runs in the `"Testing"` environment, which skips HTTPS redirection and database initialisation.
 
 ### Test coverage by file
 
@@ -331,16 +341,27 @@ dotnet test
 |---|---|
 | `ClaimsPrincipalExtension.Tests.cs` | `GetUserId()` — all claim types, invalid GUIDs, empty values |
 | `CreateItemGroup.Tests.cs` | Happy path, DB persistence, auto-member insert, validation, auth |
+| `CreateItemGroup.Http.Tests.cs` | `POST /api/list` route registration |
 | `GetItemGroups.Tests.cs` | Multi-group listing, only-incomplete items, empty result, auth |
+| `GetItemGroups.Http.Tests.cs` | `GET /api/list` route registration |
 | `GetItemGroup.Tests.cs` | Full group with all items + members, membership gate, auth |
+| `GetItemGroup.Http.Tests.cs` | `GET /api/list/{id}` route registration |
 | `UpdateItemGroup.Tests.cs` | Name update, validation, membership gate, auth |
+| `UpdateItemGroup.Http.Tests.cs` | `PUT /api/list/{id}` route registration |
 | `DeleteItemGroup.Tests.cs` | Deletion, cascade behaviour, membership gate, auth |
+| `DeleteItemGroup.Http.Tests.cs` | `DELETE /api/list/{id}` route registration |
 | `CreateItem.Tests.cs` | Create with all fields, validation, membership gate, auth |
+| `CreateItem.Http.Tests.cs` | `POST /api/list/{groupId}` route registration |
 | `UpdateItem.Tests.cs` | Full replace of all fields, validation, membership gate, auth |
+| `UpdateItem.Http.Tests.cs` | `PUT /api/list/{groupId}/{itemId}` route registration |
 | `DeleteItem.Tests.cs` | Deletion scoped by `ItemGroupId`, cross-group safety, auth |
+| `DeleteItem.Http.Tests.cs` | `DELETE /api/list/{groupId}/{itemId}` route registration |
 | `AddMember.Tests.cs` | Add new member, conflict on duplicate, membership gate, auth |
+| `AddMember.Http.Tests.cs` | `POST /api/list/{id}/member/{memberId}` route registration |
 | `GetMembers.Tests.cs` | List member IDs, membership gate, auth |
+| `GetMembers.Http.Tests.cs` | `GET /api/list/{id}/member` route registration |
 | `RemoveMember.Tests.cs` | Remove member (idempotent), last-member conflict, membership gate, auth |
+| `RemoveMember.Http.Tests.cs` | `DELETE /api/list/{id}/member/{memberId}` route registration |
 
 ## Code quality
 
