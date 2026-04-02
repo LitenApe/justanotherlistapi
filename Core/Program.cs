@@ -6,7 +6,7 @@ using OpenTelemetry;
 using OpenTelemetry.Trace;
 using Scalar.AspNetCore;
 
-var builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 // --- Service Registrations ---
 
@@ -81,7 +81,7 @@ builder.Services.AddOpenApi(opt =>
     opt.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
 });
 
-var app = builder.Build();
+WebApplication app = builder.Build();
 
 // --- Middleware Pipeline ---
 
@@ -92,7 +92,10 @@ app.UseCors(policyBuilder =>
         .SetIsOriginAllowed(origin => true)
         .AllowCredentials()
 );
-app.UseHttpsRedirection();
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    app.UseHttpsRedirection();
+}
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -124,9 +127,10 @@ app.MapScalarApiReference(opt =>
 
 // --- Database Initialization ---
 
-using (var scope = app.Services.CreateScope())
+if (!app.Environment.IsEnvironment("Testing"))
 {
-    var connection = scope.ServiceProvider.GetRequiredService<SqlConnection>();
+    await using AsyncServiceScope scope = app.Services.CreateAsyncScope();
+    SqlConnection connection = scope.ServiceProvider.GetRequiredService<SqlConnection>();
     await DatabaseInitializer.InitializeAsync(connection);
 }
 

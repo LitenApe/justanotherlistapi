@@ -8,6 +8,12 @@ jobs:
   test:
     name: Build & Test
     runs-on: ubuntu-latest
+    env:
+      BRANCH_COVERAGE_THRESHOLD: "0.8"
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
 
     steps:
       - name: Checkout
@@ -28,4 +34,36 @@ jobs:
         run: dotnet build --no-restore --configuration Release
 
       - name: Test
-        run: dotnet test --no-build --configuration Release --verbosity normal
+        run: dotnet test --no-build --configuration Release --verbosity normal --logger trx --results-directory TestResults --collect:"XPlat Code Coverage" --settings coverage.runsettings
+
+      - name: Copy coverage report
+        run: cp $(find TestResults -name "coverage.cobertura.xml" | head -1) coverage.cobertura.xml
+
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Test Results
+          path: TestResults/*.trx
+          reporter: dotnet-trx
+
+      - name: Generate coverage summary
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: coverage.cobertura.xml
+          badge: true
+          format: markdown
+          output: both
+
+      - name: Check branch coverage threshold
+        run: |
+          branch_rate=$(grep -oP 'branch-rate="\K[0-9.]+' coverage.cobertura.xml | head -1)
+          echo "Branch coverage: $branch_rate"
+          awk -v rate="$branch_rate" -v threshold="$BRANCH_COVERAGE_THRESHOLD" 'BEGIN { if (rate + 0 < threshold + 0) { print "Branch coverage " rate " is below " threshold; exit 1 } }'
+
+      - name: Add coverage comment to PR
+        uses: marocchino/sticky-pull-request-comment@v2
+        if: github.event_name == 'pull_request'
+        with:
+          recreate: true
+          path: code-coverage-results.md
