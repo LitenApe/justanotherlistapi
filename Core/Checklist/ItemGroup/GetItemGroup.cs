@@ -55,34 +55,26 @@ public static class GetItemGroup
         CancellationToken ct
     )
     {
-        var itemGroup = await db.QueryFirstOrDefaultAsync<ItemGroup>(
+        using var multi = await db.QueryMultipleAsync(
             new CommandDefinition(
-                "SELECT Id, Name FROM ItemGroups WHERE Id = @Id",
+                """
+                SELECT Id, Name FROM ItemGroups WHERE Id = @Id;
+                SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE ItemGroupId = @Id;
+                SELECT MemberId FROM Members WHERE ItemGroupId = @Id;
+                """,
                 new { Id = itemGroupId },
                 cancellationToken: ct
             )
         );
 
+        var itemGroup = await multi.ReadFirstOrDefaultAsync<ItemGroup>();
         if (itemGroup is null)
         {
             return null;
         }
 
-        var items = await db.QueryAsync<Item>(
-            new CommandDefinition(
-                "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE ItemGroupId = @ItemGroupId",
-                new { ItemGroupId = itemGroupId },
-                cancellationToken: ct
-            )
-        );
-
-        var members = await db.QueryAsync<Guid>(
-            new CommandDefinition(
-                "SELECT MemberId FROM Members WHERE ItemGroupId = @ItemGroupId",
-                new { ItemGroupId = itemGroupId },
-                cancellationToken: ct
-            )
-        );
+        var items = await multi.ReadAsync<Item>();
+        var members = await multi.ReadAsync<Guid>();
 
         return itemGroup with
         {
