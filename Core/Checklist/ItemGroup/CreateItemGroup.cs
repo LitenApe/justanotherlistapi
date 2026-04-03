@@ -53,21 +53,20 @@ public static class CreateItemGroup
     {
         var itemGroup = new ItemGroup { Id = Guid.NewGuid(), Name = request.Name };
 
-        using var tx = db.BeginTransaction();
+        using IDbTransaction tx = db.BeginTransaction();
 
         await db.ExecuteAsync(
             new CommandDefinition(
-                "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
-                new { itemGroup.Id, itemGroup.Name },
-                transaction: tx,
-                cancellationToken: ct
-            )
-        );
-
-        await db.ExecuteAsync(
-            new CommandDefinition(
-                "INSERT INTO Members (ItemGroupId, MemberId) VALUES (@ItemGroupId, @MemberId)",
-                new { ItemGroupId = itemGroup.Id, MemberId = userId },
+                """
+                INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name);
+                INSERT INTO Members (ItemGroupId, MemberId) VALUES (@Id, @MemberId);
+                """,
+                new
+                {
+                    itemGroup.Id,
+                    itemGroup.Name,
+                    MemberId = userId,
+                },
                 transaction: tx,
                 cancellationToken: ct
             )

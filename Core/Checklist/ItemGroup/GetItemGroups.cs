@@ -41,36 +41,31 @@ public static class GetItemGroups
         CancellationToken ct
     )
     {
-        var groups = (
-            await db.QueryAsync<ItemGroup>(
-                new CommandDefinition(
-                    """
-                    SELECT ig.Id, ig.Name
-                    FROM ItemGroups ig
-                    INNER JOIN Members m ON m.ItemGroupId = ig.Id
-                    WHERE m.MemberId = @UserId
-                    """,
-                    new { UserId = userId },
-                    cancellationToken: ct
-                )
-            )
-        ).ToList();
+        using var multi = await db.QueryMultipleAsync(
+            new CommandDefinition(
+                """
+                SELECT ig.Id, ig.Name
+                FROM ItemGroups ig
+                INNER JOIN Members m ON m.ItemGroupId = ig.Id
+                WHERE m.MemberId = @UserId;
 
+                SELECT i.Id, i.Name, i.Description, i.IsComplete, i.ItemGroupId
+                FROM Items i
+                INNER JOIN Members m ON m.ItemGroupId = i.ItemGroupId
+                WHERE m.MemberId = @UserId AND i.IsComplete = 0;
+                """,
+                new { UserId = userId },
+                cancellationToken: ct
+            )
+        );
+
+        var groups = (await multi.ReadAsync<ItemGroup>()).ToList();
         if (groups.Count == 0)
         {
             return groups;
         }
 
-        var groupIds = groups.Select(g => g.Id).ToList();
-        var items = (
-            await db.QueryAsync<Item>(
-                new CommandDefinition(
-                    "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE ItemGroupId IN @GroupIds AND IsComplete = 0",
-                    new { GroupIds = groupIds },
-                    cancellationToken: ct
-                )
-            )
-        ).ToList();
+        var items = (await multi.ReadAsync<Item>()).ToList();
 
         return groups
             .Select(group =>
