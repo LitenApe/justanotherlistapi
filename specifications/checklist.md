@@ -145,6 +145,27 @@ Executes two queries:
 
 Items are then grouped in memory. If the user has no groups, the second query is skipped.
 
+**Response body example**
+
+```json
+[
+  {
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "name": "Shopping",
+    "items": [
+      {
+        "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+        "name": "Milk",
+        "description": null,
+        "isComplete": false,
+        "itemGroupId": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+      }
+    ],
+    "members": []
+  }
+]
+```
+
 ---
 
 #### `GET /api/list/{itemGroupId}` — GetItemGroup
@@ -168,6 +189,25 @@ Returns a single item group including **all items** (complete and incomplete) an
 
 **Note:** The 403 check runs before the existence check. A non-member probing for a non-existent group receives 403, not 404. This is intentional — it avoids leaking whether a group exists to non-members.
 
+**Response body example**
+
+```json
+{
+  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "name": "Shopping",
+  "items": [
+    {
+      "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+      "name": "Milk",
+      "description": null,
+      "isComplete": false,
+      "itemGroupId": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+    }
+  ],
+  "members": ["a1b2c3d4-e5f6-7890-abcd-ef1234567890"]
+}
+```
+
 ---
 
 #### `POST /api/list` — CreateItemGroup
@@ -188,6 +228,25 @@ Creates a new item group and automatically adds the authenticated user as its fi
 | `400 Bad Request` | `Name` is blank or whitespace |
 | `401 Unauthorized` | Missing user ID claim |
 
+**Request body example**
+
+```json
+{ "name": "Shopping" }
+```
+
+**Response body example**
+
+Returns the created `ItemGroup`. The caller is automatically added as the first and only member. `Items` is empty on creation.
+
+```json
+{
+  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "name": "Shopping",
+  "items": [],
+  "members": ["a1b2c3d4-e5f6-7890-abcd-ef1234567890"]
+}
+```
+
 ---
 
 #### `PUT /api/list/{itemGroupId}` — UpdateItemGroup
@@ -205,6 +264,12 @@ Renames an existing item group.
 | Field | Type | Validation |
 |---|---|---|
 | `Name` | `string` | Required. Must not be blank |
+
+**Request body example**
+
+```json
+{ "name": "New name" }
+```
 
 **Responses**
 
@@ -270,6 +335,24 @@ Creates a new item within the specified item group.
 | `401 Unauthorized` | Missing user ID claim |
 | `403 Forbidden` | Authenticated user is not a member |
 
+**Request body example**
+
+```json
+{ "name": "Milk", "description": "2% fat", "isComplete": false }
+```
+
+**Response body example**
+
+```json
+{
+  "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+  "name": "Milk",
+  "description": "2% fat",
+  "isComplete": false,
+  "itemGroupId": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+}
+```
+
 ---
 
 #### `PUT /api/list/{itemGroupId}/{itemId}` — UpdateItem
@@ -290,6 +373,12 @@ Updates the name, description, and/or completion status of an existing item. All
 | `Name` | `string` | Required. Must not be blank | — |
 | `Description` | `string?` | Optional | `null` |
 | `IsComplete` | `bool` | Optional | `false` |
+
+**Request body example**
+
+```json
+{ "name": "Milk", "description": "2% fat", "isComplete": true }
+```
 
 **Responses**
 
