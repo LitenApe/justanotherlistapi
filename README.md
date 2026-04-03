@@ -6,6 +6,7 @@ JustAnotherList is an open-source, minimalist app for organising life into share
 
 - [Tech stack](#tech-stack)
 - [Project structure](#project-structure)
+- [Specifications](#specifications)
 - [Requirements](#requirements)
 - [Quickstart (local development)](#quickstart-local-development)
 - [Getting a token locally](#getting-a-token-locally)
@@ -57,7 +58,19 @@ Core.Tests/                         - xUnit tests (SQLite in-memory, no running 
 Directory.Build.props               - Solution-wide MSBuild settings and analyzer packages
 Directory.Build.targets             - CSharpier format check wired into every CLI build
 dotnet-tools.json                   - Pins CSharpier version for local tool restore
+specifications/                     - Design and architecture specifications
+  checklist.md                      - Checklist feature: domain model, endpoints, DB schema
+  audit-logs.md                     - Audit log feature: schema, implementation design
 ```
+
+## Specifications
+
+Design and architecture documents for planned and implemented features live in the [`specifications/`](specifications/) folder.
+
+| Document | Description |
+|---|---|
+| [checklist.md](specifications/checklist.md) | Checklist feature — domain model, authorization model, database schema, all API endpoints with request/response shapes, and structural conventions |
+| [audit-logs.md](specifications/audit-logs.md) | Audit Log feature — database schema, per-operation audit data, implementation design, and future extensibility |
 
 ## Requirements
 
@@ -168,42 +181,9 @@ The value must parse as a valid `Guid`; otherwise `null` is returned and the req
 
 The schema is managed without a migration framework. `DatabaseInitializer` runs idempotent SQL on every startup — safe against an existing database, no CLI tooling required. To change the schema, edit `Core/DatabaseInitializer.cs` directly.
 
-### Tables
+Three tables exist: `ItemGroups`, `Items`, and `Members`. Deleting an `ItemGroup` cascades and removes all related `Items` and `Members` rows.
 
-```sql
-CREATE TABLE ItemGroups (
-    Id   UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-    Name NVARCHAR(MAX)    NOT NULL
-);
-
-CREATE TABLE Items (
-    Id          UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-    Name        NVARCHAR(MAX)    NOT NULL,
-    Description NVARCHAR(MAX)    NULL,
-    IsComplete  BIT              NOT NULL DEFAULT 0,
-    ItemGroupId UNIQUEIDENTIFIER NOT NULL,
-    FOREIGN KEY (ItemGroupId) REFERENCES ItemGroups(Id) ON DELETE CASCADE
-);
-
-CREATE TABLE Members (
-    MemberId    UNIQUEIDENTIFIER NOT NULL,
-    ItemGroupId UNIQUEIDENTIFIER NOT NULL,
-    PRIMARY KEY (MemberId, ItemGroupId),
-    FOREIGN KEY (ItemGroupId) REFERENCES ItemGroups(Id) ON DELETE CASCADE
-);
-```
-
-Deleting an `ItemGroup` cascades and removes all related `Items` and `Members` rows.
-
-### Indexes
-
-```sql
-CREATE INDEX IX_Items_ItemGroupId            ON Items(ItemGroupId);
-CREATE INDEX IX_Members_ItemGroupId          ON Members(ItemGroupId);
-CREATE INDEX IX_Members_MemberId_ItemGroupId ON Members(MemberId, ItemGroupId);
-```
-
-All indexes and tables guard against re-creation with `NOT EXISTS` checks against `sys.tables` / `sys.indexes`.
+For the full DDL, column definitions, and indexes see [specifications/checklist.md](specifications/checklist.md#database-schema).
 
 ## API endpoints
 
@@ -235,73 +215,7 @@ All endpoints are under `/api/list` and require a valid Bearer token. Interactiv
 | `POST` | `/api/list/{id}/member/{memberId}` | Add a member to a group |
 | `DELETE` | `/api/list/{id}/member/{memberId}` | Remove a member from a group. Returns `409 Conflict` if the target is the last member. |
 
-### Request / response shapes
-
-#### `GET /api/list` → `200 OK`
-
-Returns only groups the caller is a member of. The `members` array is always empty in this response. The `items` array contains **only incomplete** items.
-
-```json
-[
-  {
-    "id": "3fa85f64-...",
-    "name": "Shopping",
-    "items": [
-      { "id": "...", "name": "Milk", "description": null, "isComplete": false, "itemGroupId": "..." }
-    ],
-    "members": []
-  }
-]
-```
-
-#### `GET /api/list/{id}` → `200 OK` / `401` / `403`
-
-Returns the group with **all** items (complete and incomplete) and **all** member IDs.
-
-```json
-{
-  "id": "3fa85f64-...",
-  "name": "Shopping",
-  "items": [ { "id": "...", "name": "Milk", "description": null, "isComplete": false, "itemGroupId": "..." } ],
-  "members": [ "a1b2c3d4-..." ]
-}
-```
-
-#### `POST /api/list` → `201 Created` / `400` / `401`
-
-```json
-{ "name": "Shopping" }
-```
-
-Returns the created group. The caller is automatically added as the first member.
-
-#### `PUT /api/list/{id}` → `204 No Content` / `400` / `401` / `403`
-
-```json
-{ "name": "New name" }
-```
-
-`name` must be non-empty and non-whitespace; otherwise `400`.
-
-#### `POST /api/list/{groupId}` — Create item → `201 Created` / `400` / `401` / `403`
-
-```json
-{ "name": "Milk", "description": "2% fat", "isComplete": false }
-```
-
-`name` is required. `description` is optional (`null` allowed). `isComplete` defaults to `false`.
-
-#### `PUT /api/list/{groupId}/{itemId}` → `204 No Content` / `400` / `401` / `403`
-
-Same body shape as create item. All fields are required; the entire item is replaced.
-
-#### `POST /api/list/{id}/member/{memberId}` → `204 No Content` / `401` / `403` / `409 Conflict`
-
-No request body. Returns `409 Conflict` if `memberId` is already a member.
-
-#### `DELETE /api/list/{id}/member/{memberId}` → `204 No Content` / `401` / `403`
-
-Idempotent — no error if `memberId` is not a member.
+For detailed request/response shapes, validation rules, and edge cases see [specifications/checklist.md](specifications/checklist.md#api-endpoints).
 
 ### Common status codes
 
