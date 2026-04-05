@@ -128,7 +128,7 @@ Audit rows are stored indefinitely. Deletion is a manual administrative action o
 
 | Operation | `ResourceType` | `ResourceId` | `SubResourceId` | `TargetUserId` | `ResourceName` |
 |---|---|---|---|---|---|
-| `CreateItem` | `'Item'` | `itemGroupId` | NULL | NULL | NULL |
+| `CreateItem` | `'Item'` | `itemGroupId` | `itemId` (after insert) | NULL | NULL |
 | `UpdateItem` | `'Item'` | `itemGroupId` | `itemId` | NULL | New name from request body |
 | `DeleteItem` | `'Item'` | `itemGroupId` | `itemId` | NULL | Name fetched via SELECT before delete |
 
@@ -201,6 +201,8 @@ Allows individual handlers to pass semantic context (name, target user) to the f
 ```csharp
 public sealed class AuditContext
 {
+    public Guid? ResourceId { get; set; }
+    public Guid? SubResourceId { get; set; }
     public string? ResourceName { get; set; }
     public Guid? TargetUserId { get; set; }
 }
@@ -208,10 +210,14 @@ public sealed class AuditContext
 
 Registered as `services.AddScoped<AuditContext>()`. Injected into handlers that need it as an additional parameter — Minimal API binds it from DI automatically.
 
+`ResourceId` and `SubResourceId` are only needed when the IDs are not available as route values (i.e. they are generated inside the handler). The filter checks `AuditContext.ResourceId` first and falls back to the `itemGroupId` route value; it checks `AuditContext.SubResourceId` first and falls back to the `itemId` route value. Handlers that do not set these properties are unaffected.
+
 Handlers that populate `AuditContext`:
 
 | Handler | Sets |
 |---|---|
+| `CreateItemGroup` | `ResourceId` = the newly generated `itemGroupId` (set after a successful insert, before returning `Created`) |
+| `CreateItem` | `SubResourceId` = the newly generated `itemId` (set after a successful insert, before returning `Created`) |
 | `UpdateItemGroup` | `ResourceName` = new name from request body |
 | `UpdateItem` | `ResourceName` = new name from request body |
 | `DeleteItemGroup` | `ResourceName` = fetched from DB before delete |
@@ -220,6 +226,10 @@ Handlers that populate `AuditContext`:
 | `RemoveMember` | `TargetUserId` = `memberId` route value |
 
 All other handlers do not take `AuditContext`.
+
+#### Why `CreateItemGroup` and `CreateItem` need `AuditContext` for IDs
+
+`CreateItemGroup` posts to `/` with no route parameters — `AuditContext.ResourceId` is the only path for the filter to obtain the new group ID. `CreateItem` posts to `/{itemGroupId:guid}` so `itemGroupId` is present in route values, but the new item's ID is generated inside the handler (`Guid.NewGuid()`) and is not a route value. `AuditContext.SubResourceId` is populated by the handler after a successful insert so the filter can record it. Only successful (201 Created) responses produce a meaningful ID; for early-exit responses (BadRequest, Unauthorized, Forbidden) the handler returns before setting `AuditContext.SubResourceId`, so the filter records `NULL` for those outcomes.
 
 ---
 
@@ -237,14 +247,27 @@ public interface IAuditWriter
 - Exposes `Enqueue` as a non-blocking `TryWrite` — no await, no blocking
 - Implements `IHostedService` to drain the channel in the background
 - Batches writes: flush when 50 entries are queued OR after 5 seconds, whichever comes first
-- Opens its own `SqlConnection` using the raw connection string from `IConfiguration["ConnectionStrings:database"]` — **never reuses the scoped `IDbConnection`** from the request pipeline, ensuring audit writes are independent of any handler transactions
+- Opens its own `SqlConnection` using `IConfiguration.GetConnectionString("database")` — this is the standard .NET connection string key that Aspire populates at startup with the provisioned SQL Server connection string, so `ChannelAuditWriter` automatically connects to the same SQL Server instance that Aspire provisions. It **never reuses the scoped `IDbConnection`** from the request pipeline, ensuring audit writes are independent of any handler transactions.
 - Catches all exceptions during write, logs at `Warning` level via `ILogger`, and continues draining
 
-Registered in `Program.cs`:
+Registered in `Program.cs` using three separate descriptors so that tests can replace only the parts they need without risking cast failures:
+
 ```csharp
-services.AddSingleton<IAuditWriter, ChannelAuditWriter>();
-services.AddHostedService(sp => (ChannelAuditWriter)sp.GetRequiredService<IAuditWriter>());
+// Concrete singleton — shared instance for both IAuditWriter and IHostedService
+builder.Services.AddSingleton<ChannelAuditWriter>();
+// IAuditWriter alias pointing to the same instance
+builder.Services.AddSingleton<IAuditWriter>(sp => sp.GetRequiredService<ChannelAuditWriter>());
+// IHostedService entry — uses ServiceDescriptor directly so ImplementationType is set,
+// allowing tests to find and remove this entry precisely by ImplementationType
+builder.Services.TryAddEnumerable(
+    ServiceDescriptor.Singleton<IHostedService, ChannelAuditWriter>(
+        sp => sp.GetRequiredService<ChannelAuditWriter>()));
 ```
+
+Registering all three separately ensures:
+1. `IAuditWriter` and `IHostedService` resolve to the same `ChannelAuditWriter` instance.
+2. Tests can replace `IAuditWriter` without triggering a `ChannelAuditWriter` cast at host startup.
+3. Tests can remove the `IHostedService` entry by `ImplementationType == typeof(ChannelAuditWriter)` without affecting any other hosted services.
 
 ---
 
@@ -258,7 +281,9 @@ group.AddEndpointFilter<AuditEndpointFilter>();
 
 Responsibilities:
 1. Call `next(context)` to execute the handler
-2. Read route values (`itemGroupId`, `itemId`) from `HttpContext.Request.RouteValues`
+2. Read route values from `HttpContext.Request.RouteValues`:
+   - `ResourceId`: use `AuditContext.ResourceId` if set (populated by `CreateItemGroup` after insert); otherwise fall back to the `itemGroupId` route value
+   - `SubResourceId`: use `AuditContext.SubResourceId` if set (populated by `CreateItem` after insert); otherwise fall back to the `itemId` route value (present on `UpdateItem` and `DeleteItem`)
 3. Read `UserId` via `httpContext.User.GetUserId()`
 4. Read `IpAddress` from `HttpContext.Connection.RemoteIpAddress` (corrected by ForwardedHeaders middleware)
 5. Read `Operation` from `EndpointNameMetadata` (already set via `.WithName()` on every endpoint)
@@ -332,9 +357,23 @@ Configure `KnownProxies` or `KnownNetworks` appropriately for the production dep
 
 #### `NoOpAuditWriter`
 
-Registered in `ApiFactory.ConfigureServices` to prevent the real `ChannelAuditWriter` from attempting SQL Server connections during tests:
+Registered in `ApiFactory.ConfigureServices` to prevent the real `ChannelAuditWriter` from attempting SQL Server connections during tests. Because `ChannelAuditWriter` is registered with three separate descriptors, all three must be cleaned up:
 
 ```csharp
+// Remove the ChannelAuditWriter concrete singleton and the IAuditWriter alias
+services.RemoveAll<ChannelAuditWriter>();
+services.RemoveAll<IAuditWriter>();
+
+// Remove the IHostedService entry for ChannelAuditWriter.
+// ServiceDescriptor.Singleton<IHostedService, ChannelAuditWriter>(factory) sets
+// ImplementationType even on a factory descriptor, so this lookup is reliable.
+var toRemove = services
+    .Where(d => d.ServiceType == typeof(IHostedService) &&
+                d.ImplementationType == typeof(ChannelAuditWriter))
+    .ToList();
+foreach (var sd in toRemove) services.Remove(sd);
+
+// Register the no-op replacement
 services.AddSingleton<IAuditWriter, NoOpAuditWriter>();
 ```
 
@@ -345,9 +384,11 @@ internal sealed class NoOpAuditWriter : IAuditWriter
 }
 ```
 
+`ApiFactory` registers `NoOpAuditWriter` by default so that audit behaviour is invisible in tests that do not care about it.
+
 #### `CapturingAuditWriter`
 
-For tests that assert on audit behavior, inject a `CapturingAuditWriter`:
+For tests that assert on audit behaviour, create a `CapturingAuditWriter` instance in the test and swap it in using `WithWebHostBuilder`:
 
 ```csharp
 internal sealed class CapturingAuditWriter : IAuditWriter
@@ -356,6 +397,31 @@ internal sealed class CapturingAuditWriter : IAuditWriter
     public void Enqueue(AuditEntry entry) => Entries.Add(entry);
 }
 ```
+
+Usage pattern in a test:
+
+```csharp
+var capturingWriter = new CapturingAuditWriter();
+
+using var client = factory
+    .WithWebHostBuilder(b => b.ConfigureServices(services =>
+    {
+        // ApiFactory has already removed ChannelAuditWriter and its hosted service.
+        // Only the IAuditWriter (NoOpAuditWriter) replacement needs to be swapped here.
+        services.RemoveAll<IAuditWriter>();
+        services.AddSingleton<IAuditWriter>(capturingWriter);
+    }))
+    .CreateClient();
+
+// Act — make HTTP calls via client
+
+// Assert
+Assert.Single(capturingWriter.Entries);
+Assert.Equal("CreateItemGroup", capturingWriter.Entries[0].Operation);
+Assert.Equal("Success", capturingWriter.Entries[0].Outcome);
+```
+
+Because `capturingWriter` is instantiated outside the DI container and passed in as a singleton instance, the test has direct access to `Entries` without needing to resolve anything from the container.
 
 #### `TestDatabase`
 
