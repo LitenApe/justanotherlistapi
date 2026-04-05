@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Data;
 using System.Security.Claims;
+using Core.AuditLog;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -26,6 +27,7 @@ public static class CreateItemGroup
         Request request,
         ClaimsPrincipal claimsPrincipal,
         IDbConnection db,
+        AuditContext auditContext,
         CancellationToken ct = default
     )
     {
@@ -34,13 +36,14 @@ public static class CreateItemGroup
             return TypedResults.BadRequest();
         }
 
-        var userId = claimsPrincipal.GetUserId();
+        Guid? userId = claimsPrincipal.GetUserId();
         if (userId is null)
         {
             return TypedResults.Unauthorized();
         }
 
-        var itemGroup = await CreateData(userId.Value, request, db, ct);
+        ItemGroup itemGroup = await CreateData(userId.Value, request, db, ct);
+        auditContext.ResourceId = itemGroup.Id;
         return TypedResults.Created($"/list/{itemGroup.Id}", itemGroup);
     }
 

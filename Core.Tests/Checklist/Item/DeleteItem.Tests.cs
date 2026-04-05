@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Core.Checklist;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Data.Sqlite;
 
 namespace Core.Tests.Checklist.ItemTests;
 
@@ -14,9 +15,9 @@ public sealed class DeleteItemTests
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -38,13 +39,14 @@ public sealed class DeleteItemTests
         );
 
         // Act
-        var result = await DeleteItem.Execute(itemGroupId, itemId, claimsPrincipal, db, default);
+        Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await DeleteItem.Execute(itemGroupId, itemId, claimsPrincipal, db, default);
 
         // Assert
         Assert.IsType<NoContent>(result.Result);
 
         // Confirm item is deleted
-        var deleted = await db.QueryFirstOrDefaultAsync<Item>(
+        Item? deleted = await db.QueryFirstOrDefaultAsync<Item>(
             "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE Id = @Id AND ItemGroupId = @ItemGroupId",
             new { Id = itemId, ItemGroupId = itemGroupId }
         );
@@ -59,9 +61,9 @@ public sealed class DeleteItemTests
         var itemGroupId = Guid.NewGuid();
         var otherGroupId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -87,13 +89,14 @@ public sealed class DeleteItemTests
         );
 
         // Act
-        var result = await DeleteItem.Execute(itemGroupId, itemId, claimsPrincipal, db, default);
+        Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await DeleteItem.Execute(itemGroupId, itemId, claimsPrincipal, db, default);
 
         // Assert
         Assert.IsType<NoContent>(result.Result);
 
         // Confirm item is NOT deleted because it belongs to another group
-        var item = await db.QueryFirstOrDefaultAsync<Item>(
+        Item? item = await db.QueryFirstOrDefaultAsync<Item>(
             "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE Id = @Id AND ItemGroupId = @ItemGroupId",
             new { Id = itemId, ItemGroupId = otherGroupId }
         );
@@ -108,10 +111,11 @@ public sealed class DeleteItemTests
         var itemId = Guid.NewGuid();
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
 
         // Act
-        var result = await DeleteItem.Execute(itemGroupId, itemId, claimsPrincipal, db, default);
+        Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await DeleteItem.Execute(itemGroupId, itemId, claimsPrincipal, db, default);
 
         // Assert
         Assert.IsType<UnauthorizedHttpResult>(result.Result);
@@ -124,9 +128,9 @@ public sealed class DeleteItemTests
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -144,7 +148,8 @@ public sealed class DeleteItemTests
         );
 
         // Act
-        var result = await DeleteItem.Execute(itemGroupId, itemId, claimsPrincipal, db, default);
+        Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await DeleteItem.Execute(itemGroupId, itemId, claimsPrincipal, db, default);
 
         // Assert
         Assert.IsType<ForbidHttpResult>(result.Result);
@@ -157,9 +162,9 @@ public sealed class DeleteItemTests
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -170,13 +175,14 @@ public sealed class DeleteItemTests
         );
 
         // Act
-        var result = await DeleteItem.Execute(itemGroupId, itemId, claimsPrincipal, db, default);
+        Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await DeleteItem.Execute(itemGroupId, itemId, claimsPrincipal, db, default);
 
         // Assert
         Assert.IsType<NoContent>(result.Result);
 
         // Confirm item still does not exist
-        var deleted = await db.QueryFirstOrDefaultAsync<Item>(
+        Item? deleted = await db.QueryFirstOrDefaultAsync<Item>(
             "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE Id = @Id AND ItemGroupId = @ItemGroupId",
             new { Id = itemId, ItemGroupId = itemGroupId }
         );

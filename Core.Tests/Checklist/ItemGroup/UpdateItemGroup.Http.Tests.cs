@@ -19,9 +19,9 @@ public sealed class UpdateItemGroupHttpTests(ApiFactory factory) : IClassFixture
             new { MemberId = TestAuthHandler.UserId, ItemGroupId = itemGroupId }
         );
 
-        var client = factory.CreateClient();
+        HttpClient client = factory.CreateClient();
 
-        var response = await client.PutAsJsonAsync(
+        HttpResponseMessage response = await client.PutAsJsonAsync(
             $"/api/list/{itemGroupId}",
             new { Name = "Updated Group" }
         );

@@ -1,3 +1,4 @@
+using Core.AuditLog;
 using Core.Checklist;
 
 namespace Core;
@@ -8,7 +9,9 @@ public static class ChecklistApiEndpointRouteBuilderExtension
     {
         ArgumentNullException.ThrowIfNull(app);
 
-        var checklistGroup = app.MapGroup("/api/list").RequireAuthorization();
+        RouteGroupBuilder checklistGroup = app.MapGroup("/api/list")
+            .RequireAuthorization()
+            .AddEndpointFilter<AuditEndpointFilter>();
 
         // Item Group
         GetItemGroup.MapEndpoint(checklistGroup);

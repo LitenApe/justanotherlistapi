@@ -19,9 +19,9 @@ public sealed class AddMemberHttpTests(ApiFactory factory) : IClassFixture<ApiFa
         );
 
         var newMemberId = Guid.NewGuid();
-        var client = factory.CreateClient();
+        HttpClient client = factory.CreateClient();
 
-        var response = await client.PostAsync(
+        HttpResponseMessage response = await client.PostAsync(
             $"/api/list/{itemGroupId}/member/{newMemberId}",
             content: null
         );

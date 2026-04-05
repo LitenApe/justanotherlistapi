@@ -32,9 +32,9 @@ public sealed class UpdateItemHttpTests(ApiFactory factory) : IClassFixture<ApiF
             }
         );
 
-        var client = factory.CreateClient();
+        HttpClient client = factory.CreateClient();
 
-        var response = await client.PutAsJsonAsync(
+        HttpResponseMessage response = await client.PutAsJsonAsync(
             $"/api/list/{itemGroupId}/{itemId}",
             new { Name = "Updated Item", IsComplete = true }
         );

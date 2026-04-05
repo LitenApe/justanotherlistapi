@@ -18,9 +18,9 @@ public sealed class DeleteItemGroupHttpTests(ApiFactory factory) : IClassFixture
             new { MemberId = TestAuthHandler.UserId, ItemGroupId = itemGroupId }
         );
 
-        var client = factory.CreateClient();
+        HttpClient client = factory.CreateClient();
 
-        var response = await client.DeleteAsync($"/api/list/{itemGroupId}");
+        HttpResponseMessage response = await client.DeleteAsync($"/api/list/{itemGroupId}");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }

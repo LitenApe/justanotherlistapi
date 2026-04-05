@@ -31,9 +31,11 @@ public sealed class DeleteItemHttpTests(ApiFactory factory) : IClassFixture<ApiF
             }
         );
 
-        var client = factory.CreateClient();
+        HttpClient client = factory.CreateClient();
 
-        var response = await client.DeleteAsync($"/api/list/{itemGroupId}/{itemId}");
+        HttpResponseMessage response = await client.DeleteAsync(
+            $"/api/list/{itemGroupId}/{itemId}"
+        );
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }

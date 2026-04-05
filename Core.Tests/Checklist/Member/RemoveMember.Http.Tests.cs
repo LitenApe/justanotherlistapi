@@ -29,9 +29,11 @@ public sealed class RemoveMemberHttpTests(ApiFactory factory) : IClassFixture<Ap
             }
         );
 
-        var client = factory.CreateClient();
+        HttpClient client = factory.CreateClient();
 
-        var response = await client.DeleteAsync($"/api/list/{itemGroupId}/member/{secondMemberId}");
+        HttpResponseMessage response = await client.DeleteAsync(
+            $"/api/list/{itemGroupId}/member/{secondMemberId}"
+        );
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }

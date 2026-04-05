@@ -1,7 +1,9 @@
 using System.Security.Claims;
+using Core.AuditLog;
 using Core.Checklist;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Data.Sqlite;
 
 namespace Core.Tests.Checklist.ItemTests;
 
@@ -19,9 +21,9 @@ public sealed class CreateItemTests
             Description = "Test Description",
             IsComplete = false,
         };
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -32,11 +34,19 @@ public sealed class CreateItemTests
         );
 
         // Act
-        var result = await CreateItem.Execute(itemGroupId, request, claimsPrincipal, db, default);
+        Results<Created<Item>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await CreateItem.Execute(
+                itemGroupId,
+                request,
+                claimsPrincipal,
+                db,
+                new AuditContext(),
+                default
+            );
 
         // Assert
-        var created = Assert.IsType<Created<Item>>(result.Result);
-        var item = created.Value;
+        Created<Item> created = Assert.IsType<Created<Item>>(result.Result);
+        Item? item = created.Value;
         Assert.NotNull(item);
         Assert.Equal(request.Name, item.Name);
         Assert.Equal(request.Description, item.Description);
@@ -44,7 +54,7 @@ public sealed class CreateItemTests
         Assert.Equal(itemGroupId, item.ItemGroupId);
 
         // Confirm DB write
-        var dbItem = await db.QueryFirstOrDefaultAsync<Item>(
+        Item? dbItem = await db.QueryFirstOrDefaultAsync<Item>(
             "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE Id = @Id",
             new { item.Id }
         );
@@ -65,9 +75,9 @@ public sealed class CreateItemTests
             Description = "Test Description",
             IsComplete = false,
         };
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -78,7 +88,15 @@ public sealed class CreateItemTests
         );
 
         // Act
-        var result = await CreateItem.Execute(itemGroupId, request, claimsPrincipal, db, default);
+        Results<Created<Item>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await CreateItem.Execute(
+                itemGroupId,
+                request,
+                claimsPrincipal,
+                db,
+                new AuditContext(),
+                default
+            );
 
         // Assert
         Assert.IsType<BadRequest>(result.Result);
@@ -98,14 +116,22 @@ public sealed class CreateItemTests
 
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
         );
 
         // Act
-        var result = await CreateItem.Execute(itemGroupId, request, claimsPrincipal, db, default);
+        Results<Created<Item>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await CreateItem.Execute(
+                itemGroupId,
+                request,
+                claimsPrincipal,
+                db,
+                new AuditContext(),
+                default
+            );
 
         // Assert
         Assert.IsType<UnauthorizedHttpResult>(result.Result);
@@ -123,9 +149,9 @@ public sealed class CreateItemTests
             Description = "Test Description",
             IsComplete = false,
         };
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -133,7 +159,15 @@ public sealed class CreateItemTests
         // No member for this user
 
         // Act
-        var result = await CreateItem.Execute(itemGroupId, request, claimsPrincipal, db, default);
+        Results<Created<Item>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await CreateItem.Execute(
+                itemGroupId,
+                request,
+                claimsPrincipal,
+                db,
+                new AuditContext(),
+                default
+            );
 
         // Assert
         Assert.IsType<ForbidHttpResult>(result.Result);

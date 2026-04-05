@@ -1,6 +1,9 @@
+using System.Security.Claims;
+using Core.AuditLog;
 using Core.Checklist;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Data.Sqlite;
 
 namespace Core.Tests.Checklist.ItemGroupTests;
 
@@ -12,16 +15,17 @@ public sealed class CreateItemGroupTests
         // Arrange
         var request = new CreateItemGroup.Request { Name = "Test Group" };
         var userId = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
 
         // Act
-        var result = await CreateItemGroup.Execute(request, claimsPrincipal, db);
+        Results<Created<ItemGroup>, BadRequest, UnauthorizedHttpResult> result =
+            await CreateItemGroup.Execute(request, claimsPrincipal, db, new AuditContext());
 
         // Assert
-        var createdResult = Assert.IsType<Created<ItemGroup>>(result.Result);
-        var itemGroup = createdResult.Value;
+        Created<ItemGroup> createdResult = Assert.IsType<Created<ItemGroup>>(result.Result);
+        ItemGroup? itemGroup = createdResult.Value;
         Assert.NotNull(itemGroup);
         Assert.Equal("Test Group", itemGroup.Name);
         Assert.Equal($"/list/{itemGroup.Id}", createdResult.Location);
@@ -33,19 +37,20 @@ public sealed class CreateItemGroupTests
         // Arrange
         var request = new CreateItemGroup.Request { Name = "Test Group" };
         var userId = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
 
         // Act
-        var result = await CreateItemGroup.Execute(request, claimsPrincipal, db);
+        Results<Created<ItemGroup>, BadRequest, UnauthorizedHttpResult> result =
+            await CreateItemGroup.Execute(request, claimsPrincipal, db, new AuditContext());
 
         // Assert
-        var createdResult = Assert.IsType<Created<ItemGroup>>(result.Result);
-        var itemGroup = createdResult.Value;
+        Created<ItemGroup> createdResult = Assert.IsType<Created<ItemGroup>>(result.Result);
+        ItemGroup? itemGroup = createdResult.Value;
         Assert.NotNull(itemGroup);
 
-        var dataEntry = await db.QueryFirstOrDefaultAsync<ItemGroup>(
+        ItemGroup? dataEntry = await db.QueryFirstOrDefaultAsync<ItemGroup>(
             "SELECT Id, Name FROM ItemGroups WHERE Id = @Id",
             new { itemGroup.Id }
         );
@@ -61,19 +66,20 @@ public sealed class CreateItemGroupTests
         // Arrange
         var request = new CreateItemGroup.Request { Name = "Test Group" };
         var userId = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
 
         // Act
-        var result = await CreateItemGroup.Execute(request, claimsPrincipal, db);
+        Results<Created<ItemGroup>, BadRequest, UnauthorizedHttpResult> result =
+            await CreateItemGroup.Execute(request, claimsPrincipal, db, new AuditContext());
 
         // Assert
-        var createdResult = Assert.IsType<Created<ItemGroup>>(result.Result);
-        var itemGroup = createdResult.Value;
+        Created<ItemGroup> createdResult = Assert.IsType<Created<ItemGroup>>(result.Result);
+        ItemGroup? itemGroup = createdResult.Value;
         Assert.NotNull(itemGroup);
 
-        var dataEntry = await db.QueryFirstOrDefaultAsync<Guid?>(
+        Guid? dataEntry = await db.QueryFirstOrDefaultAsync<Guid?>(
             "SELECT MemberId FROM Members WHERE MemberId = @MemberId AND ItemGroupId = @ItemGroupId",
             new { MemberId = userId, ItemGroupId = itemGroup.Id }
         );
@@ -91,12 +97,13 @@ public sealed class CreateItemGroupTests
         // Arrange
         var request = new CreateItemGroup.Request { Name = name };
         var userId = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
 
         // Act
-        var result = await CreateItemGroup.Execute(request, claimsPrincipal, db);
+        Results<Created<ItemGroup>, BadRequest, UnauthorizedHttpResult> result =
+            await CreateItemGroup.Execute(request, claimsPrincipal, db, new AuditContext());
 
         // Assert
         Assert.IsType<BadRequest>(result.Result);
@@ -111,10 +118,11 @@ public sealed class CreateItemGroupTests
             new System.Security.Claims.ClaimsIdentity()
         );
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
 
         // Act
-        var result = await CreateItemGroup.Execute(request, claimsPrincipal, db);
+        Results<Created<ItemGroup>, BadRequest, UnauthorizedHttpResult> result =
+            await CreateItemGroup.Execute(request, claimsPrincipal, db, new AuditContext());
 
         // Assert
         Assert.IsType<UnauthorizedHttpResult>(result.Result);

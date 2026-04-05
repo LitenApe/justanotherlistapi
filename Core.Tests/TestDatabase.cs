@@ -25,7 +25,7 @@ internal static class TestDatabase
         return connection;
     }
 
-    private static async Task CreateTablesAsync(SqliteConnection connection)
+    internal static async Task CreateTablesAsync(SqliteConnection connection)
     {
         await connection.ExecuteAsync(
             """
@@ -47,6 +47,21 @@ internal static class TestDatabase
                 ItemGroupId TEXT NOT NULL,
                 PRIMARY KEY (MemberId, ItemGroupId),
                 FOREIGN KEY (ItemGroupId) REFERENCES ItemGroups(Id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE AuditLog (
+                Id            TEXT NOT NULL PRIMARY KEY,
+                Timestamp     TEXT NOT NULL,
+                TraceId       TEXT NULL,
+                UserId        TEXT NULL,
+                IpAddress     TEXT NULL,
+                ResourceType  TEXT NULL,
+                Operation     TEXT NOT NULL,
+                ResourceId    TEXT NULL,
+                SubResourceId TEXT NULL,
+                TargetUserId  TEXT NULL,
+                Outcome       TEXT NOT NULL,
+                FailureReason TEXT NULL
             );
             """
         );

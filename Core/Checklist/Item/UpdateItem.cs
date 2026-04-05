@@ -36,7 +36,7 @@ public static class UpdateItem
             return TypedResults.BadRequest();
         }
 
-        var userId = claimsPrincipal.GetUserId();
+        Guid? userId = claimsPrincipal.GetUserId();
         if (userId is null)
         {
             return TypedResults.Unauthorized();

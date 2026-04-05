@@ -1,5 +1,6 @@
 using Core.Checklist;
 using Dapper;
+using Microsoft.Data.Sqlite;
 
 namespace Core.Tests.Checklist;
 
@@ -10,7 +11,7 @@ public sealed class ChecklistConnectionExtensionsTests
     [Fact]
     public async Task IsMember_ReturnsFalse_WhenUserIdIsNull()
     {
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
 
         bool result = await db.IsMember(Guid.NewGuid(), null);
 
@@ -24,7 +25,7 @@ public sealed class ChecklistConnectionExtensionsTests
         var itemGroupId = Guid.NewGuid();
         var userId = Guid.NewGuid();
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -48,7 +49,7 @@ public sealed class ChecklistConnectionExtensionsTests
         var itemGroupId = Guid.NewGuid();
         var userId = Guid.NewGuid();
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -70,7 +71,7 @@ public sealed class ChecklistConnectionExtensionsTests
         var itemGroupId = Guid.NewGuid();
         var memberId = Guid.NewGuid();
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -94,7 +95,7 @@ public sealed class ChecklistConnectionExtensionsTests
         var itemGroupId = Guid.NewGuid();
         var memberId = Guid.NewGuid();
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -121,7 +122,7 @@ public sealed class ChecklistConnectionExtensionsTests
         // Arrange
         var itemGroupId = Guid.NewGuid();
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -144,7 +145,7 @@ public sealed class ChecklistConnectionExtensionsTests
         // Arrange
         var itemGroupId = Guid.NewGuid();
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }

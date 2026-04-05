@@ -8,6 +8,11 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <!-- Enforce nullable reference types across all projects — any new project is covered -->
     <Nullable>enable</Nullable>
+    <!-- Required for IDE0005 (remove unnecessary usings) to run during CLI/CI builds -->
+    <!-- See: https://github.com/dotnet/roslyn/issues/41640 -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- CS1591/CS1587: missing/misplaced XML doc comments — not required for application projects -->
+    <NoWarn>$(NoWarn);CS1591;CS1587</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

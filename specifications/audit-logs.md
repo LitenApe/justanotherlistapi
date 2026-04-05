@@ -3,43 +3,120 @@
 ## Table of Contents
 
 - [Overview](#overview)
+- [Architecture](#architecture)
+  - [Data Flow](#data-flow)
+  - [File Structure](#file-structure)
 - [Database Schema](#database-schema)
   - [Column Semantics](#column-semantics)
   - [ResourceType Values](#resourcetype-values)
   - [Outcome Values](#outcome-values)
+  - [Indexes](#indexes)
   - [Retention](#retention)
 - [Per-Operation Audit Data](#per-operation-audit-data)
   - [Checklist — ItemGroup](#checklist--itemgroup)
   - [Checklist — Item](#checklist--item)
   - [Checklist — Member](#checklist--member)
   - [Authentication](#authentication)
-- [Implementation Components](#implementation-components)
-  - [1. DatabaseInitializer Refactor](#1-databaseinitializer-refactor)
-  - [2. AuditEntry Record](#2-auditentry-record)
-  - [3. AuditContext — Scoped Service](#3-auditcontext--scoped-service)
-  - [4. IAuditWriter and ChannelAuditWriter](#4-iauditwriter-and-channelauditwriter)
-  - [5. AuditEndpointFilter](#5-auditendpointfilter)
-  - [6. JWT OnAuthenticationFailed Event](#6-jwt-onauthenticationfailed-event)
-  - [7. ForwardedHeaders Middleware](#7-forwardedheaders-middleware)
-  - [8. Test Infrastructure](#8-test-infrastructure)
+- [Implementation](#implementation)
+  - [AuditEntry](#auditentry)
+  - [IAuditWriter and ChannelAuditWriter](#iauditwriter-and-channelauditwriter)
+  - [AuditEndpointFilter](#auditendpointfilter)
+  - [AuditContext](#auditcontext)
+  - [JWT OnAuthenticationFailed Event](#jwt-onauthenticationfailed-event)
+  - [Schema Initializer](#schema-initializer)
+  - [Service Registration](#service-registration)
+  - [Middleware Order](#middleware-order)
+- [Adding Audit Logging to a New Endpoint](#adding-audit-logging-to-a-new-endpoint)
+- [Test Infrastructure](#test-infrastructure)
+  - [NoOpAuditWriter](#noopauditwriter)
+  - [CapturingAuditWriter](#capturingauditwriter)
+  - [TestDatabase](#testdatabase)
 - [Future Extensibility](#future-extensibility)
   - [Field-Level Change Tracking](#field-level-change-tracking)
-  - [User Feature](#user-feature)
   - [Admin UI](#admin-ui)
 
 ---
 
 ## Overview
 
-Audit logging tracks all attempted and successful operations across the API, including authentication failures, to support security monitoring, attack detection, and administrative review. A future Admin UI will expose the audit log for querying and management.
+Audit logging tracks all attempted and successful operations across the API, including authentication failures, to support security monitoring and attack detection. Every request to the Checklist API produces exactly one audit record — regardless of whether the request succeeds, is rejected by authorisation, or fails validation.
 
-Audit logging must not affect the availability or correctness of normal API functionality. Write failures must be silently absorbed. The performance impact on request handling must be minimised.
+**Guiding constraints:**
+
+- Audit logging must not affect the availability or correctness of normal API functionality.
+- Write failures are silently absorbed — no request should fail because the audit log is unavailable.
+- The performance impact on request handling must be minimised. Audit writes are non-blocking and decoupled from the request pipeline.
+- User-provided free-text content (resource names) is intentionally excluded from audit records to avoid inadvertently logging sensitive data entered by users.
+
+---
+
+## Architecture
+
+### Data Flow
+
+```
+HTTP Request
+    │
+    ▼
+RequireAuthorization()      ← JWT validation; failures go directly to OnAuthenticationFailed
+    │
+    ▼
+AuditEndpointFilter.InvokeAsync
+    │  calls next(context) to execute the handler
+    │  registers Response.OnStarting callback
+    │
+    ▼
+Handler executes
+    │  sets AuditContext properties if needed (ResourceId, SubResourceId, TargetUserId)
+    │  returns IResult
+    │
+    ▼
+Response.OnStarting fires (just before headers are sent)
+    │  reads Response.StatusCode — final HTTP status is set by this point
+    │  maps status code to Outcome string
+    │  calls IAuditWriter.Enqueue(entry) — non-blocking TryWrite
+    │
+    ▼
+HTTP Response sent to client
+
+                        ┌─────────────────────────────────────┐
+                        │  ChannelAuditWriter (background)    │
+                        │  drains Channel<AuditEntry>         │
+                        │  batches up to 50 / 5-second window │
+                        │  bulk INSERT into AuditLog table    │
+                        └─────────────────────────────────────┘
+```
+
+The `OnAuthenticationFailed` JWT event short-circuits this flow — it fires before routing reaches the endpoint pipeline, so `AuditEndpointFilter` is never called. The JWT event writes the audit entry directly to `IAuditWriter`.
+
+### File Structure
+
+```
+Core/
+  AuditLog/
+    AuditEntry.cs               ← immutable DTO written to the DB
+    AuditContext.cs             ← scoped per-request bag populated by handlers
+    IAuditWriter.cs             ← interface: void Enqueue(AuditEntry)
+    ChannelAuditWriter.cs       ← singleton background writer (IHostedService)
+    AuditEndpointFilter.cs      ← IEndpointFilter; captures outcome via Response.OnStarting
+    AuditLogSchemaInitializer.cs← DDL for the AuditLog table (idempotent IF NOT EXISTS)
+  Program.cs                    ← registers services; wires OnAuthenticationFailed
+
+Core.Tests/
+  AuditLog/
+    AuditLog.Http.Tests.cs      ← integration tests for all 7 outcome values
+    ChannelAuditWriter.Tests.cs ← unit tests for drain loop, batching, and error handling
+    CapturingAuditWriter.cs     ← test double that records entries in-memory
+    NoOpAuditWriter.cs          ← test double that discards all entries
+  ApiFactory.cs                 ← replaces IAuditWriter with NoOpAuditWriter by default
+  TestDatabase.cs               ← SQLite schema including AuditLog table
+```
 
 ---
 
 ## Database Schema
 
-The `AuditLog` table is owned by the `AuditLog` feature slice and created by `AuditLogSchemaInitializer`.
+The `AuditLog` table is owned by the `AuditLog` feature slice and created by `AuditLogSchemaInitializer`. Creation is idempotent (`IF NOT EXISTS`).
 
 ```sql
 CREATE TABLE AuditLog (
@@ -53,35 +130,27 @@ CREATE TABLE AuditLog (
     ResourceId      UNIQUEIDENTIFIER  NULL,
     SubResourceId   UNIQUEIDENTIFIER  NULL,
     TargetUserId    UNIQUEIDENTIFIER  NULL,
-    ResourceName    NVARCHAR(500)     NULL,
     Outcome         NVARCHAR(20)      NOT NULL,
     FailureReason   NVARCHAR(500)     NULL
 );
-
-CREATE INDEX IX_AuditLog_UserId_Timestamp        ON AuditLog (UserId,       Timestamp DESC);
-CREATE INDEX IX_AuditLog_ResourceId_Timestamp    ON AuditLog (ResourceId,   Timestamp DESC);
-CREATE INDEX IX_AuditLog_ResourceType_Timestamp  ON AuditLog (ResourceType, Timestamp DESC);
-CREATE INDEX IX_AuditLog_Outcome_Timestamp       ON AuditLog (Outcome,      Timestamp DESC);
-CREATE INDEX IX_AuditLog_Timestamp               ON AuditLog (Timestamp     DESC);
 ```
 
 ### Column Semantics
 
 | Column | Description |
 |---|---|
-| `Id` | Sequential GUID for clustered index performance on high-insert tables |
-| `Timestamp` | UTC timestamp of the event |
-| `TraceId` | OpenTelemetry trace ID for correlation with distributed traces |
-| `UserId` | The authenticated user performing the operation. NULL when unauthenticated |
-| `IpAddress` | Real client IP after `ForwardedHeaders` middleware resolves `X-Forwarded-For` |
-| `ResourceType` | Discriminator for the resource being acted upon — see values below |
-| `Operation` | Name of the operation — matches `.WithName()` on the endpoint, or `AuthenticationFailed` |
-| `ResourceId` | Primary resource identifier (always `itemGroupId` for Checklist operations) |
-| `SubResourceId` | Secondary resource identifier (`itemId` for Item operations) |
-| `TargetUserId` | The user being affected (populated for `AddMember` and `RemoveMember`) |
-| `ResourceName` | Name of the resource at the time of the operation — see population rules below |
-| `Outcome` | Result of the operation — see values below |
-| `FailureReason` | Human-readable reason for failure. Populated for `AuthenticationFailed` and `MissingClaim` |
+| `Id` | Sequential GUID primary key (`NEWSEQUENTIALID()`). Sequential insertion order improves clustered index performance for high-volume append workloads. |
+| `Timestamp` | UTC timestamp of the event (`DateTimeOffset.UtcNow` at the point the `Response.OnStarting` callback fires). |
+| `TraceId` | OpenTelemetry W3C trace ID (`Activity.Current?.TraceId`) for correlating audit records with distributed traces and application logs. NULL when no active trace exists. |
+| `UserId` | GUID of the authenticated user performing the operation. NULL for unauthenticated requests (`AuthenticationFailed` events). |
+| `IpAddress` | Client IP address. Resolved from `HttpContext.Connection.RemoteIpAddress` after `UseForwardedHeaders` middleware has applied `X-Forwarded-For`. NULL when not available. |
+| `ResourceType` | Discriminator for the kind of resource acted upon — see values below. NULL for `AuthenticationFailed` events where no resource is involved. |
+| `Operation` | Name of the operation. Matches the `.WithName()` value set on the endpoint, ensuring this is a stable compile-time identifier (e.g. `"CreateItemGroup"`). The special value `"AuthenticationFailed"` is used for JWT failures. |
+| `ResourceId` | Primary resource GUID. For all Checklist operations this is `itemGroupId`. NULL for `GetItemGroups` and auth events. |
+| `SubResourceId` | Secondary resource GUID. Populated only for Item operations where both `itemGroupId` and `itemId` are relevant. NULL for all other operations. |
+| `TargetUserId` | GUID of the user being affected by the operation. Populated only for `AddMember` and `RemoveMember`. NULL for all other operations. |
+| `Outcome` | Result string — see values below. |
+| `FailureReason` | Human-readable reason for failure. Populated for `AuthenticationFailed` (the JWT exception message) and `MissingClaim` (the fixed string `"Required user identifier claim is missing."`). NULL for all other outcomes. |
 
 ### `ResourceType` Values
 
@@ -89,22 +158,34 @@ CREATE INDEX IX_AuditLog_Timestamp               ON AuditLog (Timestamp     DESC
 |---|---|
 | `'ItemGroup'` | All ItemGroup and Member operations |
 | `'Item'` | All Item operations |
-| `'User'` | Future User profile operations |
 | NULL | `AuthenticationFailed` — no resource involved |
 
 ### `Outcome` Values
 
-| Value | Meaning |
-|---|---|
-| `Success` | 200, 201, or 204 response |
-| `BadRequest` | Validation failed (e.g. blank name) |
-| `NotFound` | Resource does not exist |
-| `Conflict` | 409 — duplicate member or last-member removal attempt |
-| `Forbidden` | Authenticated user is not a member of the target group |
-| `MissingClaim` | JWT was valid and accepted, but `sub`/`user_id` claim is absent |
-| `AuthenticationFailed` | Token was presented but rejected by JWT middleware |
+| Value | HTTP status | Meaning |
+|---|---|---|
+| `Success` | 200, 201, 204 | Operation completed successfully |
+| `BadRequest` | 400 | Validation failed (e.g. blank name) |
+| `MissingClaim` | 401 | JWT was valid but the `sub`/`NameIdentifier` claim is absent |
+| `Forbidden` | 403 | Authenticated user is not a member of the target group |
+| `NotFound` | 404 | Resource does not exist |
+| `Conflict` | 409 | Duplicate member or attempt to remove the last member of a group |
+| `AuthenticationFailed` | 401 | Bearer token was presented but rejected by JWT middleware |
+| `Unknown` | other | Unrecognised status code — should not occur in normal operation |
 
-`Unauthorized` (HTTP 401) is not used as an outcome value. The two distinct auth failure modes are represented by `MissingClaim` and `AuthenticationFailed`.
+`Unauthorized` is not used as an `Outcome` value. HTTP 401 maps to either `MissingClaim` (valid JWT, missing claim) or `AuthenticationFailed` (invalid JWT), which are meaningfully distinct for security analysis.
+
+### Indexes
+
+All indexes are composite with `Timestamp DESC` as the trailing key to support time-ordered queries filtered by a specific dimension without a full scan.
+
+| Index | Purpose |
+|---|---|
+| `IX_AuditLog_UserId_Timestamp` | All activity for a specific user |
+| `IX_AuditLog_ResourceId_Timestamp` | All events on a specific resource |
+| `IX_AuditLog_ResourceType_Timestamp` | All events of a given resource type |
+| `IX_AuditLog_Outcome_Timestamp` | All failures, all forbidden probes, etc. |
+| `IX_AuditLog_Timestamp` | Time window queries with no other filter |
 
 ### Retention
 
@@ -116,67 +197,46 @@ Audit rows are stored indefinitely. Deletion is a manual administrative action o
 
 ### Checklist — ItemGroup
 
-| Operation | `ResourceType` | `ResourceId` | `SubResourceId` | `TargetUserId` | `ResourceName` |
-|---|---|---|---|---|---|
-| `GetItemGroups` | `'ItemGroup'` | NULL | NULL | NULL | NULL |
-| `GetItemGroup` | `'ItemGroup'` | `itemGroupId` | NULL | NULL | NULL |
-| `CreateItemGroup` | `'ItemGroup'` | `itemGroupId` (after insert) | NULL | NULL | NULL |
-| `UpdateItemGroup` | `'ItemGroup'` | `itemGroupId` | NULL | NULL | New name from request body |
-| `DeleteItemGroup` | `'ItemGroup'` | `itemGroupId` | NULL | NULL | Name fetched via SELECT before delete |
+| Operation | `ResourceType` | `ResourceId` | `SubResourceId` | `TargetUserId` |
+|---|---|---|---|---|
+| `GetItemGroups` | `'ItemGroup'` | NULL | NULL | NULL |
+| `GetItemGroup` | `'ItemGroup'` | `itemGroupId` | NULL | NULL |
+| `CreateItemGroup` | `'ItemGroup'` | `itemGroupId` (set by handler after insert) | NULL | NULL |
+| `UpdateItemGroup` | `'ItemGroup'` | `itemGroupId` | NULL | NULL |
+| `DeleteItemGroup` | `'ItemGroup'` | `itemGroupId` | NULL | NULL |
 
 ### Checklist — Item
 
-| Operation | `ResourceType` | `ResourceId` | `SubResourceId` | `TargetUserId` | `ResourceName` |
-|---|---|---|---|---|---|
-| `CreateItem` | `'Item'` | `itemGroupId` | `itemId` (after insert) | NULL | NULL |
-| `UpdateItem` | `'Item'` | `itemGroupId` | `itemId` | NULL | New name from request body |
-| `DeleteItem` | `'Item'` | `itemGroupId` | `itemId` | NULL | Name fetched via SELECT before delete |
+| Operation | `ResourceType` | `ResourceId` | `SubResourceId` | `TargetUserId` |
+|---|---|---|---|---|
+| `CreateItem` | `'Item'` | `itemGroupId` | `itemId` (set by handler after insert) | NULL |
+| `UpdateItem` | `'Item'` | `itemGroupId` | `itemId` | NULL |
+| `DeleteItem` | `'Item'` | `itemGroupId` | `itemId` | NULL |
 
 ### Checklist — Member
 
-| Operation | `ResourceType` | `ResourceId` | `SubResourceId` | `TargetUserId` | `ResourceName` |
-|---|---|---|---|---|---|
-| `GetMembers` | `'ItemGroup'` | `itemGroupId` | NULL | NULL | NULL |
-| `AddMember` | `'ItemGroup'` | `itemGroupId` | NULL | `memberId` | NULL |
-| `RemoveMember` | `'ItemGroup'` | `itemGroupId` | NULL | `memberId` | NULL |
+| Operation | `ResourceType` | `ResourceId` | `SubResourceId` | `TargetUserId` |
+|---|---|---|---|---|
+| `GetMembers` | `'ItemGroup'` | `itemGroupId` | NULL | NULL |
+| `AddMember` | `'ItemGroup'` | `itemGroupId` | NULL | `memberId` |
+| `RemoveMember` | `'ItemGroup'` | `itemGroupId` | NULL | `memberId` |
 
 ### Authentication
 
-| Operation | `ResourceType` | Fields populated |
-|---|---|---|
-| `AuthenticationFailed` | NULL | `IpAddress`, `TraceId`, `FailureReason` (exception message from JWT middleware) |
+| Operation | `ResourceType` | `UserId` | `ResourceId` | Extra fields |
+|---|---|---|---|---|
+| `AuthenticationFailed` | NULL | NULL | NULL | `IpAddress`, `TraceId`, `FailureReason` (JWT exception message) |
 
 ---
 
-## Implementation Components
+## Implementation
 
-### 1. `DatabaseInitializer` Refactor
+### `AuditEntry`
 
-`DatabaseInitializer` becomes a thin orchestrator. Each feature slice owns its own schema initializer.
-
-```
-Core/
-  DatabaseInitializer.cs           ← calls each slice initializer in sequence
-  Checklist/
-    ChecklistSchemaInitializer.cs  ← existing ItemGroups, Items, Members DDL moved here
-  AuditLog/
-    AuditLogSchemaInitializer.cs   ← new AuditLog DDL
-```
-
-`DatabaseInitializer.InitializeAsync` opens the connection then calls:
-1. `ChecklistSchemaInitializer.CreateSchemaAsync`
-2. `AuditLogSchemaInitializer.CreateSchemaAsync`
-
-Order matters only if cross-feature foreign keys exist. Currently none do.
-
----
-
-### 2. `AuditEntry` Record
-
-A plain DTO. Lives in `Core/AuditLog/`.
+`AuditEntry` is an immutable positional record — a plain DTO that represents one row in the `AuditLog` table. It lives in `Core/AuditLog/AuditEntry.cs` and is `internal` to the `Core` project except where test infrastructure needs it.
 
 ```csharp
-internal sealed record AuditEntry(
+public sealed record AuditEntry(
     DateTimeOffset Timestamp,
     string? TraceId,
     Guid? UserId,
@@ -186,54 +246,16 @@ internal sealed record AuditEntry(
     Guid? ResourceId,
     Guid? SubResourceId,
     Guid? TargetUserId,
-    string? ResourceName,
     string Outcome,
     string? FailureReason
 );
 ```
 
----
+`AuditEntry` is constructed in two places:
+- `AuditEndpointFilter.EnqueueAuditEntry` — for all Checklist endpoint requests
+- The `OnAuthenticationFailed` JWT event in `Program.cs` — for token validation failures
 
-### 3. `AuditContext` — Scoped Service
-
-Allows individual handlers to pass semantic context (name, target user) to the filter without the filter needing to re-parse the request body.
-
-```csharp
-public sealed class AuditContext
-{
-    public Guid? ResourceId { get; set; }
-    public Guid? SubResourceId { get; set; }
-    public string? ResourceName { get; set; }
-    public Guid? TargetUserId { get; set; }
-}
-```
-
-Registered as `services.AddScoped<AuditContext>()`. Injected into handlers that need it as an additional parameter — Minimal API binds it from DI automatically.
-
-`ResourceId` and `SubResourceId` are only needed when the IDs are not available as route values (i.e. they are generated inside the handler). The filter checks `AuditContext.ResourceId` first and falls back to the `itemGroupId` route value; it checks `AuditContext.SubResourceId` first and falls back to the `itemId` route value. Handlers that do not set these properties are unaffected.
-
-Handlers that populate `AuditContext`:
-
-| Handler | Sets |
-|---|---|
-| `CreateItemGroup` | `ResourceId` = the newly generated `itemGroupId` (set after a successful insert, before returning `Created`) |
-| `CreateItem` | `SubResourceId` = the newly generated `itemId` (set after a successful insert, before returning `Created`) |
-| `UpdateItemGroup` | `ResourceName` = new name from request body |
-| `UpdateItem` | `ResourceName` = new name from request body |
-| `DeleteItemGroup` | `ResourceName` = fetched from DB before delete |
-| `DeleteItem` | `ResourceName` = fetched from DB before delete |
-| `AddMember` | `TargetUserId` = `memberId` route value |
-| `RemoveMember` | `TargetUserId` = `memberId` route value |
-
-All other handlers do not take `AuditContext`.
-
-#### Why `CreateItemGroup` and `CreateItem` need `AuditContext` for IDs
-
-`CreateItemGroup` posts to `/` with no route parameters — `AuditContext.ResourceId` is the only path for the filter to obtain the new group ID. `CreateItem` posts to `/{itemGroupId:guid}` so `itemGroupId` is present in route values, but the new item's ID is generated inside the handler (`Guid.NewGuid()`) and is not a route value. `AuditContext.SubResourceId` is populated by the handler after a successful insert so the filter can record it. Only successful (201 Created) responses produce a meaningful ID; for early-exit responses (BadRequest, Unauthorized, Forbidden) the handler returns before setting `AuditContext.SubResourceId`, so the filter records `NULL` for those outcomes.
-
----
-
-### 4. `IAuditWriter` and `ChannelAuditWriter`
+### `IAuditWriter` and `ChannelAuditWriter`
 
 ```csharp
 public interface IAuditWriter
@@ -242,80 +264,113 @@ public interface IAuditWriter
 }
 ```
 
-`ChannelAuditWriter` is a singleton that:
-- Holds an unbounded `Channel<AuditEntry>` (or bounded with drop-oldest policy to prevent unbounded memory growth under sustained load)
-- Exposes `Enqueue` as a non-blocking `TryWrite` — no await, no blocking
-- Implements `IHostedService` to drain the channel in the background
-- Batches writes: flush when 50 entries are queued OR after 5 seconds, whichever comes first
-- Opens its own `SqlConnection` using `IConfiguration.GetConnectionString("database")` — this is the standard .NET connection string key that Aspire populates at startup with the provisioned SQL Server connection string, so `ChannelAuditWriter` automatically connects to the same SQL Server instance that Aspire provisions. It **never reuses the scoped `IDbConnection`** from the request pipeline, ensuring audit writes are independent of any handler transactions.
-- Catches all exceptions during write, logs at `Warning` level via `ILogger`, and continues draining
+`IAuditWriter` is the only dependency that audit-producing code takes. All call sites call `Enqueue` and return immediately — there is no `async` path in the hot request path.
 
-Registered in `Program.cs` using three separate descriptors so that tests can replace only the parts they need without risking cast failures:
+`ChannelAuditWriter` is the production implementation:
+
+- **Channel**: `BoundedChannel<AuditEntry>` with capacity 10,000 and `DropOldest` full mode. If the database is unavailable for an extended period, old entries are silently discarded rather than allowing the channel to grow unbounded. `SingleReader = true`, `SingleWriter = false`.
+- **Enqueue**: calls `channel.Writer.TryWrite(entry)` — synchronous, non-blocking. Returns without throwing even if the channel is full (the oldest entry is dropped instead).
+- **Background drain** (`IHostedService`): A single long-running `Task` reads from the channel with a 5-second timeout window. It flushes when it accumulates 50 entries **or** when the 5-second window elapses — whichever comes first. This batches SQL writes to reduce database round-trips.
+- **SQL write**: Opens a fresh `SqlConnection` using `IConfiguration.GetConnectionString("database")`. This connection is independent of the scoped `IDbConnection` used by request handlers, ensuring audit writes are never part of a handler transaction and cannot be rolled back by handler failures.
+- **Error handling**: All exceptions from `WriteBatchAsync` are caught and logged at `Warning` level. The drain loop continues running. Lost entries are not retried.
+- **Shutdown**: `StopAsync` marks the channel writer complete and cancels the drain task. The `finally` block in `DrainAsync` performs a final flush of any remaining buffered entries.
+
+**Service registration** in `Program.cs`:
 
 ```csharp
-// Concrete singleton — shared instance for both IAuditWriter and IHostedService
 builder.Services.AddSingleton<ChannelAuditWriter>();
-// IAuditWriter alias pointing to the same instance
 builder.Services.AddSingleton<IAuditWriter>(sp => sp.GetRequiredService<ChannelAuditWriter>());
-// IHostedService entry — uses ServiceDescriptor directly so ImplementationType is set,
-// allowing tests to find and remove this entry precisely by ImplementationType
 builder.Services.TryAddEnumerable(
     ServiceDescriptor.Singleton<IHostedService, ChannelAuditWriter>(
-        sp => sp.GetRequiredService<ChannelAuditWriter>()));
+        sp => sp.GetRequiredService<ChannelAuditWriter>())
+);
 ```
 
-Registering all three separately ensures:
-1. `IAuditWriter` and `IHostedService` resolve to the same `ChannelAuditWriter` instance.
-2. Tests can replace `IAuditWriter` without triggering a `ChannelAuditWriter` cast at host startup.
-3. Tests can remove the `IHostedService` entry by `ImplementationType == typeof(ChannelAuditWriter)` without affecting any other hosted services.
+Three registrations ensure one shared instance is reachable as `ChannelAuditWriter`, `IAuditWriter`, and `IHostedService`. Tests can replace `IAuditWriter` without touching the other two registrations.
 
----
+### `AuditEndpointFilter`
 
-### 5. `AuditEndpointFilter`
-
-Registered once on the Checklist route group in `ChecklistApiEndpointRouteBuilderExtension`:
+`AuditEndpointFilter` is registered once on the entire Checklist route group:
 
 ```csharp
-group.AddEndpointFilter<AuditEndpointFilter>();
+app.MapGroup("/api/list")
+   .RequireAuthorization()
+   .AddEndpointFilter<AuditEndpointFilter>();
 ```
 
-Responsibilities:
-1. Call `next(context)` to execute the handler
-2. Read route values from `HttpContext.Request.RouteValues`:
-   - `ResourceId`: use `AuditContext.ResourceId` if set (populated by `CreateItemGroup` after insert); otherwise fall back to the `itemGroupId` route value
-   - `SubResourceId`: use `AuditContext.SubResourceId` if set (populated by `CreateItem` after insert); otherwise fall back to the `itemId` route value (present on `UpdateItem` and `DeleteItem`)
-3. Read `UserId` via `httpContext.User.GetUserId()`
-4. Read `IpAddress` from `HttpContext.Connection.RemoteIpAddress` (corrected by ForwardedHeaders middleware)
-5. Read `Operation` from `EndpointNameMetadata` (already set via `.WithName()` on every endpoint)
-6. Read `ResourceType` from a static lookup dictionary keyed on `Operation`
-7. Read `AuditContext` from `HttpContext.RequestServices`
-8. Map the returned `IResult` type to an `Outcome` string via pattern matching on `TypedResults` types
-9. Call `_auditWriter.Enqueue(entry)` — non-blocking
-10. Wrap steps 1–9 in try/catch; log any exception at `Warning` and continue
+Every request that reaches a Checklist endpoint — whether it succeeds or is rejected by the handler — produces exactly one audit entry.
 
-The `Outcome` mapping:
+**Why `Response.OnStarting` instead of inspecting the `IResult` return value**
 
-| `IResult` type | `Outcome` |
-|---|---|
-| `Created<T>`, `Ok<T>`, `NoContent` | `Success` |
-| `NotFound` | `NotFound` |
-| `BadRequest` | `BadRequest` |
-| `Conflict` | `Conflict` |
-| `ForbidHttpResult` | `Forbidden` |
-| `UnauthorizedHttpResult` | `MissingClaim` |
+Minimal API handlers declared as `Results<T1, T2, ...>` return a struct wrapper that does *not* implement `IStatusCodeHttpResult`. Pattern matching on the union type at filter level would require knowing all possible type combinations for every endpoint. Instead, the filter registers a `Response.OnStarting` callback immediately after calling `next(context)`. By the time this callback fires, ASP.NET Core has executed the `IResult` and set `Response.StatusCode` to the final HTTP status — including `403 Forbidden` set by `ForbidHttpResult` via the authorization pipeline. The callback reads `Response.StatusCode` as an integer and maps it to an `Outcome` string via a switch expression.
 
----
+**Outcome mapping:**
 
-### 6. JWT `OnAuthenticationFailed` Event
+```csharp
+int statusCode => statusCode switch
+{
+    >= 200 and <= 299 => "Success",
+    400               => "BadRequest",
+    401               => "MissingClaim",
+    403               => "Forbidden",
+    404               => "NotFound",
+    409               => "Conflict",
+    _                 => "Unknown",
+};
+```
 
-In the `AddJwtBearer` configuration block in `Program.cs`:
+**Context captured before the callback fires:**
+
+All values except `Response.StatusCode` are captured from the `HttpContext` before `Response.OnStarting` is registered, because some values (e.g. `RouteValues`, `AuditContext`) may not be accessible after response streaming begins:
+
+- `operation` — from `IEndpointNameMetadata`
+- `resourceType` — from the static lookup dictionary keyed on `operation`
+- `resourceId` — from `AuditContext.ResourceId` if set, else from the `itemGroupId` route value
+- `subResourceId` — from `AuditContext.SubResourceId` if set, else from the `itemId` route value
+- `userId` — from `httpContext.User.GetUserId()` (reads `ClaimTypes.NameIdentifier`)
+- `ipAddress` — from `httpContext.Connection.RemoteIpAddress`
+- `traceId` — from `Activity.Current?.TraceId`
+- `targetUserId` — from `auditContext.TargetUserId`
+
+The entire operation (context extraction + callback registration) is wrapped in `try/catch` with a `Warning` log on failure. A faulty audit path must never surface as an unhandled exception to the client.
+
+### `AuditContext`
+
+`AuditContext` is a scoped DI service that handlers use to pass information to `AuditEndpointFilter` that cannot be derived from route values alone. It is registered as `services.AddScoped<AuditContext>()` and injected into handler method parameters — ASP.NET Core's Minimal API parameter binding resolves it from DI automatically.
+
+```csharp
+public sealed class AuditContext
+{
+    public Guid? ResourceId { get; set; }
+    public Guid? SubResourceId { get; set; }
+    public Guid? TargetUserId { get; set; }
+}
+```
+
+**When `AuditContext` is needed:**
+
+| Handler | Property set | Why |
+|---|---|---|
+| `CreateItemGroup` | `ResourceId` | The new group ID is generated inside the handler (`Guid.NewGuid()`). There is no `itemGroupId` route value on `POST /api/list`. |
+| `CreateItem` | `SubResourceId` | The new item ID is generated inside the handler. The `itemGroupId` is a route value but the item's ID is not. |
+| `AddMember` | `TargetUserId` | The `memberId` route value identifies the user being added. |
+| `RemoveMember` | `TargetUserId` | Same as `AddMember`. |
+
+**Handlers that do not take `AuditContext`** — `GetItemGroups`, `GetItemGroup`, `GetMembers`, `UpdateItemGroup`, `UpdateItem`, `DeleteItemGroup`, `DeleteItem`. The filter resolves all needed context for these handlers from route values or HTTP context without handler cooperation.
+
+**Important**: `AuditContext.ResourceId` and `AuditContext.SubResourceId` are only set on the *successful* code path inside `CreateItemGroup` and `CreateItem` respectively. For early-exit paths (BadRequest, Unauthorized, Forbidden) the handler returns before setting these properties, so the filter records `NULL`. This is correct — when a create operation was not permitted, no resource was created.
+
+### JWT `OnAuthenticationFailed` Event
+
+`AuditEndpointFilter` only runs for requests that reach the endpoint pipeline. A request bearing an invalid Bearer token is rejected by the JWT middleware before routing — the endpoint pipeline (including the filter) is never reached. The `OnAuthenticationFailed` event in the `AddJwtBearer` configuration is the only interception point for these events.
 
 ```csharp
 options.Events = new JwtBearerEvents
 {
-    OnAuthenticationFailed = async context =>
+    OnAuthenticationFailed = context =>
     {
-        var writer = context.HttpContext.RequestServices.GetRequiredService<IAuditWriter>();
+        IAuditWriter writer =
+            context.HttpContext.RequestServices.GetRequiredService<IAuditWriter>();
         writer.Enqueue(new AuditEntry(
             Timestamp: DateTimeOffset.UtcNow,
             TraceId: Activity.Current?.TraceId.ToString(),
@@ -326,56 +381,97 @@ options.Events = new JwtBearerEvents
             ResourceId: null,
             SubResourceId: null,
             TargetUserId: null,
-            ResourceName: null,
             Outcome: "AuthenticationFailed",
             FailureReason: context.Exception.Message
         ));
-    }
+        return Task.CompletedTask;
+    },
 };
 ```
 
-`OnChallenge` is intentionally **not** handled — it fires for all unauthenticated requests including health checks and browser preflights, producing excessive noise with no useful signal.
+`OnChallenge` is intentionally **not** handled. It fires for all unauthenticated requests — including health checks, `OPTIONS` preflights, and requests with no token at all — producing excessive noise with no useful security signal.
+
+### Schema Initializer
+
+`AuditLogSchemaInitializer.CreateSchemaAsync` creates the `AuditLog` table and all indexes inside an `IF NOT EXISTS` guard, making it safe to run on every application startup.
+
+`DatabaseInitializer` orchestrates schema creation in sequence:
+
+```csharp
+await ChecklistSchemaInitializer.CreateSchemaAsync(connection, ct);
+await AuditLogSchemaInitializer.CreateSchemaAsync(connection, ct);
+```
+
+Schema initialization is skipped entirely in the `Testing` environment (controlled by `Program.cs`). Tests create their own SQLite in-memory schema via `TestDatabase.CreateTablesAsync`.
+
+### Middleware Order
+
+The middleware pipeline in `Program.cs` must follow this order:
+
+```
+app.UseForwardedHeaders(...)   // resolves X-Forwarded-For into RemoteIpAddress — MUST be first
+app.UseCors(...)
+app.UseHttpsRedirection()      // skipped in Testing environment
+app.UseAuthentication()        // JWT validation; OnAuthenticationFailed fires here
+app.UseAuthorization()
+app.MapChecklistApi()          // registers route group with AuditEndpointFilter
+```
+
+`UseForwardedHeaders` must precede `UseAuthentication` so that `HttpContext.Connection.RemoteIpAddress` is set to the real client IP before the JWT event or the audit filter reads it.
 
 ---
 
-### 7. `ForwardedHeaders` Middleware
+## Adding Audit Logging to a New Endpoint
 
-Must be registered **first** in the middleware pipeline in `Program.cs`, before authentication, so that `HttpContext.Connection.RemoteIpAddress` reflects the real client IP when read by the filter and the JWT event.
+Endpoints on the `/api/list` route group automatically receive an audit entry because `AuditEndpointFilter` is applied to the entire group. The following steps are all that is required.
+
+**1. Register the endpoint name with `.WithName()`**
 
 ```csharp
-app.UseForwardedHeaders(new ForwardedHeadersOptions
+builder
+    .MapGet("/{itemGroupId:guid}/something", Execute)
+    .WithName(nameof(GetSomething));   // ← must match the handler class name
+```
+
+The filter uses this name as the `Operation` value. Without it, the filter logs a warning and exits without writing an entry.
+
+**2. Add the operation to the `resourceTypes` dictionary in `AuditEndpointFilter`**
+
+```csharp
+private static readonly Dictionary<string, string> resourceTypes = new(StringComparer.Ordinal)
 {
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-});
+    // existing entries ...
+    [nameof(GetSomething)] = "ItemGroup",   // ← add here
+};
 ```
 
-Configure `KnownProxies` or `KnownNetworks` appropriately for the production deployment environment to avoid IP spoofing via crafted `X-Forwarded-For` headers.
+**3. Inject `AuditContext` only if the handler generates IDs or affects another user**
+
+If the handler generates a resource ID internally (not from route values) or affects a target user, add `AuditContext auditContext` to the handler parameters and set the relevant property before returning the success result:
+
+```csharp
+public static async Task<Results<Created<Thing>, ...>> Execute(
+    Guid itemGroupId,
+    // ...
+    AuditContext auditContext,
+    CancellationToken ct = default)
+{
+    // ...
+    Thing thing = await CreateData(...);
+    auditContext.SubResourceId = thing.Id;   // only if ID is generated here
+    return TypedResults.Created(...);
+}
+```
+
+For handlers where all context (IDs, user) is already in route values, `AuditContext` is not required.
 
 ---
 
-### 8. Test Infrastructure
+## Test Infrastructure
 
-#### `NoOpAuditWriter`
+### `NoOpAuditWriter`
 
-Registered in `ApiFactory.ConfigureServices` to prevent the real `ChannelAuditWriter` from attempting SQL Server connections during tests. Because `ChannelAuditWriter` is registered with three separate descriptors, all three must be cleaned up:
-
-```csharp
-// Remove the ChannelAuditWriter concrete singleton and the IAuditWriter alias
-services.RemoveAll<ChannelAuditWriter>();
-services.RemoveAll<IAuditWriter>();
-
-// Remove the IHostedService entry for ChannelAuditWriter.
-// ServiceDescriptor.Singleton<IHostedService, ChannelAuditWriter>(factory) sets
-// ImplementationType even on a factory descriptor, so this lookup is reliable.
-var toRemove = services
-    .Where(d => d.ServiceType == typeof(IHostedService) &&
-                d.ImplementationType == typeof(ChannelAuditWriter))
-    .ToList();
-foreach (var sd in toRemove) services.Remove(sd);
-
-// Register the no-op replacement
-services.AddSingleton<IAuditWriter, NoOpAuditWriter>();
-```
+`NoOpAuditWriter` is the default `IAuditWriter` in `ApiFactory`. It discards all entries, making audit behaviour invisible to tests that do not care about it.
 
 ```csharp
 internal sealed class NoOpAuditWriter : IAuditWriter
@@ -384,11 +480,32 @@ internal sealed class NoOpAuditWriter : IAuditWriter
 }
 ```
 
-`ApiFactory` registers `NoOpAuditWriter` by default so that audit behaviour is invisible in tests that do not care about it.
+`ApiFactory` swaps out only `IAuditWriter`. `ChannelAuditWriter` itself and its `IHostedService` registration are left in place — the hosted service starts and drains normally, but since `IAuditWriter` resolves to `NoOpAuditWriter`, entries are never enqueued and no SQL connections are attempted.
 
-#### `CapturingAuditWriter`
+### `CapturingAuditWriter`
 
-For tests that assert on audit behaviour, create a `CapturingAuditWriter` instance in the test and swap it in using `WithWebHostBuilder`:
+For tests that assert on audit behaviour, create a `CapturingAuditWriter` and replace `IAuditWriter` for that specific test using `WithWebHostBuilder`:
+
+```csharp
+var writer = new CapturingAuditWriter();
+await using WebApplicationFactory<Program> webFactory = factory.WithWebHostBuilder(b =>
+    b.ConfigureServices(services =>
+    {
+        services.RemoveAll<IAuditWriter>();
+        services.AddSingleton<IAuditWriter>(writer);
+    })
+);
+HttpClient client = webFactory.CreateClient();
+
+// Act
+await client.PostAsJsonAsync("/api/list", new { Name = "My Group" });
+
+// Assert
+AuditEntry entry = Assert.Single(writer.Entries);
+Assert.Equal("CreateItemGroup", entry.Operation);
+Assert.Equal("Success", entry.Outcome);
+Assert.NotNull(entry.ResourceId);
+```
 
 ```csharp
 internal sealed class CapturingAuditWriter : IAuditWriter
@@ -398,52 +515,25 @@ internal sealed class CapturingAuditWriter : IAuditWriter
 }
 ```
 
-Usage pattern in a test:
+`CapturingAuditWriter` is instantiated *outside* the DI container and passed as an instance. The test holds a direct reference to `Entries` without needing to resolve anything from the container.
+
+**Testing `AuthenticationFailed`** requires switching the default authentication scheme back to `"Bearer"` so the JWT handler processes the token instead of the test scheme:
 
 ```csharp
-var capturingWriter = new CapturingAuditWriter();
-
-using var client = factory
-    .WithWebHostBuilder(b => b.ConfigureServices(services =>
-    {
-        // ApiFactory has already removed ChannelAuditWriter and its hosted service.
-        // Only the IAuditWriter (NoOpAuditWriter) replacement needs to be swapped here.
-        services.RemoveAll<IAuditWriter>();
-        services.AddSingleton<IAuditWriter>(capturingWriter);
-    }))
-    .CreateClient();
-
-// Act — make HTTP calls via client
-
-// Assert
-Assert.Single(capturingWriter.Entries);
-Assert.Equal("CreateItemGroup", capturingWriter.Entries[0].Operation);
-Assert.Equal("Success", capturingWriter.Entries[0].Outcome);
+services.PostConfigure<AuthenticationOptions>(opts =>
+{
+    opts.DefaultAuthenticateScheme = "Bearer";
+    opts.DefaultChallengeScheme = "Bearer";
+});
 ```
 
-Because `capturingWriter` is instantiated outside the DI container and passed in as a singleton instance, the test has direct access to `Entries` without needing to resolve anything from the container.
+Then send a request with a malformed Bearer token. `OnAuthenticationFailed` fires, the entry is written to `CapturingAuditWriter`, and `AuditEndpointFilter` never runs (the request is blocked before routing).
 
-#### `TestDatabase`
+### `TestDatabase`
 
-Add the `AuditLog` table to `CreateTablesAsync` in SQLite-compatible DDL (no `NEWSEQUENTIALID()`, TEXT instead of UNIQUEIDENTIFIER):
+`TestDatabase.CreateTablesAsync` creates the SQLite-compatible schema for integration tests. The `AuditLog` table uses `TEXT` columns in place of `UNIQUEIDENTIFIER` and `DATETIMEOFFSET`. A custom Dapper `GuidTypeHandler` maps `Guid` ↔ `TEXT` for all queries.
 
-```sql
-CREATE TABLE AuditLog (
-    Id            TEXT NOT NULL PRIMARY KEY,
-    Timestamp     TEXT NOT NULL,
-    TraceId       TEXT NULL,
-    UserId        TEXT NULL,
-    IpAddress     TEXT NULL,
-    ResourceType  TEXT NULL,
-    Operation     TEXT NOT NULL,
-    ResourceId    TEXT NULL,
-    SubResourceId TEXT NULL,
-    TargetUserId  TEXT NULL,
-    ResourceName  TEXT NULL,
-    Outcome       TEXT NOT NULL,
-    FailureReason TEXT NULL
-);
-```
+`CreateTablesAsync` is `internal` so that tests can call it directly on a freshly opened connection with non-default settings (e.g. `Foreign Keys=False` for the `NotFound` outcome test that needs to insert an orphaned `Members` row).
 
 ---
 
@@ -451,24 +541,35 @@ CREATE TABLE AuditLog (
 
 ### Field-Level Change Tracking
 
-Deferred to a future version. When needed:
-- Add a nullable `Changes NVARCHAR(MAX)` column containing a JSON diff (e.g. `{"IsComplete": {"from": true, "to": false}}`)
-- Only `UpdateItem` and `UpdateItemGroup` handlers need changes: one extra SELECT before the update, compute diff, set on `AuditContext`
-- No changes to the filter, writer, or other handlers
-- Existing rows will have NULL in the new column — no backfill needed
+When needed, add a nullable `Changes NVARCHAR(MAX)` column to store a JSON diff of the before/after values for update operations:
 
-### User Feature
-
-When the `User` feature slice is added:
-- `UserSchemaInitializer.CreateSchemaAsync` is added to `DatabaseInitializer`
-- User profile handlers use `ResourceType = 'User'`, `ResourceId = null` or the user's own ID as appropriate
-- No schema changes to `AuditLog` required
+- Only `UpdateItem` and `UpdateItemGroup` need changes: perform an extra SELECT before the update, compute the diff, and store it on `AuditContext` (a new property)
+- No changes to the filter, `ChannelAuditWriter`, schema initializer conditional guard, or any other handler
+- Existing rows have NULL in the new column — no backfill required
 
 ### Admin UI
 
-The `AuditLog` table is designed for direct query access. Recommended Admin UI queries:
-- All events by user: `WHERE UserId = @userId ORDER BY Timestamp DESC`
-- All events on a resource: `WHERE ResourceId = @id ORDER BY Timestamp DESC`
-- All auth failures: `WHERE Outcome IN ('AuthenticationFailed', 'MissingClaim') ORDER BY Timestamp DESC`
-- All forbidden probes by IP: `WHERE Outcome = 'Forbidden' AND IpAddress = @ip ORDER BY Timestamp DESC`
-- Activity within a time window: `WHERE Timestamp BETWEEN @from AND @to ORDER BY Timestamp DESC`
+The `AuditLog` table is designed for direct SQL query access. Common patterns:
+
+```sql
+-- All activity for a specific user
+SELECT * FROM AuditLog WHERE UserId = @userId ORDER BY Timestamp DESC;
+
+-- All events on a specific resource
+SELECT * FROM AuditLog WHERE ResourceId = @id ORDER BY Timestamp DESC;
+
+-- Authentication failures (both JWT invalid and missing claim)
+SELECT * FROM AuditLog
+WHERE Outcome IN ('AuthenticationFailed', 'MissingClaim')
+ORDER BY Timestamp DESC;
+
+-- Forbidden probes from a specific IP (potential reconnaissance)
+SELECT * FROM AuditLog
+WHERE Outcome = 'Forbidden' AND IpAddress = @ip
+ORDER BY Timestamp DESC;
+
+-- All activity within a time window
+SELECT * FROM AuditLog
+WHERE Timestamp BETWEEN @from AND @to
+ORDER BY Timestamp DESC;
+```

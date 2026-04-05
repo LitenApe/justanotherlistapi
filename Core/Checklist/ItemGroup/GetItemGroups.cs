@@ -25,13 +25,13 @@ public static class GetItemGroups
         CancellationToken ct = default
     )
     {
-        var userId = claimsPrincipal.GetUserId();
+        Guid? userId = claimsPrincipal.GetUserId();
         if (userId is null)
         {
             return TypedResults.Unauthorized();
         }
 
-        var itemGroups = await LoadData(userId.Value, db, ct);
+        List<ItemGroup> itemGroups = await LoadData(userId.Value, db, ct);
         return TypedResults.Ok(itemGroups);
     }
 
@@ -41,7 +41,7 @@ public static class GetItemGroups
         CancellationToken ct
     )
     {
-        using var multi = await db.QueryMultipleAsync(
+        using SqlMapper.GridReader multi = await db.QueryMultipleAsync(
             new CommandDefinition(
                 """
                 SELECT ig.Id, ig.Name

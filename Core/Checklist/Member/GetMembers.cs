@@ -28,7 +28,7 @@ public static class GetMembers
         CancellationToken ct
     )
     {
-        var userId = claimsPrincipal.GetUserId();
+        Guid? userId = claimsPrincipal.GetUserId();
         if (userId is null)
         {
             return TypedResults.Unauthorized();
@@ -40,7 +40,7 @@ public static class GetMembers
             return TypedResults.Forbid();
         }
 
-        var data = await LoadData(itemGroupId, db, ct);
+        List<Guid> data = await LoadData(itemGroupId, db, ct);
         return TypedResults.Ok(data);
     }
 
@@ -50,13 +50,13 @@ public static class GetMembers
         CancellationToken ct
     )
     {
-        var result = await db.QueryAsync<Guid>(
+        IEnumerable<Guid> result = await db.QueryAsync<Guid>(
             new CommandDefinition(
                 "SELECT MemberId FROM Members WHERE ItemGroupId = @ItemGroupId",
                 new { ItemGroupId = itemGroupId },
                 cancellationToken: ct
             )
         );
-        return result.ToList();
+        return [.. result];
     }
 }
