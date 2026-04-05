@@ -8,9 +8,12 @@ public sealed class CreateItemGroupHttpTests(ApiFactory factory) : IClassFixture
     [Fact]
     public async Task MapEndpoint_ReturnsCreated_OnHappyPath()
     {
-        var client = factory.CreateClient();
+        HttpClient client = factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync("/api/list", new { Name = "My Group" });
+        HttpResponseMessage response = await client.PostAsJsonAsync(
+            "/api/list",
+            new { Name = "My Group" }
+        );
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }

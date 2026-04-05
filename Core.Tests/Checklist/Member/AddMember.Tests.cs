@@ -1,7 +1,9 @@
 using System.Security.Claims;
+using Core.AuditLog;
 using Core.Checklist;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Data.Sqlite;
 
 namespace Core.Tests.Checklist.MemberTests;
 
@@ -14,9 +16,9 @@ public sealed class AddMemberTests
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var newMemberId = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -27,19 +29,20 @@ public sealed class AddMemberTests
         );
 
         // Act
-        var result = await AddMember.Execute(
-            itemGroupId,
-            newMemberId,
-            claimsPrincipal,
-            db,
-            default
-        );
+        Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult, Conflict> result =
+            await AddMember.Execute(
+                itemGroupId,
+                newMemberId,
+                claimsPrincipal,
+                db,
+                new AuditContext()
+            );
 
         // Assert
         Assert.IsType<NoContent>(result.Result);
 
         // Confirm DB write
-        var added = await db.QueryFirstOrDefaultAsync<Guid?>(
+        Guid? added = await db.QueryFirstOrDefaultAsync<Guid?>(
             "SELECT MemberId FROM Members WHERE ItemGroupId = @ItemGroupId AND MemberId = @MemberId",
             new { ItemGroupId = itemGroupId, MemberId = newMemberId }
         );
@@ -54,16 +57,17 @@ public sealed class AddMemberTests
         var newMemberId = Guid.NewGuid();
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
 
         // Act
-        var result = await AddMember.Execute(
-            itemGroupId,
-            newMemberId,
-            claimsPrincipal,
-            db,
-            default
-        );
+        Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult, Conflict> result =
+            await AddMember.Execute(
+                itemGroupId,
+                newMemberId,
+                claimsPrincipal,
+                db,
+                new AuditContext()
+            );
 
         // Assert
         Assert.IsType<UnauthorizedHttpResult>(result.Result);
@@ -76,9 +80,9 @@ public sealed class AddMemberTests
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var newMemberId = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -86,13 +90,14 @@ public sealed class AddMemberTests
         // User is not a member
 
         // Act
-        var result = await AddMember.Execute(
-            itemGroupId,
-            newMemberId,
-            claimsPrincipal,
-            db,
-            default
-        );
+        Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult, Conflict> result =
+            await AddMember.Execute(
+                itemGroupId,
+                newMemberId,
+                claimsPrincipal,
+                db,
+                new AuditContext()
+            );
 
         // Assert
         Assert.IsType<ForbidHttpResult>(result.Result);
@@ -105,9 +110,9 @@ public sealed class AddMemberTests
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var existingMemberId = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -122,13 +127,14 @@ public sealed class AddMemberTests
         );
 
         // Act
-        var result = await AddMember.Execute(
-            itemGroupId,
-            existingMemberId,
-            claimsPrincipal,
-            db,
-            default
-        );
+        Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult, Conflict> result =
+            await AddMember.Execute(
+                itemGroupId,
+                existingMemberId,
+                claimsPrincipal,
+                db,
+                new AuditContext()
+            );
 
         // Assert
         Assert.IsType<Conflict>(result.Result);

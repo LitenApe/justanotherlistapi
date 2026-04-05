@@ -28,7 +28,7 @@ public static class GetItemGroup
         CancellationToken ct = default
     )
     {
-        var userId = claimsPrincipal.GetUserId();
+        Guid? userId = claimsPrincipal.GetUserId();
         if (userId is null)
         {
             return TypedResults.Unauthorized();
@@ -40,7 +40,7 @@ public static class GetItemGroup
             return TypedResults.Forbid();
         }
 
-        var itemGroup = await LoadData(itemGroupId, db, ct);
+        ItemGroup? itemGroup = await LoadData(itemGroupId, db, ct);
         if (itemGroup is null)
         {
             return TypedResults.NotFound();
@@ -55,7 +55,7 @@ public static class GetItemGroup
         CancellationToken ct
     )
     {
-        using var multi = await db.QueryMultipleAsync(
+        await using SqlMapper.GridReader multi = await db.QueryMultipleAsync(
             new CommandDefinition(
                 """
                 SELECT Id, Name FROM ItemGroups WHERE Id = @Id;
@@ -67,14 +67,14 @@ public static class GetItemGroup
             )
         );
 
-        var itemGroup = await multi.ReadFirstOrDefaultAsync<ItemGroup>();
+        ItemGroup? itemGroup = await multi.ReadFirstOrDefaultAsync<ItemGroup>();
         if (itemGroup is null)
         {
             return null;
         }
 
-        var items = await multi.ReadAsync<Item>();
-        var members = await multi.ReadAsync<Guid>();
+        IEnumerable<Item> items = await multi.ReadAsync<Item>();
+        IEnumerable<Guid> members = await multi.ReadAsync<Guid>();
 
         return itemGroup with
         {

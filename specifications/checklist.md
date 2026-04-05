@@ -139,11 +139,11 @@ Returns all item groups where the authenticated user is a member. Each group is 
 
 **Query behaviour**
 
-Executes two queries:
-1. SELECT all groups where the user is a member
-2. SELECT all incomplete items for those groups (using `IN` clause on group IDs)
+Executes both queries in a single `QueryMultipleAsync` call:
+1. SELECT all groups where the user is a member (JOIN on `Members`)
+2. SELECT all incomplete items for those groups (JOIN on `Members` using the same `@UserId` parameter)
 
-Items are then grouped in memory. If the user has no groups, the second query is skipped.
+Items are then grouped in memory. If the first result set is empty the second result set is not consumed and an empty list is returned immediately.
 
 **Response body example**
 
@@ -508,8 +508,8 @@ Name fields (`ItemGroup.Name`, `Item.Name`) are validated with `string.IsNullOrW
 Each operation is a standalone `static` class following the same structure:
 
 - `MapEndpoint(IEndpointRouteBuilder)` — registers the route with summary, description, tag, and name
-- `Execute(...)` — the handler method bound by Minimal API. Contains validation, auth checks, and delegates to data methods
-- `CreateData` / `UpdateData` / `RemoveData` / `LoadData` — `internal static` data access methods, made internal for direct testing without the HTTP stack
+- `Execute(...)` — the handler method bound by Minimal API. Contains validation, auth checks, and delegates to data methods. Handlers that participate in audit logging (`CreateItemGroup`, `CreateItem`, `AddMember`, `RemoveMember`) also accept an `AuditContext` parameter and populate the relevant ID fields before returning.
+- `CreateData` / `UpdateData` / `RemoveData` / `DeleteData` / `LoadData` — `internal static` data access methods, made internal for direct testing without the HTTP stack. Delete operations use `RemoveData` (member/group/item-group handlers) or `DeleteData` (`DeleteItem`).
 - `Request` record — nested inside the handler class where a request body is required
 
-All endpoints are registered in `ChecklistApiEndpointRouteBuilderExtension.MapChecklistApi()` on a single route group, which applies `.RequireAuthorization()` uniformly.
+All endpoints are registered in `ChecklistApiEndpointRouteBuilderExtension.MapChecklistApi()` on a single route group, which applies `.RequireAuthorization()` and `.AddEndpointFilter<AuditEndpointFilter>()` uniformly. The `AuditEndpointFilter` runs after every handler and enqueues an `AuditEntry` based on the HTTP outcome.

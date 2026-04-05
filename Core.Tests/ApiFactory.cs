@@ -1,6 +1,7 @@
 using System.Data;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using Core.AuditLog;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -44,7 +45,13 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<IDbConnection>();
-            services.AddSingleton<IDbConnection>(_ => connection);
+            services.AddSingleton<IDbConnection>(connection);
+
+            // Replace IAuditWriter with a no-op so no SQL Server connections are made during tests.
+            // ChannelAuditWriter remains registered and its IHostedService starts normally,
+            // but since IAuditWriter resolves to NoOpAuditWriter, no entries are ever enqueued.
+            services.RemoveAll<IAuditWriter>();
+            services.AddSingleton<IAuditWriter, NoOpAuditWriter>();
 
             services
                 .AddAuthentication("Test")
@@ -78,7 +85,7 @@ internal sealed class TestAuthHandler(
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        var claims = new[] { new Claim(ClaimTypes.NameIdentifier, UserId.ToString()) };
+        Claim[] claims = [new Claim(ClaimTypes.NameIdentifier, UserId.ToString())];
         var identity = new ClaimsIdentity(claims, "Test");
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, Scheme.Name);

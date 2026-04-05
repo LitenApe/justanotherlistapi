@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Core.Checklist;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Data.Sqlite;
 
 namespace Core.Tests.Checklist.ItemGroupTests;
 
@@ -13,9 +14,9 @@ public sealed class DeleteItemGroupTests
         // Arrange
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "ToDelete" }
@@ -26,13 +27,14 @@ public sealed class DeleteItemGroupTests
         );
 
         // Act
-        var result = await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
+        Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.IsType<NoContent>(result.Result);
 
         // Confirm DB deletion
-        var deleted = await db.QueryFirstOrDefaultAsync<ItemGroup>(
+        ItemGroup? deleted = await db.QueryFirstOrDefaultAsync<ItemGroup>(
             "SELECT Id, Name FROM ItemGroups WHERE Id = @Id",
             new { Id = itemGroupId }
         );
@@ -47,9 +49,9 @@ public sealed class DeleteItemGroupTests
         var otherMemberId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -77,13 +79,13 @@ public sealed class DeleteItemGroupTests
         await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert — cascade delete should remove items and members
-        var remainingItems = await db.QueryAsync<Item>(
+        IEnumerable<Item> remainingItems = await db.QueryAsync<Item>(
             "SELECT Id FROM Items WHERE ItemGroupId = @ItemGroupId",
             new { ItemGroupId = itemGroupId }
         );
         Assert.Empty(remainingItems);
 
-        var remainingMembers = await db.QueryAsync<Guid>(
+        IEnumerable<Guid> remainingMembers = await db.QueryAsync<Guid>(
             "SELECT MemberId FROM Members WHERE ItemGroupId = @ItemGroupId",
             new { ItemGroupId = itemGroupId }
         );
@@ -97,10 +99,11 @@ public sealed class DeleteItemGroupTests
         var itemGroupId = Guid.NewGuid();
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
 
         // Act
-        var result = await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
+        Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.IsType<UnauthorizedHttpResult>(result.Result);
@@ -112,9 +115,9 @@ public sealed class DeleteItemGroupTests
         // Arrange
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "ToDelete" }
@@ -122,7 +125,8 @@ public sealed class DeleteItemGroupTests
         // No member added for this user
 
         // Act
-        var result = await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
+        Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.IsType<ForbidHttpResult>(result.Result);
@@ -134,9 +138,9 @@ public sealed class DeleteItemGroupTests
         // Arrange
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         // Insert a placeholder group to satisfy the FK, add member, then remove the group
         var placeholderId = Guid.NewGuid();
         await db.ExecuteAsync(
@@ -165,7 +169,8 @@ public sealed class DeleteItemGroupTests
         await db.ExecuteAsync("PRAGMA foreign_keys = ON");
 
         // Act
-        var result = await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
+        Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.IsType<NoContent>(result.Result);

@@ -18,9 +18,9 @@ public sealed class GetItemGroupHttpTests(ApiFactory factory) : IClassFixture<Ap
             new { MemberId = TestAuthHandler.UserId, ItemGroupId = itemGroupId }
         );
 
-        var client = factory.CreateClient();
+        HttpClient client = factory.CreateClient();
 
-        var response = await client.GetAsync($"/api/list/{itemGroupId}");
+        HttpResponseMessage response = await client.GetAsync($"/api/list/{itemGroupId}");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }

@@ -27,7 +27,7 @@ public static class DeleteItem
         CancellationToken ct = default
     )
     {
-        var userId = claimsPrincipal.GetUserId();
+        Guid? userId = claimsPrincipal.GetUserId();
         if (userId is null)
         {
             return TypedResults.Unauthorized();

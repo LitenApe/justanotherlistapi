@@ -9,10 +9,10 @@ public sealed class ClaimsPrincipalExtensionTests
     {
         // Arrange
         var userId = Guid.NewGuid();
-        var principal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal principal = TestHelpers.CreatePrincipal(userId);
 
         // Act
-        var result = principal.GetUserId();
+        Guid? result = principal.GetUserId();
 
         // Assert
         Assert.Equal(userId, result);
@@ -27,7 +27,7 @@ public sealed class ClaimsPrincipalExtensionTests
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuthType"));
 
         // Act
-        var result = principal.GetUserId();
+        Guid? result = principal.GetUserId();
 
         // Assert
         Assert.Equal(userId, result);
@@ -42,7 +42,7 @@ public sealed class ClaimsPrincipalExtensionTests
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuthType"));
 
         // Act
-        var result = principal.GetUserId();
+        Guid? result = principal.GetUserId();
 
         // Assert
         Assert.Equal(userId, result);
@@ -62,7 +62,7 @@ public sealed class ClaimsPrincipalExtensionTests
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuthType"));
 
         // Act
-        var result = principal.GetUserId();
+        Guid? result = principal.GetUserId();
 
         // Assert
         Assert.Equal(nameIdentifierGuid, result);
@@ -75,7 +75,7 @@ public sealed class ClaimsPrincipalExtensionTests
         var principal = new ClaimsPrincipal(new ClaimsIdentity());
 
         // Act
-        var result = principal.GetUserId();
+        Guid? result = principal.GetUserId();
 
         // Assert
         Assert.Null(result);
@@ -89,7 +89,7 @@ public sealed class ClaimsPrincipalExtensionTests
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuthType"));
 
         // Act
-        var result = principal.GetUserId();
+        Guid? result = principal.GetUserId();
 
         // Assert
         Assert.Null(result);
@@ -103,7 +103,7 @@ public sealed class ClaimsPrincipalExtensionTests
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuthType"));
 
         // Act
-        var result = principal.GetUserId();
+        Guid? result = principal.GetUserId();
 
         // Assert
         Assert.Null(result);

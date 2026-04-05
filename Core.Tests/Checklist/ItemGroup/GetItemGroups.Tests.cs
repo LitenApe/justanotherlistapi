@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Core.Checklist;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Data.Sqlite;
 
 namespace Core.Tests.Checklist.ItemGroupTests;
 
@@ -15,9 +16,9 @@ public sealed class GetItemGroupsTests
         var otherUserId = Guid.NewGuid();
         var group1Id = Guid.NewGuid();
         var group2Id = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = group1Id, Name = "Group 1" }
@@ -61,14 +62,18 @@ public sealed class GetItemGroupsTests
         );
 
         // Act
-        var result = await GetItemGroups.Execute(claimsPrincipal, db, default);
+        Results<Ok<List<ItemGroup>>, UnauthorizedHttpResult> result = await GetItemGroups.Execute(
+            claimsPrincipal,
+            db,
+            default
+        );
 
         // Assert
-        var ok = Assert.IsType<Ok<List<ItemGroup>>>(result.Result);
-        var groups = ok.Value;
+        Ok<List<ItemGroup>> ok = Assert.IsType<Ok<List<ItemGroup>>>(result.Result);
+        List<ItemGroup>? groups = ok.Value;
         Assert.NotNull(groups);
         Assert.Equal(2, groups.Count);
-        var group1 = groups.FirstOrDefault(g => g.Id == group1Id);
+        ItemGroup? group1 = groups.FirstOrDefault(g => g.Id == group1Id);
         Assert.NotNull(group1);
         // Only incomplete items should be included
         Assert.Single(group1.Items);
@@ -80,16 +85,20 @@ public sealed class GetItemGroupsTests
     {
         // Arrange
         var userId = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         // No groups or members for this user
 
         // Act
-        var result = await GetItemGroups.Execute(claimsPrincipal, db, default);
+        Results<Ok<List<ItemGroup>>, UnauthorizedHttpResult> result = await GetItemGroups.Execute(
+            claimsPrincipal,
+            db,
+            default
+        );
 
         // Assert
-        var ok = Assert.IsType<Ok<List<ItemGroup>>>(result.Result);
+        Ok<List<ItemGroup>> ok = Assert.IsType<Ok<List<ItemGroup>>>(result.Result);
         Assert.NotNull(ok.Value);
         Assert.Empty(ok.Value);
     }
@@ -100,10 +109,14 @@ public sealed class GetItemGroupsTests
         // Arrange
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
 
         // Act
-        var result = await GetItemGroups.Execute(claimsPrincipal, db, default);
+        Results<Ok<List<ItemGroup>>, UnauthorizedHttpResult> result = await GetItemGroups.Execute(
+            claimsPrincipal,
+            db,
+            default
+        );
 
         // Assert
         Assert.IsType<UnauthorizedHttpResult>(result.Result);
@@ -116,9 +129,9 @@ public sealed class GetItemGroupsTests
         var userId = Guid.NewGuid();
         var groupId = Guid.NewGuid();
         var otherMemberId = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = groupId, Name = "Group" }
@@ -133,11 +146,15 @@ public sealed class GetItemGroupsTests
         );
 
         // Act
-        var result = await GetItemGroups.Execute(claimsPrincipal, db, default);
+        Results<Ok<List<ItemGroup>>, UnauthorizedHttpResult> result = await GetItemGroups.Execute(
+            claimsPrincipal,
+            db,
+            default
+        );
 
         // Assert — the list endpoint intentionally does not load members
-        var ok = Assert.IsType<Ok<List<ItemGroup>>>(result.Result);
-        var group = Assert.Single(ok.Value!);
+        Ok<List<ItemGroup>> ok = Assert.IsType<Ok<List<ItemGroup>>>(result.Result);
+        ItemGroup group = Assert.Single(ok.Value!);
         Assert.Empty(group.Members);
     }
 }

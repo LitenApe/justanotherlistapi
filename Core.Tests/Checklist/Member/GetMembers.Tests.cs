@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Core.Checklist;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Data.Sqlite;
 
 namespace Core.Tests.Checklist.MemberTests;
 
@@ -14,9 +15,9 @@ public sealed class GetMembersTests
         var userId = Guid.NewGuid();
         var otherUserId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -31,11 +32,12 @@ public sealed class GetMembersTests
         );
 
         // Act
-        var result = await GetMembers.Execute(itemGroupId, claimsPrincipal, db, default);
+        Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await GetMembers.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
-        var ok = Assert.IsType<Ok<List<Guid>>>(result.Result);
-        var members = ok.Value;
+        Ok<List<Guid>> ok = Assert.IsType<Ok<List<Guid>>>(result.Result);
+        List<Guid>? members = ok.Value;
         Assert.NotNull(members);
         Assert.Equal(2, members.Count);
         Assert.Contains(userId, members);
@@ -49,10 +51,11 @@ public sealed class GetMembersTests
         var itemGroupId = Guid.NewGuid();
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
 
         // Act
-        var result = await GetMembers.Execute(itemGroupId, claimsPrincipal, db, default);
+        Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await GetMembers.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.IsType<UnauthorizedHttpResult>(result.Result);
@@ -64,9 +67,9 @@ public sealed class GetMembersTests
         // Arrange
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -74,7 +77,8 @@ public sealed class GetMembersTests
         // No member for this user
 
         // Act
-        var result = await GetMembers.Execute(itemGroupId, claimsPrincipal, db, default);
+        Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await GetMembers.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.IsType<ForbidHttpResult>(result.Result);
@@ -86,9 +90,9 @@ public sealed class GetMembersTests
         // Arrange
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -104,7 +108,8 @@ public sealed class GetMembersTests
         );
 
         // Act
-        var result = await GetMembers.Execute(itemGroupId, claimsPrincipal, db, default);
+        Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await GetMembers.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.IsType<ForbidHttpResult>(result.Result);

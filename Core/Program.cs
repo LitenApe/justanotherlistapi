@@ -1,7 +1,12 @@
 using System.Data;
+using System.Diagnostics;
 using Core;
+using Core.AuditLog;
 using Core.Utility;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpenTelemetry;
 using OpenTelemetry.Trace;
 using Scalar.AspNetCore;
@@ -30,6 +35,16 @@ builder
 builder.AddSqlServerClient(connectionName: "database");
 builder.Services.AddScoped<IDbConnection>(sp => sp.GetRequiredService<SqlConnection>());
 
+// Audit Log
+builder.Services.AddScoped<AuditContext>();
+builder.Services.AddSingleton<ChannelAuditWriter>();
+builder.Services.AddSingleton<IAuditWriter>(sp => sp.GetRequiredService<ChannelAuditWriter>());
+builder.Services.TryAddEnumerable(
+    ServiceDescriptor.Singleton<IHostedService, ChannelAuditWriter>(sp =>
+        sp.GetRequiredService<ChannelAuditWriter>()
+    )
+);
+
 // Authentication & Authorization
 builder
     .Services.AddAuthentication()
@@ -55,6 +70,31 @@ builder
             // No audience configured — disable validation. Set OAuth:Audience in production.
             options.TokenValidationParameters.ValidateAudience = false;
         }
+
+        options.Events = new JwtBearerEvents
+        {
+            OnAuthenticationFailed = context =>
+            {
+                IAuditWriter writer =
+                    context.HttpContext.RequestServices.GetRequiredService<IAuditWriter>();
+                writer.Enqueue(
+                    new AuditEntry(
+                        Timestamp: DateTimeOffset.UtcNow,
+                        TraceId: Activity.Current?.TraceId.ToString(),
+                        UserId: null,
+                        IpAddress: context.HttpContext.Connection.RemoteIpAddress?.ToString(),
+                        ResourceType: null,
+                        Operation: "AuthenticationFailed",
+                        ResourceId: null,
+                        SubResourceId: null,
+                        TargetUserId: null,
+                        Outcome: "AuthenticationFailed",
+                        FailureReason: context.Exception.Message
+                    )
+                );
+                return Task.CompletedTask;
+            },
+        };
     });
 builder.Services.AddAuthorization();
 
@@ -85,6 +125,12 @@ WebApplication app = builder.Build();
 
 // --- Middleware Pipeline ---
 
+app.UseForwardedHeaders(
+    new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+    }
+);
 app.UseCors(policyBuilder =>
     policyBuilder
         .AllowAnyHeader()

@@ -39,9 +39,16 @@ Aspire/                             - .NET Aspire AppHost — wires all services
 Core/                               - ASP.NET Core backend
   Program.cs                        - App composition root: DI, middleware, auth, OpenAPI, DB init
   DatabaseInitializer.cs            - Runs idempotent CREATE TABLE + CREATE INDEX at startup
+  AuditLog/
+    AuditContext.cs                 - Scoped per-request bag handlers use to pass resource IDs to the filter
+    AuditEndpointFilter.cs          - IEndpointFilter that enqueues an AuditEntry after every request
+    AuditEntry.cs                   - Immutable record representing a single audited event
+    AuditLogSchemaInitializer.cs    - Idempotent DDL for the AuditLog table and its indexes
+    ChannelAuditWriter.cs           - IAuditWriter + IHostedService: batches entries via a bounded Channel
+    IAuditWriter.cs                 - Enqueue(AuditEntry) abstraction consumed by handlers and the filter
   Checklist/
     ChecklistApiEndpointRouteBuilderExtension.cs  - Maps all routes under /api/list
-    ChecklistConnectionExtensions.cs              - IDbConnection.IsMember() shared helper
+    ChecklistConnectionExtensions.cs              - IDbConnection.IsMember() and IsLastMember() shared helpers
     Item/                           - CreateItem, UpdateItem, DeleteItem handlers
     ItemGroup/                      - GetItemGroups, GetItemGroup, CreateItemGroup,
     |                                 UpdateItemGroup, DeleteItemGroup handlers
@@ -54,6 +61,11 @@ Core.Tests/                         - xUnit tests (SQLite in-memory, no running 
   ApiFactory.cs                     - WebApplicationFactory<Program> with SQLite + TestAuthHandler
   TestDatabase.cs                   - Creates in-memory SQLite with matching schema + GuidTypeHandler
   TestHelpers.cs                    - CreatePrincipal(Guid): builds a ClaimsPrincipal for unit tests
+  AuditLog/
+    AuditLog.Http.Tests.cs          - HTTP integration tests verifying audit entries are captured per operation
+    CapturingAuditWriter.cs         - In-memory IAuditWriter that accumulates entries for assertion
+    ChannelAuditWriter.Tests.cs     - Unit tests for ChannelAuditWriter (batching, flush, failure handling)
+    NoOpAuditWriter.cs              - IAuditWriter that discards all entries (used to isolate other tests)
   Checklist/                        - Unit + HTTP integration tests mirroring the Core/Checklist structure
 Directory.Build.props               - Solution-wide MSBuild settings and analyzer packages
 Directory.Build.targets             - CSharpier format check wired into every CLI build
@@ -181,7 +193,7 @@ The value must parse as a valid `Guid`; otherwise `null` is returned and the req
 
 The schema is managed without a migration framework. `DatabaseInitializer` runs idempotent SQL on every startup — safe against an existing database, no CLI tooling required. To change the schema, edit `Core/DatabaseInitializer.cs` directly.
 
-Three tables exist: `ItemGroups`, `Items`, and `Members`. Deleting an `ItemGroup` cascades and removes all related `Items` and `Members` rows.
+Four tables exist: `ItemGroups`, `Items`, `Members`, and `AuditLog`. Deleting an `ItemGroup` cascades and removes all related `Items` and `Members` rows. The `AuditLog` table is managed by `AuditLogSchemaInitializer` and records every API operation with its outcome, resource identifiers, and OpenTelemetry trace ID.
 
 For the full DDL, column definitions, and indexes see [specifications/checklist.md](specifications/checklist.md#database-schema).
 
@@ -276,6 +288,8 @@ dotnet test
 | `GetMembers.Http.Tests.cs` | `GET /api/list/{id}/member` route registration |
 | `RemoveMember.Tests.cs` | Remove member (idempotent), last-member conflict, membership gate, auth |
 | `RemoveMember.Http.Tests.cs` | `DELETE /api/list/{id}/member/{memberId}` route registration |
+| `AuditLog.Http.Tests.cs` | Verifies an `AuditEntry` is captured for every operation (resource IDs, outcome, user ID) |
+| `ChannelAuditWriter.Tests.cs` | Batching (50-entry immediate flush, 5 s window flush), failure recovery, shutdown drain |
 
 ## Code quality
 

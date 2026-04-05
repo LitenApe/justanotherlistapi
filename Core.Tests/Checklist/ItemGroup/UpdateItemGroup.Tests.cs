@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Core.Checklist;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Data.Sqlite;
 
 namespace Core.Tests.Checklist.ItemGroupTests;
 
@@ -15,9 +16,9 @@ public sealed class UpdateItemGroupTests
         var itemGroupId = Guid.NewGuid();
         string oldName = "Old Name";
         string newName = "New Name";
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = oldName }
@@ -30,19 +31,14 @@ public sealed class UpdateItemGroupTests
         var request = new UpdateItemGroup.Request { Name = newName };
 
         // Act
-        var result = await UpdateItemGroup.Execute(
-            itemGroupId,
-            request,
-            claimsPrincipal,
-            db,
-            default
-        );
+        Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await UpdateItemGroup.Execute(itemGroupId, request, claimsPrincipal, db);
 
         // Assert
         Assert.IsType<NoContent>(result.Result);
 
         // Confirm DB update
-        var updated = await db.QueryFirstOrDefaultAsync<ItemGroup>(
+        ItemGroup? updated = await db.QueryFirstOrDefaultAsync<ItemGroup>(
             "SELECT Id, Name FROM ItemGroups WHERE Id = @Id",
             new { Id = itemGroupId }
         );
@@ -58,20 +54,15 @@ public sealed class UpdateItemGroupTests
         // Arrange
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
 
         var request = new UpdateItemGroup.Request { Name = name };
 
         // Act
-        var result = await UpdateItemGroup.Execute(
-            itemGroupId,
-            request,
-            claimsPrincipal,
-            db,
-            default
-        );
+        Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await UpdateItemGroup.Execute(itemGroupId, request, claimsPrincipal, db);
 
         // Assert
         Assert.IsType<BadRequest>(result.Result);
@@ -85,16 +76,11 @@ public sealed class UpdateItemGroupTests
         var request = new UpdateItemGroup.Request { Name = "Any Name" };
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
 
         // Act
-        var result = await UpdateItemGroup.Execute(
-            itemGroupId,
-            request,
-            claimsPrincipal,
-            db,
-            default
-        );
+        Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await UpdateItemGroup.Execute(itemGroupId, request, claimsPrincipal, db);
 
         // Assert
         Assert.IsType<UnauthorizedHttpResult>(result.Result);
@@ -106,9 +92,9 @@ public sealed class UpdateItemGroupTests
         // Arrange
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-        var claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using var db = await TestDatabase.CreateAsync();
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
         // Add ItemGroup but not Member
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
@@ -118,13 +104,8 @@ public sealed class UpdateItemGroupTests
         var request = new UpdateItemGroup.Request { Name = "New Name" };
 
         // Act
-        var result = await UpdateItemGroup.Execute(
-            itemGroupId,
-            request,
-            claimsPrincipal,
-            db,
-            default
-        );
+        Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await UpdateItemGroup.Execute(itemGroupId, request, claimsPrincipal, db);
 
         // Assert
         Assert.IsType<ForbidHttpResult>(result.Result);

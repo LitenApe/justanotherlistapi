@@ -15,7 +15,8 @@ public sealed class BearerSecuritySchemeTransformer(
         CancellationToken cancellationToken
     )
     {
-        var authenticationSchema = await schemeProvider.GetAllSchemesAsync();
+        IEnumerable<AuthenticationScheme> authenticationSchema =
+            await schemeProvider.GetAllSchemesAsync();
 
         if (
             !authenticationSchema.Any(authScheme =>

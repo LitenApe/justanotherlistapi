@@ -1,5 +1,6 @@
 using System.Data;
 using System.Security.Claims;
+using Core.AuditLog;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -26,10 +27,13 @@ public static class RemoveMember
         Guid memberId,
         ClaimsPrincipal claimsPrincipal,
         IDbConnection db,
+        AuditContext auditContext,
         CancellationToken ct
     )
     {
-        var userId = claimsPrincipal.GetUserId();
+        auditContext.TargetUserId = memberId;
+
+        Guid? userId = claimsPrincipal.GetUserId();
         if (userId is null)
         {
             return TypedResults.Unauthorized();
