@@ -17,17 +17,17 @@
 
   <ItemGroup>
     <!-- Roslynator: large collection of 500+ analyzers and code fixes (like ESLint for C#) -->
-    <PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
+    <PackageReference Include="Roslynator.Analyzers">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <!-- Roslynator.Formatting.Analyzers: structural formatting rules (blank lines, attribute placement, etc.) -->
-    <PackageReference Include="Roslynator.Formatting.Analyzers" Version="4.15.0">
+    <PackageReference Include="Roslynator.Formatting.Analyzers">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <!-- Meziantou.Analyzer: ~140 additional quality rules covering string handling, culture, async patterns, etc. -->
-    <PackageReference Include="Meziantou.Analyzer" Version="3.0.43">
+    <PackageReference Include="Meziantou.Analyzer">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
