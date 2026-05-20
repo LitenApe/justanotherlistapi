@@ -33,26 +33,26 @@ public static class RemoveMember
     {
         auditContext.TargetUserId = memberId;
 
-        Guid? userId = claimsPrincipal.GetUserId();
-        if (userId is null)
-        {
-            return TypedResults.Unauthorized();
-        }
+        return await db.ExecuteAsItemGroupMember<
+            Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult, Conflict>
+        >(
+            itemGroupId,
+            claimsPrincipal,
+            async _ =>
+            {
+                bool isLastMember = await db.IsLastMember(itemGroupId, memberId, ct);
+                if (isLastMember)
+                {
+                    return TypedResults.Conflict();
+                }
 
-        bool isMember = await db.IsMember(itemGroupId, userId, ct);
-        if (!isMember)
-        {
-            return TypedResults.Forbid();
-        }
-
-        bool isLastMember = await db.IsLastMember(itemGroupId, memberId, ct);
-        if (isLastMember)
-        {
-            return TypedResults.Conflict();
-        }
-
-        await RemoveData(itemGroupId, memberId, db, ct);
-        return TypedResults.NoContent();
+                await RemoveData(itemGroupId, memberId, db, ct);
+                return TypedResults.NoContent();
+            },
+            TypedResults.Unauthorized(),
+            TypedResults.Forbid(),
+            ct
+        );
     }
 
     internal static async Task RemoveData(

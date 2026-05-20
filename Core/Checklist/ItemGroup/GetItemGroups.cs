@@ -25,14 +25,16 @@ public static class GetItemGroups
         CancellationToken ct = default
     )
     {
-        Guid? userId = claimsPrincipal.GetUserId();
-        if (userId is null)
-        {
-            return TypedResults.Unauthorized();
-        }
-
-        List<ItemGroup> itemGroups = await LoadData(userId.Value, db, ct);
-        return TypedResults.Ok(itemGroups);
+        return await claimsPrincipal.ExecuteAsAuthenticatedUser<
+            Results<Ok<List<ItemGroup>>, UnauthorizedHttpResult>
+        >(
+            async userId =>
+            {
+                List<ItemGroup> itemGroups = await LoadData(userId, db, ct);
+                return TypedResults.Ok(itemGroups);
+            },
+            TypedResults.Unauthorized()
+        );
     }
 
     internal static async Task<List<ItemGroup>> LoadData(

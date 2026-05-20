@@ -36,20 +36,20 @@ public static class UpdateItem
             return TypedResults.BadRequest();
         }
 
-        Guid? userId = claimsPrincipal.GetUserId();
-        if (userId is null)
-        {
-            return TypedResults.Unauthorized();
-        }
-
-        bool isMember = await db.IsMember(itemGroupId, userId, ct);
-        if (!isMember)
-        {
-            return TypedResults.Forbid();
-        }
-
-        await UpdateData(itemGroupId, itemId, request, db, ct);
-        return TypedResults.NoContent();
+        return await db.ExecuteAsItemGroupMember<
+            Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult>
+        >(
+            itemGroupId,
+            claimsPrincipal,
+            async _ =>
+            {
+                await UpdateData(itemGroupId, itemId, request, db, ct);
+                return TypedResults.NoContent();
+            },
+            TypedResults.Unauthorized(),
+            TypedResults.Forbid(),
+            ct
+        );
     }
 
     internal static async Task UpdateData(

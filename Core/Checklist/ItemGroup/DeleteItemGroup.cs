@@ -26,20 +26,20 @@ public static class DeleteItemGroup
         CancellationToken ct = default
     )
     {
-        Guid? userId = claimsPrincipal.GetUserId();
-        if (userId is null)
-        {
-            return TypedResults.Unauthorized();
-        }
-
-        bool isMember = await db.IsMember(itemGroupId, userId, ct);
-        if (!isMember)
-        {
-            return TypedResults.Forbid();
-        }
-
-        await RemoveData(itemGroupId, db, ct);
-        return TypedResults.NoContent();
+        return await db.ExecuteAsItemGroupMember<
+            Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>
+        >(
+            itemGroupId,
+            claimsPrincipal,
+            async _ =>
+            {
+                await RemoveData(itemGroupId, db, ct);
+                return TypedResults.NoContent();
+            },
+            TypedResults.Unauthorized(),
+            TypedResults.Forbid(),
+            ct
+        );
     }
 
     internal static async Task RemoveData(Guid itemGroupId, IDbConnection db, CancellationToken ct)

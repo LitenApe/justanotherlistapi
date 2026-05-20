@@ -28,20 +28,20 @@ public static class GetMembers
         CancellationToken ct
     )
     {
-        Guid? userId = claimsPrincipal.GetUserId();
-        if (userId is null)
-        {
-            return TypedResults.Unauthorized();
-        }
-
-        bool isMember = await db.IsMember(itemGroupId, userId, ct);
-        if (!isMember)
-        {
-            return TypedResults.Forbid();
-        }
-
-        List<Guid> data = await LoadData(itemGroupId, db, ct);
-        return TypedResults.Ok(data);
+        return await db.ExecuteAsItemGroupMember<
+            Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult>
+        >(
+            itemGroupId,
+            claimsPrincipal,
+            async _ =>
+            {
+                List<Guid> data = await LoadData(itemGroupId, db, ct);
+                return TypedResults.Ok(data);
+            },
+            TypedResults.Unauthorized(),
+            TypedResults.Forbid(),
+            ct
+        );
     }
 
     internal static async Task<List<Guid>> LoadData(

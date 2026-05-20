@@ -36,15 +36,17 @@ public static class CreateItemGroup
             return TypedResults.BadRequest();
         }
 
-        Guid? userId = claimsPrincipal.GetUserId();
-        if (userId is null)
-        {
-            return TypedResults.Unauthorized();
-        }
-
-        ItemGroup itemGroup = await CreateData(userId.Value, request, db, ct);
-        auditContext.ResourceId = itemGroup.Id;
-        return TypedResults.Created($"/list/{itemGroup.Id}", itemGroup);
+        return await claimsPrincipal.ExecuteAsAuthenticatedUser<
+            Results<Created<ItemGroup>, BadRequest, UnauthorizedHttpResult>
+        >(
+            async userId =>
+            {
+                ItemGroup itemGroup = await CreateData(userId, request, db, ct);
+                auditContext.ResourceId = itemGroup.Id;
+                return TypedResults.Created($"/list/{itemGroup.Id}", itemGroup);
+            },
+            TypedResults.Unauthorized()
+        );
     }
 
     internal static async Task<ItemGroup> CreateData(

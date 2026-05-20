@@ -37,21 +37,21 @@ public static class CreateItem
             return TypedResults.BadRequest();
         }
 
-        Guid? userId = claimsPrincipal.GetUserId();
-        if (userId is null)
-        {
-            return TypedResults.Unauthorized();
-        }
-
-        bool isMember = await db.IsMember(itemGroupId, userId, ct);
-        if (!isMember)
-        {
-            return TypedResults.Forbid();
-        }
-
-        Item data = await CreateData(itemGroupId, request, db, ct);
-        auditContext.SubResourceId = data.Id;
-        return TypedResults.Created($"/list/{itemGroupId}/{data.Id}", data);
+        return await db.ExecuteAsItemGroupMember<
+            Results<Created<Item>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult>
+        >(
+            itemGroupId,
+            claimsPrincipal,
+            async _ =>
+            {
+                Item data = await CreateData(itemGroupId, request, db, ct);
+                auditContext.SubResourceId = data.Id;
+                return TypedResults.Created($"/list/{itemGroupId}/{data.Id}", data);
+            },
+            TypedResults.Unauthorized(),
+            TypedResults.Forbid(),
+            ct
+        );
     }
 
     internal static async Task<Item> CreateData(
