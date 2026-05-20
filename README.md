@@ -21,15 +21,15 @@ JustAnotherList is an open-source, minimalist app for organising life into share
 
 ## Tech stack
 
-| Layer | Technology |
-|---|---|
-| Runtime | .NET 10 |
-| Backend | ASP.NET Core 10 (Minimal API) |
-| Data access | Dapper + SQL Server |
-| Authentication | JWT Bearer — delegated to an external OAuth 2.0 / OIDC provider |
-| API docs | Scalar (OpenAPI) |
-| Observability | OpenTelemetry (traces + logs, OTLP export) |
-| Dev orchestration | .NET Aspire |
+| Layer             | Technology                                                      |
+| ----------------- | --------------------------------------------------------------- |
+| Runtime           | .NET 10                                                         |
+| Backend           | ASP.NET Core 10 (Minimal API)                                   |
+| Data access       | Dapper + SQL Server                                             |
+| Authentication    | JWT Bearer — delegated to an external OAuth 2.0 / OIDC provider |
+| API docs          | Scalar (OpenAPI)                                                |
+| Observability     | OpenTelemetry (traces + logs, OTLP export)                      |
+| Dev orchestration | .NET Aspire                                                     |
 
 ## Project structure
 
@@ -79,10 +79,11 @@ specifications/                     - Design and architecture specifications
 
 Design and architecture documents for planned and implemented features live in the [`specifications/`](specifications/) folder.
 
-| Document | Description |
-|---|---|
-| [checklist.md](specifications/checklist.md) | Checklist feature — domain model, authorization model, database schema, all API endpoints with request/response shapes, and structural conventions |
-| [audit-logs.md](specifications/audit-logs.md) | Audit Log feature — database schema, per-operation audit data, implementation design, and future extensibility |
+| Document                                              | Description                                                                                                                                        |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [checklist.md](specifications/checklist.md)           | Checklist feature — domain model, authorization model, database schema, all API endpoints with request/response shapes, and structural conventions |
+| [audit-logs.md](specifications/audit-logs.md)         | Audit Log feature — database schema, per-operation audit data, implementation design, and future extensibility                                     |
+| [authentication.md](specifications/authentication.md) | Authentication feature — JWT Bearer setup, token validation behavior, user identity claim resolution, and how users authenticate against the API   |
 
 ## Requirements
 
@@ -109,10 +110,10 @@ Docker is required because Aspire spins up SQL Server and the OAuth mock server 
 
    Aspire starts and health-checks the following containers before launching the backend:
 
-   | Container | Image | Port | Lifetime |
-   |---|---|---|---|
-   | SQL Server | `mcr.microsoft.com/mssql/server` (via Aspire) | auto-assigned | Persistent |
-   | mock-oauth2-server | `ghcr.io/navikt/mock-oauth2-server:2.1.10` | `8080` | Persistent |
+   | Container          | Image                                         | Port          | Lifetime   |
+   | ------------------ | --------------------------------------------- | ------------- | ---------- |
+   | SQL Server         | `mcr.microsoft.com/mssql/server` (via Aspire) | auto-assigned | Persistent |
+   | mock-oauth2-server | `ghcr.io/navikt/mock-oauth2-server:2.1.10`    | `8080`        | Persistent |
 
    Both containers are **persistent** — data and the OAuth server survive restarts. The backend waits for both to be healthy before starting. Database tables are created automatically on first boot.
 
@@ -159,11 +160,11 @@ The database tables are created automatically on first startup.
 
 All runtime configuration for `Core` is resolved from `appsettings.json`, environment variables, and Aspire-injected values.
 
-| Key | Required | Description |
-|---|---|---|
-| `ConnectionStrings:database` | Yes | SQL Server connection string. Injected by Aspire; set manually when running standalone. |
-| `OAuth:Authority` | Yes | OIDC issuer URL (e.g. `https://login.microsoftonline.com/{tenant}/v2.0`). Passed to `AddJwtBearer`. Aspire injects this as `OAuth__Authority`. |
-| `OAuth:Audience` | No | Expected JWT audience. If omitted, audience validation is disabled. |
+| Key                          | Required | Description                                                                                                                                    |
+| ---------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ConnectionStrings:database` | Yes      | SQL Server connection string. Injected by Aspire; set manually when running standalone.                                                        |
+| `OAuth:Authority`            | Yes      | OIDC issuer URL (e.g. `https://login.microsoftonline.com/{tenant}/v2.0`). Passed to `AddJwtBearer`. Aspire injects this as `OAuth__Authority`. |
+| `OAuth:Audience`             | No       | Expected JWT audience. If omitted, audience validation is disabled.                                                                            |
 
 > **Note:** `launchSettings.json` files are gitignored. Each developer's local launch profiles are not committed.
 
@@ -203,40 +204,40 @@ All endpoints are under `/api/list` and require a valid Bearer token. Interactiv
 
 ### Item groups
 
-| Method | Route | Description |
-|---|---|---|
-| `GET` | `/api/list` | List all item groups the caller belongs to |
-| `POST` | `/api/list` | Create a new item group (caller is auto-added as first member) |
-| `GET` | `/api/list/{id}` | Get a single item group with all items and members |
-| `PUT` | `/api/list/{id}` | Rename an item group |
-| `DELETE` | `/api/list/{id}` | Delete an item group (cascades to items and members) |
+| Method   | Route            | Description                                                    |
+| -------- | ---------------- | -------------------------------------------------------------- |
+| `GET`    | `/api/list`      | List all item groups the caller belongs to                     |
+| `POST`   | `/api/list`      | Create a new item group (caller is auto-added as first member) |
+| `GET`    | `/api/list/{id}` | Get a single item group with all items and members             |
+| `PUT`    | `/api/list/{id}` | Rename an item group                                           |
+| `DELETE` | `/api/list/{id}` | Delete an item group (cascades to items and members)           |
 
 ### Items
 
-| Method | Route | Description |
-|---|---|---|
-| `POST` | `/api/list/{groupId}` | Create an item inside a group |
-| `PUT` | `/api/list/{groupId}/{itemId}` | Update an item |
-| `DELETE` | `/api/list/{groupId}/{itemId}` | Delete an item |
+| Method   | Route                          | Description                   |
+| -------- | ------------------------------ | ----------------------------- |
+| `POST`   | `/api/list/{groupId}`          | Create an item inside a group |
+| `PUT`    | `/api/list/{groupId}/{itemId}` | Update an item                |
+| `DELETE` | `/api/list/{groupId}/{itemId}` | Delete an item                |
 
 ### Members
 
-| Method | Route | Description |
-|---|---|---|
-| `GET` | `/api/list/{id}/member` | List member IDs of a group |
-| `POST` | `/api/list/{id}/member/{memberId}` | Add a member to a group |
+| Method   | Route                              | Description                                                                            |
+| -------- | ---------------------------------- | -------------------------------------------------------------------------------------- |
+| `GET`    | `/api/list/{id}/member`            | List member IDs of a group                                                             |
+| `POST`   | `/api/list/{id}/member/{memberId}` | Add a member to a group                                                                |
 | `DELETE` | `/api/list/{id}/member/{memberId}` | Remove a member from a group. Returns `409 Conflict` if the target is the last member. |
 
 For detailed request/response shapes, validation rules, and edge cases see [specifications/checklist.md](specifications/checklist.md#api-endpoints).
 
 ### Common status codes
 
-| Status | Meaning |
-|---|---|
-| `401 Unauthorized` | Missing or invalid Bearer token, or `sub` claim is not a valid `Guid` |
-| `403 Forbidden` | Caller is authenticated but is not a member of the requested group |
-| `404 Not Found` | Group does not exist (only `GET /api/list/{id}`) |
-| `409 Conflict` | Target is already a member (`POST …/member/{memberId}`), or target is the last member of the group (`DELETE …/member/{memberId}`) |
+| Status             | Meaning                                                                                                                           |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `401 Unauthorized` | Missing or invalid Bearer token, or `sub` claim is not a valid `Guid`                                                             |
+| `403 Forbidden`    | Caller is authenticated but is not a member of the requested group                                                                |
+| `404 Not Found`    | Group does not exist (only `GET /api/list/{id}`)                                                                                  |
+| `409 Conflict`     | Target is already a member (`POST …/member/{memberId}`), or target is the last member of the group (`DELETE …/member/{memberId}`) |
 
 ## Tests
 
@@ -263,44 +264,44 @@ dotnet test
 
 ### Test coverage by file
 
-| Test file | What it covers |
-|---|---|
-| `ClaimsPrincipalExtension.Tests.cs` | `GetUserId()` — all claim types, invalid GUIDs, empty values |
-| `CreateItemGroup.Tests.cs` | Happy path, DB persistence, auto-member insert, validation, auth |
-| `CreateItemGroup.Http.Tests.cs` | `POST /api/list` route registration |
-| `GetItemGroups.Tests.cs` | Multi-group listing, only-incomplete items, empty result, auth |
-| `GetItemGroups.Http.Tests.cs` | `GET /api/list` route registration |
-| `GetItemGroup.Tests.cs` | Full group with all items + members, membership gate, auth |
-| `GetItemGroup.Http.Tests.cs` | `GET /api/list/{id}` route registration |
-| `UpdateItemGroup.Tests.cs` | Name update, validation, membership gate, auth |
-| `UpdateItemGroup.Http.Tests.cs` | `PUT /api/list/{id}` route registration |
-| `DeleteItemGroup.Tests.cs` | Deletion, cascade behaviour, membership gate, auth |
-| `DeleteItemGroup.Http.Tests.cs` | `DELETE /api/list/{id}` route registration |
-| `CreateItem.Tests.cs` | Create with all fields, validation, membership gate, auth |
-| `CreateItem.Http.Tests.cs` | `POST /api/list/{groupId}` route registration |
-| `UpdateItem.Tests.cs` | Full replace of all fields, validation, membership gate, auth |
-| `UpdateItem.Http.Tests.cs` | `PUT /api/list/{groupId}/{itemId}` route registration |
-| `DeleteItem.Tests.cs` | Deletion scoped by `ItemGroupId`, cross-group safety, auth |
-| `DeleteItem.Http.Tests.cs` | `DELETE /api/list/{groupId}/{itemId}` route registration |
-| `AddMember.Tests.cs` | Add new member, conflict on duplicate, membership gate, auth |
-| `AddMember.Http.Tests.cs` | `POST /api/list/{id}/member/{memberId}` route registration |
-| `GetMembers.Tests.cs` | List member IDs, membership gate, auth |
-| `GetMembers.Http.Tests.cs` | `GET /api/list/{id}/member` route registration |
-| `RemoveMember.Tests.cs` | Remove member (idempotent), last-member conflict, membership gate, auth |
-| `RemoveMember.Http.Tests.cs` | `DELETE /api/list/{id}/member/{memberId}` route registration |
-| `AuditLog.Http.Tests.cs` | Verifies an `AuditEntry` is captured for every operation (resource IDs, outcome, user ID) |
-| `ChannelAuditWriter.Tests.cs` | Batching (50-entry immediate flush, 5 s window flush), failure recovery, shutdown drain |
+| Test file                           | What it covers                                                                            |
+| ----------------------------------- | ----------------------------------------------------------------------------------------- |
+| `ClaimsPrincipalExtension.Tests.cs` | `GetUserId()` — all claim types, invalid GUIDs, empty values                              |
+| `CreateItemGroup.Tests.cs`          | Happy path, DB persistence, auto-member insert, validation, auth                          |
+| `CreateItemGroup.Http.Tests.cs`     | `POST /api/list` route registration                                                       |
+| `GetItemGroups.Tests.cs`            | Multi-group listing, only-incomplete items, empty result, auth                            |
+| `GetItemGroups.Http.Tests.cs`       | `GET /api/list` route registration                                                        |
+| `GetItemGroup.Tests.cs`             | Full group with all items + members, membership gate, auth                                |
+| `GetItemGroup.Http.Tests.cs`        | `GET /api/list/{id}` route registration                                                   |
+| `UpdateItemGroup.Tests.cs`          | Name update, validation, membership gate, auth                                            |
+| `UpdateItemGroup.Http.Tests.cs`     | `PUT /api/list/{id}` route registration                                                   |
+| `DeleteItemGroup.Tests.cs`          | Deletion, cascade behaviour, membership gate, auth                                        |
+| `DeleteItemGroup.Http.Tests.cs`     | `DELETE /api/list/{id}` route registration                                                |
+| `CreateItem.Tests.cs`               | Create with all fields, validation, membership gate, auth                                 |
+| `CreateItem.Http.Tests.cs`          | `POST /api/list/{groupId}` route registration                                             |
+| `UpdateItem.Tests.cs`               | Full replace of all fields, validation, membership gate, auth                             |
+| `UpdateItem.Http.Tests.cs`          | `PUT /api/list/{groupId}/{itemId}` route registration                                     |
+| `DeleteItem.Tests.cs`               | Deletion scoped by `ItemGroupId`, cross-group safety, auth                                |
+| `DeleteItem.Http.Tests.cs`          | `DELETE /api/list/{groupId}/{itemId}` route registration                                  |
+| `AddMember.Tests.cs`                | Add new member, conflict on duplicate, membership gate, auth                              |
+| `AddMember.Http.Tests.cs`           | `POST /api/list/{id}/member/{memberId}` route registration                                |
+| `GetMembers.Tests.cs`               | List member IDs, membership gate, auth                                                    |
+| `GetMembers.Http.Tests.cs`          | `GET /api/list/{id}/member` route registration                                            |
+| `RemoveMember.Tests.cs`             | Remove member (idempotent), last-member conflict, membership gate, auth                   |
+| `RemoveMember.Http.Tests.cs`        | `DELETE /api/list/{id}/member/{memberId}` route registration                              |
+| `AuditLog.Http.Tests.cs`            | Verifies an `AuditEntry` is captured for every operation (resource IDs, outcome, user ID) |
+| `ChannelAuditWriter.Tests.cs`       | Batching (50-entry immediate flush, 5 s window flush), failure recovery, shutdown drain   |
 
 ## Code quality
 
 Formatting and linting are enforced automatically on every `dotnet build` run from the CLI.
 
-| Tool | Purpose |
-|---|---|
-| [CSharpier](https://csharpier.com) | Opinionated code formatter (like Prettier for C#) |
-| [.editorconfig](.editorconfig) | Formatting and naming conventions for the IDE and `dotnet format` |
-| .NET SDK analyzers (`AnalysisLevel=latest-recommended`) | Built-in code quality rules |
-| [Roslynator](https://github.com/dotnet/roslynator) | 500+ additional code quality and refactoring rules |
+| Tool                                                                  | Purpose                                                                  |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| [CSharpier](https://csharpier.com)                                    | Opinionated code formatter (like Prettier for C#)                        |
+| [.editorconfig](.editorconfig)                                        | Formatting and naming conventions for the IDE and `dotnet format`        |
+| .NET SDK analyzers (`AnalysisLevel=latest-recommended`)               | Built-in code quality rules                                              |
+| [Roslynator](https://github.com/dotnet/roslynator)                    | 500+ additional code quality and refactoring rules                       |
 | [Meziantou.Analyzer](https://github.com/meziantou/Meziantou.Analyzer) | ~140 rules for async patterns, culture safety, string handling, and more |
 
 All warnings are treated as errors (`TreatWarningsAsErrors=true` in `Directory.Build.props`) — the build fails if any rule is violated. This includes `.editorconfig` naming rules such as `PascalCase` for types and `camelCase` for locals.
@@ -333,4 +334,3 @@ dotnet tool restore
 
 - Author / maintainer: Son Thanh Vo
 - Contributions and forks are welcome. Open issues or PRs for changes.
-
