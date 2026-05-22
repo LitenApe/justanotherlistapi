@@ -1,7 +1,7 @@
 .list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: var(--space-xs);
 }
 
 .item {
@@ -9,48 +9,74 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-surface);
-  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: 1px solid transparent;
   cursor: pointer;
-  transition: background var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    transform var(--transition-fast);
 }
 
 .item:hover {
   background: var(--color-bg-elevated);
+  border-color: var(--color-border);
+}
+
+.item:active {
+  transform: scale(0.98);
+}
+
+.item:focus-visible {
+  box-shadow: var(--focus-ring);
+  outline: none;
 }
 
 .itemActive {
   composes: item;
+  background: var(--color-primary-ghost);
   border-color: var(--color-primary);
-  background: var(--color-bg-elevated);
 }
 
 .itemName {
   font-size: var(--font-size-md);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 
 .itemCount {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
+  margin-left: var(--space-xs);
 }
 
 .deleteBtn {
-  padding: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
   color: var(--color-text-muted);
   border-radius: var(--radius-sm);
-  transition: color var(--transition-fast);
+  opacity: 0;
+  transition:
+    color var(--transition-fast),
+    opacity var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.item:hover .deleteBtn,
+.itemActive .deleteBtn {
+  opacity: 1;
 }
 
 .deleteBtn:hover {
   color: var(--color-danger);
+  background: var(--color-danger-ghost);
 }
 
 .addForm {
   display: flex;
   gap: var(--space-sm);
   margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
 }
 
 .addInput {
@@ -63,14 +89,22 @@
   padding: var(--space-xs) var(--space-md);
   background: var(--color-primary);
   color: var(--color-text-inverse);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   white-space: nowrap;
+  transition:
+    background var(--transition-fast),
+    transform var(--transition-fast);
 }
 
 .addBtn:hover:not(:disabled) {
   background: var(--color-primary-hover);
+  transform: translateY(-1px);
+}
+
+.addBtn:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .addBtn:disabled {
@@ -82,5 +116,6 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   text-align: center;
-  padding: var(--space-lg);
+  padding: var(--space-xl) var(--space-lg);
+  font-style: italic;
 }

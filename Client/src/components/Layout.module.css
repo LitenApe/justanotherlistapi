@@ -1,6 +1,6 @@
 .layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 300px 1fr;
   min-height: 100dvh;
 }
 
@@ -12,23 +12,37 @@
   flex-direction: column;
   gap: var(--space-md);
   overflow-y: auto;
+  position: sticky;
+  top: 0;
+  height: 100dvh;
 }
 
 .sidebarHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .sidebarTitle {
   font-size: var(--font-size-lg);
-  font-weight: 600;
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.02em;
+  background: linear-gradient(
+    135deg,
+    var(--color-primary),
+    var(--color-primary-hover)
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .main {
-  padding: var(--space-xl);
+  padding: var(--space-xl) var(--space-2xl);
   overflow-y: auto;
+  min-height: 100dvh;
 }
 
 .navLink {
@@ -36,7 +50,9 @@
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-sm);
   color: var(--color-text);
-  transition: background var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    transform var(--transition-fast);
 }
 
 .navLink:hover {
@@ -44,10 +60,15 @@
   color: var(--color-text);
 }
 
+.navLink:active {
+  transform: scale(0.98);
+}
+
 .navLinkActive {
   composes: navLink;
-  background: var(--color-bg-elevated);
+  background: var(--color-primary-ghost);
   color: var(--color-primary);
+  border-left: 3px solid var(--color-primary);
 }
 
 .logoutBtn {
@@ -57,10 +78,12 @@
   font-size: var(--font-size-sm);
   text-align: left;
   border-radius: var(--radius-sm);
-  transition: background var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .logoutBtn:hover {
-  background: var(--color-bg-elevated);
+  background: var(--color-danger-ghost);
   color: var(--color-danger);
 }

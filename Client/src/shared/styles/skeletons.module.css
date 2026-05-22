@@ -1,34 +1,37 @@
-@keyframes skeleton-pulse {
+@keyframes skeleton-shimmer {
   0% {
-    opacity: 0.6;
-  }
-  50% {
-    opacity: 0.3;
+    background-position: -200% 0;
   }
   100% {
-    opacity: 0.6;
+    background-position: 200% 0;
   }
 }
 
 .skeleton {
-  background: var(--color-bg-elevated);
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-elevated) 25%,
+    var(--color-bg-surface) 50%,
+    var(--color-bg-elevated) 75%
+  );
+  background-size: 200% 100%;
   border-radius: var(--radius-sm);
-  animation: skeleton-pulse 1.5s ease-in-out infinite;
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
 }
 
-.skeleton-text {
+.skeletonText {
   composes: skeleton;
   height: 1em;
   width: 100%;
 }
 
-.skeleton-heading {
+.skeletonHeading {
   composes: skeleton;
   height: 1.5em;
   width: 60%;
 }
 
-.skeleton-card {
+.skeletonCard {
   composes: skeleton;
   height: 64px;
   width: 100%;
