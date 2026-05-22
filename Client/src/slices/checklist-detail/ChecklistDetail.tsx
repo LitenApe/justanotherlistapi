@@ -1,10 +1,75 @@
-import { ChecklistDetailContent } from "./ChecklistDetailContent";
 import { PendingBoundary } from "@shared/components";
 import { RenderCount } from "@shared/components";
 import { useLocation, useNavigate, useParams } from "react-router";
 
+import type { Item, ItemGroup } from "@shared/types";
+import { ItemList } from "../items/ItemList";
+import { ItemSearch } from "../item-search";
+import { Members } from "../members/Members";
 import { routes } from "@shared/routes";
+import { useChecklistDetail } from "./hooks";
 import styles from "./ChecklistDetail.module.css";
+
+// ─── Model ────────────────────────────────────────────────────────────────────
+
+interface ChecklistDetailModel {
+  groupId: string;
+  checklist: ItemGroup;
+  onItemChanged: () => Promise<void>;
+}
+
+function useChecklistDetailModel(groupId: string): ChecklistDetailModel {
+  const { checklist, invalidateAndRefetch } = useChecklistDetail(groupId);
+
+  return {
+    groupId,
+    checklist,
+    onItemChanged: invalidateAndRefetch,
+  };
+}
+
+// ─── View ─────────────────────────────────────────────────────────────────────
+
+interface ChecklistDetailViewProps {
+  groupId: string;
+  checklist: ItemGroup;
+  onItemChanged: () => Promise<void>;
+}
+
+function ChecklistDetailView({
+  groupId,
+  checklist,
+  onItemChanged,
+}: ChecklistDetailViewProps) {
+  return (
+    <>
+      <ItemSearch items={checklist.items}>
+        {(filtered: Item[]) => (
+          <ItemList
+            items={filtered}
+            groupId={groupId}
+            onRefresh={onItemChanged}
+          />
+        )}
+      </ItemSearch>
+      <Members groupId={groupId} />
+    </>
+  );
+}
+
+// ─── Controller ───────────────────────────────────────────────────────────────
+
+function ChecklistDetailContent({ groupId }: { groupId: string }) {
+  const { checklist, onItemChanged } = useChecklistDetailModel(groupId);
+
+  return (
+    <ChecklistDetailView
+      groupId={groupId}
+      checklist={checklist}
+      onItemChanged={onItemChanged}
+    />
+  );
+}
 
 export function ChecklistDetail() {
   const { groupId } = useParams<{ groupId: string }>();
