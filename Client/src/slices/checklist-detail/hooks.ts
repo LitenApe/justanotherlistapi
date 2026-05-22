@@ -22,14 +22,16 @@ export function useChecklistDetailConcurrent(groupId: string) {
   const checklist = use(getDetailPromise(groupId));
   const [isPending, startTransition] = useTransition();
 
-  const refresh = useCallback(() => {
-    startTransition(async () => {
-      invalidateDetail(groupId);
-      await getDetailPromise(groupId);
-    });
-  }, [groupId, startTransition]);
+  const invalidateAndRefetch = useCallback(async () => {
+    invalidateDetail(groupId);
+    await getDetailPromise(groupId);
+  }, [groupId]);
 
-  return { checklist, isPending, refresh };
+  const refresh = useCallback(() => {
+    startTransition(() => invalidateAndRefetch());
+  }, [startTransition, invalidateAndRefetch]);
+
+  return { checklist, isPending, refresh, invalidateAndRefetch };
 }
 
 export function useChecklistDetailLegacy(groupId: string) {

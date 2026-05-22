@@ -7,6 +7,7 @@ export interface ChecklistDetailViewProps {
   groupId: string;
   checklist: ItemGroup | null;
   refresh: () => void;
+  onItemChanged: () => Promise<void>;
   addItem: () => void;
 }
 
@@ -14,6 +15,7 @@ export function ChecklistDetailView({
   groupId,
   checklist,
   refresh,
+  onItemChanged,
   addItem,
 }: ChecklistDetailViewProps) {
   if (!checklist) {
@@ -29,7 +31,11 @@ export function ChecklistDetailView({
         </button>
       </div>
 
-      <ItemList items={checklist.items} groupId={groupId} onRefresh={refresh} />
+      <ItemList
+        items={checklist.items}
+        groupId={groupId}
+        onRefresh={onItemChanged}
+      />
       <Members groupId={groupId} />
     </>
   );

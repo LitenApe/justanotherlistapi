@@ -12,6 +12,7 @@ export interface ChecklistDetailModel {
   groupId: string;
   checklist: ItemGroup | null;
   refresh: () => void;
+  onItemChanged: () => Promise<void>;
   addItem: () => void;
 }
 
@@ -22,10 +23,13 @@ export function useChecklistDetailModel(groupId: string): ChecklistDetailModel {
   const concurrent = useChecklistDetailConcurrent(groupId);
   const legacy = useChecklistDetailLegacy(groupId);
   const { checklist, refresh } = flags.suspense ? concurrent : legacy;
+  const onItemChanged = flags.suspense
+    ? concurrent.invalidateAndRefetch
+    : legacy.refresh;
 
   function addItem() {
     navigate(routes.itemCreate(groupId));
   }
 
-  return { groupId, checklist, refresh, addItem };
+  return { groupId, checklist, refresh, onItemChanged, addItem };
 }
