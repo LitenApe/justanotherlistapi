@@ -16,7 +16,11 @@ export interface UpdateItemRequest {
 
 export interface ItemsResource {
   create(groupId: string, body: CreateItemRequest): Promise<Item>;
-  update(groupId: string, itemId: string, body: UpdateItemRequest): Promise<void>;
+  update(
+    groupId: string,
+    itemId: string,
+    body: UpdateItemRequest,
+  ): Promise<void>;
   remove(groupId: string, itemId: string): Promise<void>;
 }
 

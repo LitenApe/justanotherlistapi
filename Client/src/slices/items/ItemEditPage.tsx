@@ -1,4 +1,4 @@
-import { ItemEdit } from "../slices/items/ItemEdit";
+import { ItemEdit } from "./ItemEdit";
 import { useParams } from "react-router";
 
 export function ItemEditPage() {

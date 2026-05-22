@@ -23,8 +23,4 @@ export {
   createMembersResource,
   membersResource,
 } from "./members";
-export {
-  type SeedResource,
-  createSeedResource,
-  seedResource,
-} from "./seed";
+export { type SeedResource, createSeedResource, seedResource } from "./seed";

@@ -1,4 +1,4 @@
-import { ItemCreate } from "../slices/items/ItemCreate";
+import { ItemCreate } from "./ItemCreate";
 import { useParams } from "react-router";
 
 export function ItemCreatePage() {

@@ -5,10 +5,9 @@ import {
   PendingBoundary,
   ProtectedRoute,
 } from "@shared/components";
+import { ItemCreatePage, ItemEditPage } from "./slices/items";
 
 import { ChecklistDetail } from "./slices/checklist-detail/ChecklistDetail";
-import { ItemCreatePage } from "./components/ItemCreatePage";
-import { ItemEditPage } from "./components/ItemEditPage";
 import { Layout } from "./components/Layout";
 import { Login } from "./slices/auth";
 
