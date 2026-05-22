@@ -32,6 +32,29 @@ export {
   activityLog,
 } from "./activityLog";
 
+export {
+  type AuthResource,
+  type TokenResponse,
+  createAuthResource,
+  authResource,
+  type ChecklistsResource,
+  type CreateItemGroupRequest,
+  type UpdateItemGroupRequest,
+  createChecklistsResource,
+  checklistsResource,
+  type ItemsResource,
+  type CreateItemRequest,
+  type UpdateItemRequest,
+  createItemsResource,
+  itemsResource,
+  type MembersResource,
+  createMembersResource,
+  membersResource,
+  type SeedResource,
+  createSeedResource,
+  seedResource,
+} from "./resources";
+
 // Wire auth store into the API client
 import { wireAuth } from "./client";
 import { authStore } from "./authStore";
