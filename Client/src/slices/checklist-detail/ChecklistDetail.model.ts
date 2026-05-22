@@ -1,6 +1,6 @@
 import type { ItemGroup } from "@shared/types";
-import { useNavigate, useParams } from "react-router";
 import { useChecklistDetailConcurrent } from "./hooks";
+import { useNavigate } from "react-router";
 
 export interface ChecklistDetailModel {
   groupId: string;
@@ -10,12 +10,8 @@ export interface ChecklistDetailModel {
   addItem: () => void;
 }
 
-export function useChecklistDetailModel(): ChecklistDetailModel | null {
-  const { groupId } = useParams<{ groupId: string }>();
+export function useChecklistDetailModel(groupId: string): ChecklistDetailModel {
   const navigate = useNavigate();
-
-  if (!groupId) return null;
-
   const { checklist, isPending, refresh } =
     useChecklistDetailConcurrent(groupId);
 
