@@ -1,4 +1,4 @@
-import { useCallback, useOptimistic, useState } from "react";
+import { useCallback, useOptimistic, useState, useTransition } from "react";
 
 import type { Item } from "@shared/types";
 import { toggleItem } from "./api";
@@ -13,19 +13,21 @@ function reducer(items: Item[], action: ToggleAction): Item[] {
 
 export function useItemsOptimistic(items: Item[], onRefresh: () => void) {
   const [optimisticItems, addOptimistic] = useOptimistic(items, reducer);
+  const [, startTransition] = useTransition();
 
   const toggle = useCallback(
-    async (item: Item) => {
-      addOptimistic({ type: "toggle", id: item.id });
-      try {
-        await toggleItem(item);
+    (item: Item) => {
+      startTransition(async () => {
+        addOptimistic({ type: "toggle", id: item.id });
+        try {
+          await toggleItem(item);
+        } catch {
+          // Optimistic update auto-reverts on next render with fresh items
+        }
         onRefresh();
-      } catch {
-        // Optimistic update auto-reverts on next render with fresh items
-        onRefresh();
-      }
+      });
     },
-    [addOptimistic, onRefresh],
+    [addOptimistic, startTransition, onRefresh],
   );
 
   return { items: optimisticItems, toggle };
