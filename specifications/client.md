@@ -7,7 +7,8 @@
   - [Vertical Slice Architecture](#vertical-slice-architecture)
   - [Three-Layer HTTP Stack](#three-layer-http-stack)
   - [Factory Pattern](#factory-pattern)
-  - [Lean Components](#lean-components)
+  - [MVC Component Pattern](#mvc-component-pattern)
+  - [Route Registry](#route-registry)
 - [Technology Stack](#technology-stack)
 - [Routing](#routing)
   - [Route Table](#route-table)
@@ -75,9 +76,9 @@ Infrastructure lives in `src/shared/` and is available to all slices.
 
 ```
 src/
-  shared/       ← infrastructure (api, hooks, components, styles, types)
+  shared/       ← infrastructure (api, hooks, components, styles, types, routes)
   slices/       ← feature slices (auth, checklists, items, members, dev-panel, etc.)
-  components/   ← app-level components (Layout, ProtectedRoute)
+  components/   ← app-shell only (Layout)
 ```
 
 ### Three-Layer HTTP Stack
@@ -115,14 +116,54 @@ export const pendingService = createPendingService(activityLog);
 
 Tests create fresh instances — no shared mutable state, no `__resetForTesting()`, safe for parallel execution.
 
-### Lean Components
+### MVC Component Pattern
 
-- Components are 30–50 lines; they render hook output only.
-- Custom hook per rendering variant (Concurrent/Legacy); both expose the same typed `State` interface.
-- Logic lives in plain modules: `api.ts`, `actions.ts`, `filter.ts`, `validators.ts`.
-- `useActionState` action functions are wrapped in `useCallback` arrow closures (no `.bind()`).
-- Reducers for multi-field state are defined outside hook functions.
-- `useDeferredValue` and `useOptimistic` live inside hooks (rendering primitives).
+Every UI feature is split into three files that map to Model-View-Controller:
+
+| File              | Role       | Contains                                                                 |
+| ----------------- | ---------- | ------------------------------------------------------------------------ |
+| `Xxx.model.ts`    | Model      | `useXxxModel()` hook — state, effects, API calls, navigation, handlers   |
+| `Xxx.view.tsx`    | View       | `XxxView` — pure presentational JSX, receives all data via typed props   |
+| `Xxx.tsx`         | Controller | Thin connector: calls model hook, spreads result into view               |
+
+**Rules:**
+- Views never import hooks, API modules, or `useNavigate`. They are pure functions of props.
+- Models return a flat props-compatible object that spreads directly into the view.
+- Controllers are 3–5 lines — no logic, no conditional rendering (guards go above the hook call).
+- Views can contain sub-components (e.g. `ItemRow`) that are internal presentation helpers.
+
+```typescript
+// ItemCreate.tsx (Controller)
+import { ItemCreateView } from "./ItemCreate.view";
+import { useItemCreateModel } from "./ItemCreate.model";
+
+export function ItemCreate({ groupId }: Props) {
+  const model = useItemCreateModel(groupId);
+  return <ItemCreateView {...model} />;
+}
+```
+
+This separation enables:
+- Unit testing models (hook logic) without rendering
+- Unit testing views with mock props (no API dependencies)
+- Swapping views without touching business logic
+
+### Route Registry
+
+All URL paths are defined in a single registry (`shared/routes.ts`). Slices never hardcode path strings — they reference route builders by intent:
+
+```typescript
+// shared/routes.ts
+export const routes = {
+  home: () => "/",
+  checklist: (groupId: string) => `/${groupId}`,
+  itemCreate: (groupId: string) => `/${groupId}/items/new`,
+  itemEdit: (groupId: string, itemId: string) => `/${groupId}/items/${itemId}`,
+  login: () => "/login",
+};
+```
+
+Models call `navigate(routes.checklist(groupId))` instead of `navigate(`/${groupId}`)`. This decouples feature slices from the URL structure — if paths change, only `routes.ts` and `App.tsx` need updating.
 
 ---
 
@@ -154,11 +195,11 @@ Tests create fresh instances — no shared mutable state, no `__resetForTesting(
 
 ### Navigation Patterns
 
-- **Sidebar group selection:** `<Link to={/${groupId}}>` — wrapped in `startTransition` when concurrent mode active.
+- **Sidebar group selection:** Navigates to `routes.checklist(groupId)` — wrapped in `startTransition` when concurrent mode active.
 - **Item toggle (isComplete):** Inline checkbox action, no navigation. `useOptimistic` for instant feedback.
-- **Item edit:** "Edit" link navigates to `/:groupId/items/:itemId`. Only for name/description changes.
-- **Item create:** Button links to `/:groupId/items/new`.
-- **After create/edit:** `navigate` back to `/:groupId`; route remount triggers fresh data fetch.
+- **Item edit:** "Edit" link navigates to `routes.itemEdit(groupId, itemId)`. Only for name/description changes.
+- **Item create:** Button links to `routes.itemCreate(groupId)`.
+- **After create/edit:** `navigate(routes.checklist(groupId))` — route remount triggers fresh data fetch.
 
 ### Protected Routes
 
@@ -189,13 +230,10 @@ Toggled at runtime via the DevPanel through `FeaturesContext`:
 
 | Flag               | Controls                                                             |
 | ------------------ | -------------------------------------------------------------------- |
-| `suspense`         | `use()` + Suspense for data fetching vs. `useEffect` + loading state |
-| `useTransition`    | Navigation wrapped in `startTransition` vs. immediate                |
-| `useDeferredValue` | Deferred search term vs. direct filtering                            |
-| `useOptimistic`    | Optimistic item mutations vs. wait-for-server                        |
+| `useConcurrent`    | Master toggle: `use()` + Suspense + transitions vs. Legacy variants  |
 | `showRenderCounts` | Render count badges on components                                    |
 
-When a flag is off, the Legacy variant of each feature renders instead.
+When `useConcurrent` is off, Legacy variants render for all features.
 
 ### `use()` and Suspense
 
@@ -484,6 +522,7 @@ Client/
     main.tsx
     App.tsx
     shared/
+      routes.ts
       api/
         client.ts
         authStore.ts
@@ -505,60 +544,78 @@ Client/
       styles/
         tokens.css
         global.css
-        skeletons.css
+        skeletons.module.css
       components/
         ErrorBoundary.tsx
         PendingBoundary.tsx
         PendingBorder.tsx
-      mocks/
-        handlers.ts
-        checklistHandlers.ts
-        itemHandlers.ts
-        memberHandlers.ts
     slices/
       auth/
         index.ts
         api.ts
         Login.tsx
-        useAuth.ts
+        Login.model.ts
+        Login.view.tsx
+        Login.module.css
       checklists/
         index.ts
         api.ts
-        validators.ts
-        ChecklistList/
-        ChecklistForm/
+        hooks.ts
+        ChecklistList.tsx
+        ChecklistList.model.ts
+        ChecklistList.view.tsx
+        ChecklistList.module.css
       checklist-search/
         index.ts
-        ChecklistSearch/
+        hooks.ts
+        filter.ts
+        ChecklistSearch.tsx
+        ChecklistSearch.module.css
       checklist-detail/
         index.ts
         api.ts
-        ChecklistDetail/
+        hooks.ts
+        ChecklistDetail.tsx
+        ChecklistDetail.model.ts
+        ChecklistDetail.view.tsx
+        ChecklistDetail.module.css
       items/
         index.ts
         api.ts
-        validators.ts
-        ItemList/
-        ItemCreate/
-        ItemEdit/
-      item-search/
-        index.ts
-        ItemSearch/
+        hooks.ts
+        ItemList.tsx
+        ItemList.model.ts
+        ItemList.view.tsx
+        ItemList.module.css
+        ItemCreate.tsx
+        ItemCreate.model.ts
+        ItemCreate.view.tsx
+        ItemEdit.tsx
+        ItemEdit.model.ts
+        ItemEdit.view.tsx
+        ItemForm.module.css
+        ItemCreatePage.tsx
+        ItemEditPage.tsx
       members/
         index.ts
         api.ts
         Members.tsx
+        Members.model.ts
+        Members.view.tsx
+        Members.module.css
       dev-panel/
         index.ts
         DevPanel.tsx
+        DevPanel.model.ts
+        DevPanel.view.tsx
+        DevPanel.module.css
         FeaturesContext.tsx
-        sessionPersistence.ts
     components/
       Layout.tsx
-      ProtectedRoute.tsx
+      Layout.module.css
 ```
 
-Each feature folder (e.g., `ChecklistList/`) contains: `types.ts`, hooks (concurrent + legacy), component files, `index.ts` barrel, and co-located `*.test.*` files.
+Each slice follows the MVC triple: `Component.tsx` (controller), `Component.model.ts` (model hook), `Component.view.tsx` (view). Page-level route wrappers (e.g., `ItemCreatePage.tsx`) live in their owning slice.
 
 ---
 
@@ -595,6 +652,7 @@ export default defineConfig({
 - `strict: true`
 - `noUncheckedIndexedAccess: true` — `items[0]` is `Item | undefined`
 - `exactOptionalPropertyTypes: true` — `{ name?: string }` won't accept `{ name: undefined }`
+- `paths` with relative `./` prefixes (no `baseUrl` — deprecated in TS 7.0)
 
 ### ESLint Configuration
 

@@ -45,7 +45,7 @@ The system consists of:
 
 The DevPanel is a collapsible panel rendered only in development builds. It provides full control over the application's concurrent rendering behaviour.
 
-**Location:** `src/slices/dev-panel/DevPanel.tsx`
+**Location:** `src/slices/dev-panel/` — follows the MVC pattern:\n- `DevPanel.model.ts` — `useDevPanelModel()` hook (store subscriptions, keyboard shortcut, preset logic, seed handler)\n- `DevPanel.view.tsx` — `DevPanelView` (pure rendering of sliders, buttons, log entries)\n- `DevPanel.tsx` — Controller connecting model → view
 
 ### Feature Flags
 
@@ -53,13 +53,10 @@ Managed via `FeaturesContext` — the only React context in the application (use
 
 | Flag               | Type      | Default | Effect                                                              |
 | ------------------ | --------- | ------- | ------------------------------------------------------------------- |
-| `suspense`         | `boolean` | `false` | Switches between `use()` + Suspense and `useEffect` + loading state |
-| `useTransition`    | `boolean` | `false` | Wraps navigation in `startTransition` vs. immediate                 |
-| `useDeferredValue` | `boolean` | `false` | Deferred search filtering vs. synchronous                           |
-| `useOptimistic`    | `boolean` | `false` | Optimistic item mutations vs. wait-for-server                       |
+| `useConcurrent`    | `boolean` | `true`  | Master toggle: switches all features between Concurrent and Legacy variants |
 | `showRenderCounts` | `boolean` | `false` | Displays render count badges on components                          |
 
-When a flag is off, the corresponding Legacy variant renders.
+When `useConcurrent` is off, Legacy variants render (useEffect-based fetching, synchronous filtering, no optimistic updates).
 
 ### Chaos Controls
 
