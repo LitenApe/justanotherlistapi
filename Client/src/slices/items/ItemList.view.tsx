@@ -18,6 +18,7 @@ const ItemRow = memo(function ItemRow({
 }: ItemRowProps) {
   return (
     <div className={styles.row}>
+      <RenderCount label={`Item:${item.name}`} />
       <input
         type="checkbox"
         className={styles.checkbox}
