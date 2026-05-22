@@ -95,7 +95,7 @@ export function ChecklistListView({
   remove,
 }: ChecklistListViewProps) {
   return (
-    <>
+    <div style={{ position: "relative" }}>
       <RenderCount label="ChecklistList" />
       <ChecklistSearch checklists={checklists}>
         {(filtered) => (
@@ -116,6 +116,6 @@ export function ChecklistListView({
         )}
       </ChecklistSearch>
       <AddForm onAdd={add} disabled={isPending} />
-    </>
+    </div>
   );
 }

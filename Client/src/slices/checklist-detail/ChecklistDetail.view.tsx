@@ -1,8 +1,8 @@
 import type { ItemGroup } from "@shared/types";
-import { RenderCount } from "@shared/components";
 import { ItemList } from "../items/ItemList";
 import { ItemSearch } from "../item-search";
 import { Members } from "../members/Members";
+import { RenderCount } from "@shared/components";
 import styles from "./ChecklistDetail.module.css";
 
 export interface ChecklistDetailViewProps {
@@ -25,7 +25,7 @@ export function ChecklistDetailView({
   }
 
   return (
-    <>
+    <div style={{ position: "relative" }}>
       <RenderCount label="ChecklistDetail" />
       <div className={styles.header}>
         <h2 className={styles.title}>{checklist.name}</h2>
@@ -44,6 +44,6 @@ export function ChecklistDetailView({
         )}
       </ItemSearch>
       <Members groupId={groupId} />
-    </>
+    </div>
   );
 }
