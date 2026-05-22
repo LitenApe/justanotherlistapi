@@ -445,67 +445,49 @@ All tokens defined as CSS custom properties on `:root` in `shared/styles/tokens.
 **Colors:**
 | Token | Value | Usage |
 |-------|-------|-------|
-| `--color-bg` | `#1a1a2e` | Page background |
-| `--color-bg-surface` | `#16213e` | Card/panel background |
-| `--color-bg-elevated` | `#0f3460` | Elevated elements |
-| `--color-bg-input` | `#1a1a2e` | Input background |
-| `--color-bg-overlay` | `rgba(0,0,0,0.5)` | Modal overlays |
-| `--color-text` | `#e0e0e0` | Primary text |
-| `--color-text-muted` | `#a0a0b0` | Secondary text |
-| `--color-text-inverse` | `#1a1a2e` | Text on accent backgrounds |
-| `--color-primary` | `#4fc3f7` | Interactive elements, links |
-| `--color-primary-hover` | `#81d4fa` | Hover state |
-| `--color-primary-active` | `#29b6f6` | Active/pressed state |
-| `--color-primary-ghost` | `rgba(79,195,247,0.1)` | Ghost button background |
-| `--color-danger` | `#ef5350` | Error/destructive states |
-| `--color-danger-hover` | `#e57373` | Danger hover |
-| `--color-danger-ghost` | `rgba(239,83,80,0.1)` | Danger ghost background |
-| `--color-success` | `#66bb6a` | Success states |
-| `--color-success-ghost` | `rgba(102,187,106,0.1)` | Success ghost background |
-| `--color-warning` | `#ffa726` | Warning states |
-| `--color-border` | `#2a2a4a` | Borders |
-| `--color-border-focus` | `#4fc3f7` | Focus ring border |
-| `--color-pending` | `#4fc3f7` | Pending/transition indicator |
-| `--color-selection` | `rgba(79,195,247,0.25)` | Selection highlight |
+| `--bg` | `#0f172a` | Page background |
+| `--surface` | `#1e293b` | Card/panel background |
+| `--surface-2` | `#334155` | Elevated elements, inputs |
+| `--surface-3` | `#475569` | Highest elevation |
+| `--text` | `#f1f5f9` | Primary text |
+| `--text-muted` | `#94a3b8` | Secondary text |
+| `--border` | `#334155` | Borders |
+| `--accent` | `#22d3ee` | Interactive elements, links |
+| `--accent-hover` | `#67e8f9` | Hover state |
+| `--error` | `#f87171` | Error states |
+| `--success` | `#4ade80` | Success states |
+| `--warning` | `#fb923c` | Warning states |
 
-**Spacing:** Semantic scale — `--space-2xs` (2px), `--space-xs` (4px), `--space-sm` (8px), `--space-md` (16px), `--space-lg` (24px), `--space-xl` (32px), `--space-2xl` (48px).
+**Spacing:** `--space-1` (4px) through `--space-12` (48px).
 
-**Radius:** `--radius-sm` (4px), `--radius-md` (8px), `--radius-lg` (12px), `--radius-pill` (9999px).
+**Radius:** `--radius-sm` (4px), `--radius-md` (8px), `--radius-lg` (12px), `--radius-full` (9999px).
 
-**Shadows:** `--shadow-sm`, `--shadow-md`, `--shadow-lg`, `--shadow-glow` (blue glow accent).
-
-**Transitions:** `--transition-fast` (150ms), `--transition-normal` (250ms), `--transition-slow` (400ms), `--transition-spring` (300ms cubic-bezier).
-
-**Focus:** `--focus-ring` — double-ring (bg color gap + border-focus outline).
+**Transitions:** `--transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease, opacity 150ms ease`
 
 ### Typography
 
-| Token            | Value                                           |
-| ---------------- | ----------------------------------------------- |
-| `--font-sans`    | `'Inter', system-ui, -apple-system, sans-serif` |
-| `--font-mono`    | `'JetBrains Mono', ui-monospace, monospace`     |
-| `--font-size-xs` | `0.75rem`                                       |
-| `--font-size-sm` | `0.875rem`                                      |
-| `--font-size-md` | `1rem`                                          |
-| `--font-size-lg` | `1.25rem`                                       |
-| `--font-size-xl` | `1.5rem`                                        |
-| `--font-size-2xl`| `2rem`                                          |
-
-Line heights: `--line-height-tight` (1.2), `--line-height-normal` (1.5), `--line-height-relaxed` (1.7).
-Weights: `--weight-normal` (400), `--weight-medium` (500), `--weight-semibold` (600), `--weight-bold` (700).
+| Token         | Value                            |
+| ------------- | -------------------------------- |
+| `--font-sans` | `'Inter', system-ui, sans-serif` |
+| `--font-mono` | `'JetBrains Mono', monospace`    |
+| `--text-xs`   | `0.75rem`                        |
+| `--text-sm`   | `0.875rem`                       |
+| `--text-base` | `1rem`                           |
+| `--text-lg`   | `1.125rem`                       |
+| `--text-xl`   | `1.25rem`                        |
 
 Fonts loaded via `<link>` in `index.html` from Google Fonts.
 
 ### Component Aesthetics
 
-- **Elevation:** Layered via background color progression: `--color-bg` → `--color-bg-surface` → `--color-bg-elevated`. Subtle box-shadows (`--shadow-sm/md/lg`) supplement depth.
-- **Cards:** `border: 1px solid var(--color-border); border-radius: var(--radius-md)`.
-- **Buttons:** Primary (`--color-primary` bg), Ghost (transparent, `--color-primary-ghost` bg on hover), Danger (`--color-danger` bg). All with `--radius-md` and `--focus-ring`.
-- **Inputs:** `--color-bg-input` background, `--color-border` border, `--color-border-focus` 2px focus border.
-- **Sidebar selected:** 3px left border `--color-primary` + `--color-bg-surface` background.
-- **Completed items:** `line-through` + `color: var(--color-text-muted)`.
-- **Optimistic items:** `opacity: 0.5`, `font-style: italic`, animated pulse dot (`--color-primary`).
-- **Rollback animation:** `@keyframes flash-error` — brief `--color-danger` background → fade out.
+- **Elevation:** No box-shadows. Layered via background color progression: `--bg` → `--surface` → `--surface-2` → `--surface-3`.
+- **Cards:** `border: 1px solid var(--border); border-radius: var(--radius-md)`.
+- **Buttons:** Primary (`--accent` bg), Ghost (transparent, `--accent` border), Danger (`--error` bg). All with `--radius-md` and focus ring.
+- **Inputs:** `--surface-2` background, `--border` border, `--accent` 2px focus border.
+- **Sidebar selected:** 3px left border `--accent` + `--surface-2` background.
+- **Completed items:** `line-through` + `color: var(--text-muted)`.
+- **Optimistic items:** `opacity: 0.5`, `font-style: italic`, animated pulse dot (`--accent`).
+- **Rollback animation:** `@keyframes flash-error` — brief `--error` background → fade out.
 - **Delete:** Two-step inline confirmation (click → "Confirm delete" state, blur cancels).
 
 ### Loading States
