@@ -28,12 +28,14 @@ export function useChecklistsConcurrent() {
   }, [startTransition]);
 
   const add = useCallback(
-    (name: string) => {
+    (name: string): Promise<ItemGroup | undefined> => {
+      let created: ItemGroup | undefined;
       startTransition(async () => {
-        await createChecklist(name);
+        created = await createChecklist(name);
         invalidateChecklists();
         getChecklistsPromise();
       });
+      return Promise.resolve(created);
     },
     [startTransition],
   );
@@ -70,18 +72,23 @@ export function useChecklistsLegacy() {
     }
   }, []);
 
-  const add = useCallback(async (name: string) => {
-    setIsPending(true);
-    try {
-      await createChecklist(name);
-      const data = await fetchChecklists();
-      setChecklists(data);
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-    } finally {
-      setIsPending(false);
-    }
-  }, []);
+  const add = useCallback(
+    async (name: string): Promise<ItemGroup | undefined> => {
+      setIsPending(true);
+      try {
+        const created = await createChecklist(name);
+        const data = await fetchChecklists();
+        setChecklists(data);
+        return created;
+      } catch (e) {
+        setError(e instanceof Error ? e : new Error(String(e)));
+        return undefined;
+      } finally {
+        setIsPending(false);
+      }
+    },
+    [],
+  );
 
   const remove = useCallback(async (id: string) => {
     setIsPending(true);

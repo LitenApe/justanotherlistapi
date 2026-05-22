@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router";
 import type { ItemGroup } from "@shared/types";
 import { routes } from "@shared/routes";
 import { useEffect } from "react";
+import { useFeatures } from "../dev-panel";
 
 export interface ChecklistListModel {
   checklists: ItemGroup[];
@@ -14,30 +15,43 @@ export interface ChecklistListModel {
   remove: (id: string) => void;
 }
 
-export function useChecklistListConcurrentModel(): ChecklistListModel {
-  const { checklists, isPending, add, remove } = useChecklistsConcurrent();
+export function useChecklistListModel(
+  refreshSignal: number,
+  onCreated: (newId: string) => void,
+): ChecklistListModel {
+  const { flags } = useFeatures();
   const navigate = useNavigate();
   const { groupId } = useParams();
 
-  function select(id: string) {
-    navigate(routes.checklist(id));
-  }
+  const concurrent = useChecklistsConcurrent();
+  const legacy = useChecklistsLegacy();
 
-  return { checklists, isPending, activeId: groupId, select, add, remove };
-}
+  const { checklists, isPending, refresh, add, remove } = flags.suspense
+    ? { ...concurrent, refresh: concurrent.refresh }
+    : legacy;
 
-export function useChecklistListLegacyModel(): ChecklistListModel {
-  const { checklists, isPending, refresh, add, remove } = useChecklistsLegacy();
-  const navigate = useNavigate();
-  const { groupId } = useParams();
-
+  // Re-fetch when refreshSignal changes (legacy path)
   useEffect(() => {
     refresh();
-  }, [refresh]);
+  }, [refreshSignal, refresh]);
 
   function select(id: string) {
     navigate(routes.checklist(id));
   }
 
-  return { checklists, isPending, activeId: groupId, select, add, remove };
+  async function handleAdd(name: string) {
+    const created = await add(name);
+    if (created) {
+      onCreated(created.id);
+    }
+  }
+
+  return {
+    checklists,
+    isPending,
+    activeId: groupId,
+    select,
+    add: handleAdd,
+    remove,
+  };
 }

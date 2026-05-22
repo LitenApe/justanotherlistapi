@@ -1,4 +1,5 @@
-export { ChecklistListConcurrent, ChecklistListLegacy } from "./ChecklistList";
+export { ChecklistList } from "./ChecklistList";
+export type { ChecklistListProps } from "./ChecklistList";
 export {
   useChecklistsConcurrent,
   useChecklistsLegacy,

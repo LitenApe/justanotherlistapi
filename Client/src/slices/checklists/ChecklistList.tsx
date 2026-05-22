@@ -1,16 +1,15 @@
-import {
-  useChecklistListConcurrentModel,
-  useChecklistListLegacyModel,
-} from "./ChecklistList.model";
-
 import { ChecklistListView } from "./ChecklistList.view";
+import { useChecklistListModel } from "./ChecklistList.model";
 
-export function ChecklistListConcurrent() {
-  const model = useChecklistListConcurrentModel();
-  return <ChecklistListView {...model} />;
+export interface ChecklistListProps {
+  refreshSignal: number;
+  onCreated: (newId: string) => void;
 }
 
-export function ChecklistListLegacy() {
-  const model = useChecklistListLegacyModel();
+export function ChecklistList({
+  refreshSignal,
+  onCreated,
+}: ChecklistListProps) {
+  const model = useChecklistListModel(refreshSignal, onCreated);
   return <ChecklistListView {...model} />;
 }

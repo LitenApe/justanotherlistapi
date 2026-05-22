@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { HttpError } from "@shared/api";
-import { addMember, removeMember } from "./api";
+import { addMember, fetchMembers, removeMember } from "./api";
 
 export interface MembersModel {
   members: string[];
@@ -10,20 +10,26 @@ export interface MembersModel {
   handleRemove: (memberId: string) => void;
 }
 
-export function useMembersModel(
-  groupId: string,
-  members: string[],
-  onRefresh: () => void,
-): MembersModel {
+export function useMembersModel(groupId: string): MembersModel {
+  const [members, setMembers] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
+
+  const refresh = useCallback(async () => {
+    const data = await fetchMembers(groupId);
+    setMembers(data);
+  }, [groupId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   async function handleAdd(memberId: string) {
     setIsPending(true);
     setError(null);
     try {
       await addMember(groupId, memberId);
-      onRefresh();
+      await refresh();
     } catch (err) {
       if (err instanceof HttpError && err.status === 409) {
         setError("Member already exists");
@@ -40,7 +46,7 @@ export function useMembersModel(
     setError(null);
     try {
       await removeMember(groupId, memberId);
-      onRefresh();
+      await refresh();
     } catch (err) {
       if (err instanceof HttpError && err.status === 409) {
         setError("Cannot remove the last member");

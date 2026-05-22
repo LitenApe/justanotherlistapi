@@ -30,11 +30,7 @@ export function ChecklistDetailView({
       </div>
 
       <ItemList items={checklist.items} groupId={groupId} onRefresh={refresh} />
-      <Members
-        groupId={groupId}
-        members={checklist.members}
-        onRefresh={refresh}
-      />
+      <Members groupId={groupId} />
     </>
   );
 }

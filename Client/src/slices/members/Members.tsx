@@ -3,11 +3,9 @@ import { useMembersModel } from "./Members.model";
 
 interface Props {
   groupId: string;
-  members: string[];
-  onRefresh: () => void;
 }
 
-export function Members({ groupId, members, onRefresh }: Props) {
-  const model = useMembersModel(groupId, members, onRefresh);
+export function Members({ groupId }: Props) {
+  const model = useMembersModel(groupId);
   return <MembersView {...model} />;
 }
