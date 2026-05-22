@@ -3,23 +3,22 @@
   align-items: center;
   justify-content: center;
   min-height: 100dvh;
-  padding: var(--space-lg);
+  padding: var(--space-6);
   background: radial-gradient(
     ellipse at top,
-    var(--color-bg-surface) 0%,
-    var(--color-bg) 70%
+    var(--surface) 0%,
+    var(--bg) 70%
   );
 }
 
 .card {
-  background: var(--color-bg-surface);
-  border: 1px solid var(--color-border);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: var(--space-2xl) var(--space-xl);
+  padding: var(--space-12) var(--space-8);
   width: 100%;
   max-width: 400px;
-  box-shadow: var(--shadow-lg), var(--shadow-glow);
-  animation: card-enter 0.4s var(--transition-spring) both;
+  animation: card-enter 0.4s 300ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
 @keyframes card-enter {
@@ -34,31 +33,31 @@
 }
 
 .title {
-  font-size: var(--font-size-2xl);
+  font-size: 2rem;
   font-weight: var(--weight-bold);
-  margin-bottom: var(--space-xs);
+  margin-bottom: var(--space-1);
   text-align: center;
   letter-spacing: -0.03em;
 }
 
 .subtitle {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
   text-align: center;
-  margin-bottom: var(--space-xl);
+  margin-bottom: var(--space-8);
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
-  margin-bottom: var(--space-md);
+  gap: var(--space-1);
+  margin-bottom: var(--space-4);
 }
 
 .label {
-  font-size: var(--font-size-sm);
+  font-size: var(--text-sm);
   font-weight: var(--weight-medium);
-  color: var(--color-text-muted);
+  color: var(--text-muted);
 }
 
 .input {
@@ -67,30 +66,27 @@
 
 .button {
   width: 100%;
-  padding: var(--space-sm) var(--space-md);
-  margin-top: var(--space-sm);
-  background: var(--color-primary);
-  color: var(--color-text-inverse);
+  padding: var(--space-2) var(--space-4);
+  margin-top: var(--space-2);
+  background: var(--accent);
+  color: var(--text-inverse);
   border-radius: var(--radius-md);
   font-weight: var(--weight-semibold);
-  font-size: var(--font-size-md);
+  font-size: var(--text-base);
   transition:
-    background var(--transition-fast),
-    transform var(--transition-fast),
-    box-shadow var(--transition-fast);
-  box-shadow: var(--shadow-sm);
+    background var(--transition),
+    transform var(--transition),
+    box-shadow var(--transition);
 }
 
 .button:hover:not(:disabled) {
-  background: var(--color-primary-hover);
-  box-shadow: var(--shadow-md);
+  background: var(--accent-hover);
   transform: translateY(-1px);
 }
 
 .button:active:not(:disabled) {
-  background: var(--color-primary-active);
+  background: var(--accent-active);
   transform: translateY(0);
-  box-shadow: var(--shadow-sm);
 }
 
 .button:disabled {
@@ -99,11 +95,11 @@
 }
 
 .error {
-  color: var(--color-danger);
-  font-size: var(--font-size-sm);
-  margin-bottom: var(--space-md);
+  color: var(--error);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-4);
   text-align: center;
-  padding: var(--space-sm);
-  background: var(--color-danger-ghost);
+  padding: var(--space-2);
+  background: var(--error-ghost);
   border-radius: var(--radius-sm);
 }

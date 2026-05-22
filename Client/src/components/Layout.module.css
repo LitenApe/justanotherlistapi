@@ -5,12 +5,12 @@
 }
 
 .sidebar {
-  background: var(--color-bg-surface);
-  border-right: 1px solid var(--color-border);
-  padding: var(--space-lg);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: var(--space-6);
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
+  gap: var(--space-4);
   overflow-y: auto;
   position: sticky;
   top: 0;
@@ -21,18 +21,18 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: var(--space-md);
-  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
 }
 
 .sidebarTitle {
-  font-size: var(--font-size-lg);
+  font-size: var(--text-lg);
   font-weight: var(--weight-bold);
   letter-spacing: -0.02em;
   background: linear-gradient(
     135deg,
-    var(--color-primary),
-    var(--color-primary-hover)
+    var(--accent),
+    var(--accent-hover)
   );
   background-clip: text;
   -webkit-background-clip: text;
@@ -40,24 +40,24 @@
 }
 
 .main {
-  padding: var(--space-xl) var(--space-2xl);
+  padding: var(--space-8) var(--space-12);
   overflow-y: auto;
   min-height: 100dvh;
 }
 
 .navLink {
   display: block;
-  padding: var(--space-sm) var(--space-md);
+  padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-sm);
-  color: var(--color-text);
+  color: var(--text);
   transition:
-    background var(--transition-fast),
-    transform var(--transition-fast);
+    background var(--transition),
+    transform var(--transition);
 }
 
 .navLink:hover {
-  background: var(--color-bg-elevated);
-  color: var(--color-text);
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .navLink:active {
@@ -66,24 +66,24 @@
 
 .navLinkActive {
   composes: navLink;
-  background: var(--color-primary-ghost);
-  color: var(--color-primary);
-  border-left: 3px solid var(--color-primary);
+  background: var(--accent-ghost);
+  color: var(--accent);
+  border-left: 3px solid var(--accent);
 }
 
 .logoutBtn {
   margin-top: auto;
-  padding: var(--space-sm) var(--space-md);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+  padding: var(--space-2) var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
   text-align: left;
   border-radius: var(--radius-sm);
   transition:
-    background var(--transition-fast),
-    color var(--transition-fast);
+    background var(--transition),
+    color var(--transition);
 }
 
 .logoutBtn:hover {
-  background: var(--color-danger-ghost);
-  color: var(--color-danger);
+  background: var(--error-ghost);
+  color: var(--error);
 }
