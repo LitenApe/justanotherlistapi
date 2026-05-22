@@ -87,7 +87,7 @@ Three independent controls that simulate real-world conditions:
 - **Effect:** Before each fetch, if `Math.random() < rate`, throws `SimulatedNetworkError`
 - **Purpose:** Demonstrates ErrorBoundary recovery, retry mechanisms, optimistic rollback
 
-All three use the same `useSyncExternalStore`-compatible factory pattern:
+All three use the same `useSyncExternalStore`-compatible factory pattern. Each store is consumed via a dedicated custom hook in `shared/hooks/` (`useDelay`, `useErrorRate`, `useOverhead`) that encapsulates the `useSyncExternalStore` wiring:
 
 ```typescript
 export function createDelayStore() {
@@ -345,7 +345,7 @@ A fixed overlay that provides visual feedback when any async operation is in pro
 **Behaviour:**
 
 - Visible when `pendingService.getSnapshot()` returns `true` (any operation active)
-- Uses `useSyncExternalStore` to subscribe to pending state
+- Consumed via `usePending()` hook (`shared/hooks/usePending.ts`)
 - Does NOT appear during sync compute overhead (thread is blocked — React cannot paint)
 - This is an intentional teaching moment: sync blocking prevents all DOM updates
 
@@ -425,4 +425,4 @@ export function createActivityLog() {
 }
 ```
 
-Written to exclusively by `pendingService`. Read by DevPanel's activity log display via `useSyncExternalStore`.
+Written to exclusively by `pendingService`. Read by DevPanel's activity log display via `useActivityEntries()` hook.

@@ -289,7 +289,7 @@ Action functions are pure: `(prevState, formData) → Promise<State>`. They vali
 2. Login form is pre-filled: `client_id: 00000000-0000-0000-0000-000000000001`, `client_secret: dev`.
 3. Submit POSTs to `/default/token` (form-urlencoded, `grant_type: client_credentials`).
 4. On success: `authStore.setToken(token)` — persists to `sessionStorage`.
-5. App re-renders (via `useSyncExternalStore`) → navigates to `/`.
+5. App re-renders (via `useAuthToken()` hook) → navigates to `/`.
 
 ### Auth Store
 
@@ -298,7 +298,7 @@ Plain module (`shared/api/authStore.ts`) — not a React context.
 - Factory: `createAuthStore()`
 - State: in-memory token + `sessionStorage` persistence (survives refresh, cleared on tab close)
 - Exports: `setToken`, `getToken`, `clearToken`, `subscribe`, `getSnapshot`
-- Used via `useSyncExternalStore` in the `useAuth()` hook
+- Consumed via `useAuthToken()` hook (`shared/hooks/useAuthToken.ts`) which wraps `useSyncExternalStore`
 
 ### Token Lifecycle
 
@@ -398,7 +398,7 @@ For `useOptimistic`: rollback is automatic (React reverts to server state). Visu
 
 ### 401 Handling
 
-`client.ts` detects 401 → `authStore.clearToken()` → `useSyncExternalStore` triggers re-render → `ProtectedRoute` redirects to `/login`.
+`client.ts` detects 401 → `authStore.clearToken()` → `useAuthToken()` triggers re-render → `ProtectedRoute` redirects to `/login`.
 
 ### Unhandled Rejections
 
@@ -543,6 +543,12 @@ Client/
           members.ts
           seed.ts
       hooks/
+        useActivityEntries.ts
+        useAuthToken.ts
+        useDelay.ts
+        useErrorRate.ts
+        useOverhead.ts
+        usePending.ts
         usePendingReporter.ts
         useRenderCount.ts
       types.ts
