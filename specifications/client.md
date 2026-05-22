@@ -150,6 +150,13 @@ This separation enables:
 - Unit testing views with mock props (no API dependencies)
 - Swapping views without touching business logic
 
+**Suspense Split Pattern:** When a controller needs to render content both inside and outside a Suspense boundary, it is split into two components:
+
+- `ChecklistDetail.tsx` (controller) — renders the header (with name from location state) and the `+ New Item` button immediately; wraps the data-dependent content in `<PendingBoundary>`.
+- `ChecklistDetailContent.tsx` (suspending child) — calls the model hook (which uses `use()` and suspends), then renders the view.
+
+This ensures the header displays instantly on navigation while only the items/members area shows the skeleton fallback.
+
 ### Route Registry
 
 All URL paths are defined in a single registry (`shared/routes.ts`). Slices never hardcode path strings — they reference route builders by intent:
@@ -197,7 +204,7 @@ Models call `navigate(routes.checklist(groupId))` instead of `navigate(`/${group
 
 ### Navigation Patterns
 
-- **Sidebar group selection:** Navigates to `routes.checklist(groupId)` — wrapped in `startTransition` when concurrent mode active.
+- **Sidebar group selection:** Navigates to `routes.checklist(groupId)` with `{ state: { name } }` — always synchronous (no `startTransition`). The name is passed via React Router location state so the detail header can display it instantly before data loads.
 - **Item toggle (isComplete):** Inline checkbox action, no navigation. `useOptimistic` for instant feedback.
 - **Item edit:** "Edit" link navigates to `routes.itemEdit(groupId, itemId)`. Only for name/description changes.
 - **Item create:** Button links to `routes.itemCreate(groupId)`.
@@ -210,7 +217,7 @@ Models call `navigate(routes.checklist(groupId))` instead of `navigate(`/${group
 ### Layout Route Structure
 
 ```
-BrowserRouter
+BrowserRouter (useTransitions={false})
   Routes
     Route path="/" element={<Layout />}
       Route index → empty state
@@ -220,7 +227,9 @@ BrowserRouter
       Route path=":groupId/items/:itemId" → ItemEdit
 ```
 
-`useParams()` extracts IDs. Layout reads `useLocation()` for active sidebar highlight.
+`useTransitions={false}` on `BrowserRouter` disables React Router's internal `startTransition` wrapping of navigation state updates. This ensures `useParams()` and `useLocation()` update synchronously on navigation, enabling instant sidebar highlighting, instant header name display, and immediate Suspense fallback rendering.
+
+`useParams()` extracts IDs. Sidebar reads `useParams().groupId` for active highlight.
 
 ---
 
@@ -233,7 +242,7 @@ Toggled at runtime via the DevPanel through `FeaturesContext`:
 | Flag               | Default | Controls                                                             |
 | ------------------ | ------- | -------------------------------------------------------------------- |
 | `suspense`         | `true`  | `use()` + Suspense for data fetching vs. `useEffect` + loading state |
-| `useTransition`    | `true`  | Navigation wrapped in `startTransition` vs. immediate                |
+| `useTransition`    | `true`  | Wraps mutations/refetches in `startTransition` vs. immediate         |
 | `useDeferredValue` | `true`  | Deferred search filtering vs. synchronous                            |
 | `useOptimistic`    | `true`  | Optimistic item toggle vs. wait-for-server                           |
 | `showRenderCounts` | `false` | Render count badges on components                                    |
@@ -242,18 +251,23 @@ Each flag can be toggled independently to observe a single concurrent primitive 
 
 ### `use()` and Suspense
 
-**Concurrent variant:** Parent component creates a promise via `useMemo([id, retryKey])` and passes it as a prop. Child component calls `use(promise)` — suspends until resolved. `PendingBoundary` (Suspense + ErrorBoundary) shows skeleton fallback.
+**Concurrent variant:** A module-level promise cache (`Map<string, Promise>` or singleton) stores in-flight/resolved promises keyed by ID. The hook calls `use(getPromise(id))` which suspends on first access and returns immediately from cache on subsequent renders. `PendingBoundary` (Suspense wrapper) shows skeleton fallback during suspension.
 
-**Legacy variant:** `useEffect` fires fetch on mount/deps change. `AbortController` in cleanup cancels stale requests. Manual `loading`/`error`/`data` state via `useReducer`.
+**Legacy variant:** `useEffect` fires fetch on mount/deps change. Manual `loading`/`error`/`data` state via `useState`.
 
-**Promise stability:** The promise reference must be stable across re-renders. Created in the parent's dispatcher via `useMemo` keyed on `[id, retryKey]`. Never created inside the suspending component.
+**Promise stability:** Promises are cached at module level (`detailCache` Map for checklist detail, `checklistsPromise` singleton for the list). Cache invalidation (`invalidateDetail(id)` / `invalidateChecklists()`) deletes the entry; the next `use()` call creates a fresh promise and re-suspends.
 
 ### `useTransition`
 
-Lives in **ChecklistList.model** — wraps sidebar `navigate()` calls for group selection.
+Used for **data mutations** — wraps refetch and mutation operations to keep the UI responsive. NOT used for navigation (navigation is always synchronous via `useTransitions={false}` on BrowserRouter).
 
-- **Concurrent:** `startTransition(() => navigate(...))` — React keeps old content visible while new route suspends. `isPending` (merged with `isTransitioning`) drives the global pending border + `aria-busy`.
-- **Legacy:** Direct `navigate()` — immediate Suspense fallback (skeleton) on every navigation.
+**Used in:**
+
+- `checklists/hooks.ts` — wraps list refresh, create, and delete operations in the concurrent path
+- `checklist-detail/hooks.ts` — wraps detail refresh after item mutations
+- `items/hooks.ts` — wraps optimistic item toggle (required for `useOptimistic` to work)
+
+**Effect:** During a transition, the old data stays visible while the new data loads. `isPending` from `useTransition` drives `aria-busy` states. Transitions never suppress Suspense fallbacks for initial data loads — only for refetches where content is already showing.
 
 ### `useDeferredValue`
 
@@ -315,19 +329,19 @@ Plain module (`shared/api/authStore.ts`) — not a React context.
 
 **Concurrent path:**
 
-1. Layout navigates (optionally in `startTransition`)
-2. Route component's dispatcher creates promise via `useMemo([id, retryKey])`
-3. Child component calls `use(promise)` → suspends
+1. Navigation updates URL synchronously (`useTransitions={false}`)
+2. Route component reads new `groupId` from `useParams()`
+3. Suspending child calls `use(getDetailPromise(groupId))` → suspends if not cached
 4. `PendingBoundary` shows skeleton fallback
 5. Promise resolves → component renders data
 
 **Legacy path:**
 
-1. Navigation triggers route mount
-2. `useEffect` fires with `AbortController`
+1. Navigation triggers route mount / re-render with new params
+2. `useEffect` fires with new `groupId`
 3. Manual loading state shown
-4. On success: `dispatch({ type: 'success', data })`
-5. On cleanup (deps change): `controller.abort()` cancels stale request
+4. On success: `setChecklist(data)`
+5. On deps change: new effect fires (previous completes and is ignored)
 
 ### Mutations
 
@@ -345,10 +359,10 @@ Plain module (`shared/api/authStore.ts`) — not a React context.
 
 ### Data Freshness
 
-- **After item create/edit:** Navigate back to `/:groupId` triggers route remount → fresh fetch.
-- **After checklist create:** Navigate to `/:newId`. Sidebar re-fetches on mount.
-- **After checklist delete:** Navigate to `/`. Sidebar re-fetches on mount.
-- **Sidebar refreshes on:** Mount (legacy path `useEffect` calls `refresh()`). NOT on item mutations (sidebar shows names only).
+- **After item toggle/create/edit:** Cache invalidation (`invalidateDetail(groupId)`) + refetch. In concurrent path, this is done inside `useTransition` so old items stay visible until new data arrives.
+- **After checklist create:** Navigate to `/:newId`. Concurrent path refreshes list via `startTransition`.
+- **After checklist delete:** Concurrent path refreshes list via `startTransition`.
+- **Sidebar refreshes on:** Mount (legacy path `useEffect` calls `refresh()`). Concurrent path uses `use()` with module-level singleton promise — auto-fetches on first render, subsequent refreshes via `startTransition`.
 
 ### Optimistic Updates
 
@@ -416,15 +430,15 @@ Each slice exports its public API from `index.ts`. No deep imports allowed.
 
 Typed interfaces define the contract between Layout and slice components:
 
-| Slice             | Props                                                      |
-| ----------------- | ---------------------------------------------------------- |
-| `ChecklistList`   | `{ onCreated: (newId: string) => void }`                   |
-| `ChecklistSearch` | `{ items: ItemGroup[] }`                                   |
-| `ChecklistDetail` | Uses `useParams()` internally                              |
-| `ItemList`        | `{ groupId: string; items: Item[]; onMutate: () => void }` |
-| `ItemSearch`      | `{ items: Item[] }`                                        |
-| `Members`         | `{ groupId: string }`                                      |
-| `ChecklistForm`   | `{ onCreated: (newId: string) => void }`                   |
+| Slice             | Props                                                       |
+| ----------------- | ----------------------------------------------------------- |
+| `ChecklistList`   | `{ onCreated: (newId: string) => void }`                    |
+| `ChecklistSearch` | `{ items: ItemGroup[] }`                                    |
+| `ChecklistDetail` | Uses `useParams()` + `useLocation().state.name` internally  |
+| `ItemList`        | `{ groupId: string; items: Item[]; onRefresh: () => void }` |
+| `ItemSearch`      | `{ items: Item[] }`                                         |
+| `Members`         | `{ groupId: string }`                                       |
+| `ChecklistForm`   | `{ onCreated: (newId: string) => void }`                    |
 
 ### Layer 3: ESLint Enforcement
 
@@ -590,6 +604,7 @@ Client/
         api.ts
         hooks.ts
         ChecklistDetail.tsx
+        ChecklistDetailContent.tsx
         ChecklistDetail.model.ts
         ChecklistDetail.view.tsx
         ChecklistDetail.module.css

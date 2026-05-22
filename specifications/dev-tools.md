@@ -53,11 +53,11 @@ Managed via `FeaturesContext` — the only React context in the application (use
 
 | Flag               | Type      | Default | Effect                                                              |
 | ------------------ | --------- | ------- | ------------------------------------------------------------------- |
-| `suspense`         | `boolean` | `true`  | Switches between `use()` + Suspense and `useEffect` + loading state |
-| `useTransition`    | `boolean` | `true`  | Wraps navigation in `startTransition` vs. immediate                 |
-| `useDeferredValue` | `boolean` | `true`  | Deferred search filtering vs. synchronous                           |
-| `useOptimistic`    | `boolean` | `true`  | Optimistic item mutations vs. wait-for-server                       |
-| `showRenderCounts` | `boolean` | `false` | Displays render count badges on components                          |
+| `suspense`         | `boolean` | `true`  | Switches between `use()` + Suspense and `useEffect` + loading state     |
+| `useTransition`    | `boolean` | `true`  | Wraps mutations/refetches in `startTransition` vs. immediate            |
+| `useDeferredValue` | `boolean` | `true`  | Deferred search filtering vs. synchronous                               |
+| `useOptimistic`    | `boolean` | `true`  | Optimistic item mutations vs. wait-for-server                           |
+| `showRenderCounts` | `boolean` | `false` | Displays render count badges on components                              |
 
 Each flag can be toggled independently to observe a single concurrent primitive in isolation. When a flag is off, the corresponding Legacy variant renders.
 
