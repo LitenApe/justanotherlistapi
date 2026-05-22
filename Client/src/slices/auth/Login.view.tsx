@@ -23,7 +23,7 @@ export function LoginView({ error, isPending, formAction }: LoginViewProps) {
             name="clientId"
             type="text"
             className={styles.input}
-            defaultValue="default-client"
+            defaultValue="00000000-0000-0000-0000-000000000001"
             required
           />
         </div>
@@ -37,7 +37,7 @@ export function LoginView({ error, isPending, formAction }: LoginViewProps) {
             name="clientSecret"
             type="password"
             className={styles.input}
-            defaultValue="default-secret"
+            defaultValue="dev"
             required
           />
         </div>

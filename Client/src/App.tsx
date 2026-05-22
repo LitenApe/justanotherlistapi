@@ -7,59 +7,81 @@ import {
   ProtectedRoute,
 } from "@shared/components";
 import { ItemCreatePage, ItemEditPage } from "./slices/items";
+import { Suspense, lazy } from "react";
 
 import { ChecklistDetail } from "./slices/checklist-detail/ChecklistDetail";
 import { Layout } from "./components/Layout";
-import { Login } from "./slices/auth";
+
+const Login = lazy(() =>
+  import("./slices/auth/Login").then((m) => ({ default: m.Login })),
+);
 
 export function App() {
   return (
     <FeaturesProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Layout />
-              </ProtectedRoute>
-            }
-          >
-            <Route index element={<p>Select a checklist to get started.</p>} />
+          <Route path="/" element={<Layout />}>
+            <Route
+              path="login"
+              element={
+                <Suspense fallback={null}>
+                  <Login />
+                </Suspense>
+              }
+            />
+            <Route
+              index
+              element={
+                <ProtectedRoute>
+                  <p>Select a checklist to get started.</p>
+                </ProtectedRoute>
+              }
+            />
             <Route
               path=":groupId"
               element={
-                <ErrorBoundary
-                  fallback={(err, reset) => (
-                    <p>
-                      Error: {err.message}{" "}
-                      <button onClick={reset}>Retry</button>
-                    </p>
-                  )}
-                >
-                  <PendingBoundary>
-                    <ChecklistDetail />
-                  </PendingBoundary>
-                </ErrorBoundary>
+                <ProtectedRoute>
+                  <ErrorBoundary
+                    fallback={(err, reset) => (
+                      <p>
+                        Error: {err.message}{" "}
+                        <button onClick={reset}>Retry</button>
+                      </p>
+                    )}
+                  >
+                    <PendingBoundary>
+                      <ChecklistDetail />
+                    </PendingBoundary>
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
-            <Route path=":groupId/items/new" element={<ItemCreatePage />} />
+            <Route
+              path=":groupId/items/new"
+              element={
+                <ProtectedRoute>
+                  <ItemCreatePage />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path=":groupId/items/:itemId"
               element={
-                <ErrorBoundary
-                  fallback={(err, reset) => (
-                    <p>
-                      Error: {err.message}{" "}
-                      <button onClick={reset}>Retry</button>
-                    </p>
-                  )}
-                >
-                  <PendingBoundary>
-                    <ItemEditPage />
-                  </PendingBoundary>
-                </ErrorBoundary>
+                <ProtectedRoute>
+                  <ErrorBoundary
+                    fallback={(err, reset) => (
+                      <p>
+                        Error: {err.message}{" "}
+                        <button onClick={reset}>Retry</button>
+                      </p>
+                    )}
+                  >
+                    <PendingBoundary>
+                      <ItemEditPage />
+                    </PendingBoundary>
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
           </Route>
