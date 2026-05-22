@@ -6,7 +6,7 @@ namespace Core.DevSeed;
 
 public static class DevSeedEndpoint
 {
-    private static readonly string[] Contexts =
+    private static readonly string[] contexts =
     [
         "Kitchen",
         "Bathroom",
@@ -25,7 +25,7 @@ public static class DevSeedEndpoint
         "Project",
     ];
 
-    private static readonly string[] Types =
+    private static readonly string[] types =
     [
         "Renovation",
         "Cleanup",
@@ -39,7 +39,7 @@ public static class DevSeedEndpoint
         "Setup",
     ];
 
-    private static readonly string[] Verbs =
+    private static readonly string[] verbs =
     [
         "Order",
         "Buy",
@@ -73,7 +73,7 @@ public static class DevSeedEndpoint
         "Prepare",
     ];
 
-    private static readonly string[] Objects =
+    private static readonly string[] objects =
     [
         "cabinet handles",
         "quarterly budget",
@@ -117,7 +117,7 @@ public static class DevSeedEndpoint
         "towel rack",
     ];
 
-    private static readonly string[] Qualifiers =
+    private static readonly string[] qualifiers =
     [
         "for hallway",
         "for kitchen",
@@ -166,7 +166,7 @@ public static class DevSeedEndpoint
                     {
                         Guid groupId = Guid.NewGuid();
                         string groupName =
-                            faker.PickRandom(Contexts) + " " + faker.PickRandom(Types);
+                            faker.PickRandom(contexts) + " " + faker.PickRandom(types);
 
                         await db.ExecuteAsync(
                             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
@@ -183,10 +183,10 @@ public static class DevSeedEndpoint
                         int itemCount = Random.Shared.Next(20, 31);
                         for (int i = 0; i < itemCount; i++)
                         {
-                            string verb = faker.PickRandom(Verbs);
-                            string obj = faker.PickRandom(Objects);
+                            string verb = faker.PickRandom(verbs);
+                            string obj = faker.PickRandom(objects);
                             string itemName = faker.Random.Bool(0.4f)
-                                ? $"{verb} {obj} {faker.PickRandom(Qualifiers)}"
+                                ? $"{verb} {obj} {faker.PickRandom(qualifiers)}"
                                 : $"{verb} {obj}";
 
                             await db.ExecuteAsync(
