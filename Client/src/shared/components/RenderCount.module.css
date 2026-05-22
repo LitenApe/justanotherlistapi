@@ -1,0 +1,15 @@
+.badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: monospace;
+  background: rgba(255, 0, 128, 0.85);
+  color: white;
+  padding: 1px 5px;
+  border-radius: 8px;
+  pointer-events: none;
+  z-index: 1000;
+  line-height: 1.4;
+}

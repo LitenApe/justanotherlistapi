@@ -1,6 +1,7 @@
 import type { ItemGroup } from "@shared/types";
-import { ItemSearch } from "../item-search";
+import { RenderCount } from "@shared/components";
 import { ItemList } from "../items/ItemList";
+import { ItemSearch } from "../item-search";
 import { Members } from "../members/Members";
 import styles from "./ChecklistDetail.module.css";
 
@@ -25,6 +26,7 @@ export function ChecklistDetailView({
 
   return (
     <>
+      <RenderCount label="ChecklistDetail" />
       <div className={styles.header}>
         <h2 className={styles.title}>{checklist.name}</h2>
         <button type="button" className={styles.addBtn} onClick={addItem}>

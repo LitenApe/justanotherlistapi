@@ -1,6 +1,7 @@
 import { useRef, type FormEvent } from "react";
 
 import type { ItemGroup } from "@shared/types";
+import { RenderCount } from "@shared/components";
 import { ChecklistSearch } from "../checklist-search";
 import styles from "./ChecklistList.module.css";
 
@@ -95,6 +96,7 @@ export function ChecklistListView({
 }: ChecklistListViewProps) {
   return (
     <>
+      <RenderCount label="ChecklistList" />
       <ChecklistSearch checklists={checklists}>
         {(filtered) => (
           <nav className={styles.list} aria-label="Checklists">

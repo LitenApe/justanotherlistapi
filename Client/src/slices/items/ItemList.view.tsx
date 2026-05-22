@@ -1,5 +1,6 @@
 import type { Item } from "@shared/types";
 import { memo } from "react";
+import { RenderCount } from "@shared/components";
 import styles from "./ItemList.module.css";
 
 interface ItemRowProps {
@@ -73,6 +74,7 @@ export function ItemListView({
 
   return (
     <div className={styles.list} role="list" aria-label="Items">
+      <RenderCount label="ItemList" />
       {items.map((item) => (
         <ItemRow
           key={item.id}
