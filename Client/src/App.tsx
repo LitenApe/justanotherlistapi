@@ -19,7 +19,7 @@ const Login = lazy(() =>
 export function App() {
   return (
     <FeaturesProvider>
-      <BrowserRouter>
+      <BrowserRouter useTransitions={false}>
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route
