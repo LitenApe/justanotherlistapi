@@ -29,6 +29,7 @@ IResourceBuilder<ViteAppResource> client = builder
     .WithReference(core)
     .WithEnvironment("services__oauth__http__0", oauth.GetEndpoint("http"))
     .WaitFor(core)
+    .WaitFor(oauth)
     .WithHttpEndpoint(port: 5173, env: "PORT");
 
 builder.Build().Run();

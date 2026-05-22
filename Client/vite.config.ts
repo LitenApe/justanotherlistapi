@@ -8,8 +8,12 @@ export default defineConfig(({ mode }) => ({
     port: parseInt(process.env.PORT ?? "5173"),
     proxy: {
       "/api": {
-        target: process.env.services__Core__http__0 ?? "http://localhost:55733",
+        target:
+          process.env.services__Core__https__0 ??
+          process.env.services__Core__http__0 ??
+          "http://localhost:55733",
         changeOrigin: true,
+        secure: false,
       },
       "/default": {
         target: process.env.services__oauth__http__0 ?? "http://localhost:8080",
