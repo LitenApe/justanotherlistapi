@@ -1,22 +1,14 @@
 import { ErrorBoundary, PendingBoundary } from "@shared/components";
 import { Outlet, useNavigate } from "react-router";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback } from "react";
 
 import { ChecklistList } from "../slices/checklists";
 import { logout } from "../slices/auth";
 import { routes } from "@shared/routes";
 import styles from "./Layout.module.css";
-import { useFeatures } from "../slices/dev-panel";
 
 export function Layout() {
   const navigate = useNavigate();
-  const [, startTransition] = useTransition();
-  const { flags } = useFeatures();
-  const [refreshSignal, setRefreshSignal] = useState(0);
-
-  const wrappedStartTransition = flags.useTransition
-    ? startTransition
-    : (fn: () => void) => fn();
 
   function handleLogout() {
     logout();
@@ -45,10 +37,7 @@ export function Layout() {
           )}
         >
           <PendingBoundary>
-            <ChecklistList
-              refreshSignal={refreshSignal}
-              onCreated={handleCreated}
-            />
+            <ChecklistList onCreated={handleCreated} />
           </PendingBoundary>
         </ErrorBoundary>
 
@@ -62,13 +51,7 @@ export function Layout() {
       </aside>
 
       <main className={styles.main}>
-        <Outlet
-          context={{
-            startTransition: wrappedStartTransition,
-            flags,
-            refresh: () => setRefreshSignal((s) => s + 1),
-          }}
-        />
+        <Outlet />
       </main>
     </div>
   );

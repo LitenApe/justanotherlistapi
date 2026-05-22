@@ -57,16 +57,14 @@ export function useChecklistsConcurrent() {
 export function useChecklistsLegacy() {
   const [checklists, setChecklists] = useState<ItemGroup[]>([]);
   const [isPending, setIsPending] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
 
   const refresh = useCallback(async () => {
     setIsPending(true);
-    setError(null);
     try {
       const data = await fetchChecklists();
       setChecklists(data);
     } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
+      throw e instanceof Error ? e : new Error(String(e));
     } finally {
       setIsPending(false);
     }
@@ -81,8 +79,7 @@ export function useChecklistsLegacy() {
         setChecklists(data);
         return created;
       } catch (e) {
-        setError(e instanceof Error ? e : new Error(String(e)));
-        return undefined;
+        throw e instanceof Error ? e : new Error(String(e));
       } finally {
         setIsPending(false);
       }
@@ -97,11 +94,11 @@ export function useChecklistsLegacy() {
       const data = await fetchChecklists();
       setChecklists(data);
     } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
+      throw e instanceof Error ? e : new Error(String(e));
     } finally {
       setIsPending(false);
     }
   }, []);
 
-  return { checklists, isPending, error, refresh, add, remove };
+  return { checklists, isPending, refresh, add, remove };
 }

@@ -16,7 +16,6 @@ export interface ChecklistListModel {
 }
 
 export function useChecklistListModel(
-  refreshSignal: number,
   onCreated: (newId: string) => void,
 ): ChecklistListModel {
   const { flags } = useFeatures();
@@ -35,10 +34,10 @@ export function useChecklistListModel(
     remove,
   } = flags.suspense ? { ...concurrent, refresh: concurrent.refresh } : legacy;
 
-  // Re-fetch when refreshSignal changes (legacy path)
+  // Fetch on mount (legacy path)
   useEffect(() => {
     refresh();
-  }, [refreshSignal, refresh]);
+  }, [refresh]);
 
   function select(id: string) {
     if (flags.useTransition) {
