@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect } from "react";
 import { useChecklistsConcurrent, useChecklistsLegacy } from "./hooks";
 import { useNavigate, useParams } from "react-router";
 
@@ -21,7 +21,6 @@ export function useChecklistListModel(
   const { flags } = useFeatures();
   const navigate = useNavigate();
   const { groupId } = useParams();
-  const [isTransitioning, startTransition] = useTransition();
 
   const concurrent = useChecklistsConcurrent();
   const legacy = useChecklistsLegacy();
@@ -43,25 +42,14 @@ export function useChecklistListModel(
     }
   }, [usingSuspense, refresh]);
 
-  const [pendingId, setPendingId] = useState<string | undefined>();
-
   const select = useCallback(
     (id: string) => {
       const group = checklists.find((g) => g.id === id);
       const state = group ? { name: group.name } : undefined;
-      setPendingId(id);
-      if (flags.useTransition) {
-        startTransition(() => {
-          navigate(routes.checklist(id), { state });
-        });
-      } else {
-        navigate(routes.checklist(id), { state });
-      }
+      navigate(routes.checklist(id), { state });
     },
-    [flags.useTransition, startTransition, navigate, checklists],
+    [navigate, checklists],
   );
-
-  const activeId = isTransitioning ? (pendingId ?? groupId) : groupId;
 
   const handleAdd = useCallback(
     async (name: string) => {
@@ -75,8 +63,8 @@ export function useChecklistListModel(
 
   return {
     checklists,
-    isPending: hookPending || isTransitioning,
-    activeId,
+    isPending: hookPending,
+    activeId: groupId,
     select,
     add: handleAdd,
     remove,
