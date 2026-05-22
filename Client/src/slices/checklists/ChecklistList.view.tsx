@@ -1,6 +1,7 @@
 import { useRef, type FormEvent } from "react";
 
 import type { ItemGroup } from "@shared/types";
+import { ChecklistSearch } from "../checklist-search";
 import styles from "./ChecklistList.module.css";
 
 interface ChecklistItemProps {
@@ -94,20 +95,24 @@ export function ChecklistListView({
 }: ChecklistListViewProps) {
   return (
     <>
-      <nav className={styles.list} aria-label="Checklists">
-        {checklists.length === 0 && !isPending && (
-          <p className={styles.empty}>No checklists yet.</p>
+      <ChecklistSearch checklists={checklists}>
+        {(filtered) => (
+          <nav className={styles.list} aria-label="Checklists">
+            {filtered.length === 0 && !isPending && (
+              <p className={styles.empty}>No checklists yet.</p>
+            )}
+            {filtered.map((g) => (
+              <ChecklistItem
+                key={g.id}
+                group={g}
+                isActive={g.id === activeId}
+                onSelect={select}
+                onDelete={remove}
+              />
+            ))}
+          </nav>
         )}
-        {checklists.map((g) => (
-          <ChecklistItem
-            key={g.id}
-            group={g}
-            isActive={g.id === activeId}
-            onSelect={select}
-            onDelete={remove}
-          />
-        ))}
-      </nav>
+      </ChecklistSearch>
       <AddForm onAdd={add} disabled={isPending} />
     </>
   );

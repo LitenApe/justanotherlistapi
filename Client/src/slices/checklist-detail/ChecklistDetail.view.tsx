@@ -1,4 +1,5 @@
 import type { ItemGroup } from "@shared/types";
+import { ItemSearch } from "../item-search";
 import { ItemList } from "../items/ItemList";
 import { Members } from "../members/Members";
 import styles from "./ChecklistDetail.module.css";
@@ -31,11 +32,15 @@ export function ChecklistDetailView({
         </button>
       </div>
 
-      <ItemList
-        items={checklist.items}
-        groupId={groupId}
-        onRefresh={onItemChanged}
-      />
+      <ItemSearch items={checklist.items}>
+        {(filtered) => (
+          <ItemList
+            items={filtered}
+            groupId={groupId}
+            onRefresh={onItemChanged}
+          />
+        )}
+      </ItemSearch>
       <Members groupId={groupId} />
     </>
   );
