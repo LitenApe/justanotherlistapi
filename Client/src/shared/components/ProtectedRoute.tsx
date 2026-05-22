@@ -1,16 +1,13 @@
-import { type ReactNode, useSyncExternalStore } from "react";
+import type { ReactNode } from "react";
 import { Navigate } from "react-router";
-import { authStore } from "../api/authStore";
+import { useAuthToken } from "@shared/hooks";
 
 interface Props {
   children: ReactNode;
 }
 
 export function ProtectedRoute({ children }: Props) {
-  const token = useSyncExternalStore(
-    authStore.subscribe,
-    authStore.getSnapshot,
-  );
+  const token = useAuthToken();
   if (!token) {
     return <Navigate to="/login" replace />;
   }

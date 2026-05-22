@@ -1,2 +1,8 @@
 export { useRenderCount } from "./useRenderCount";
 export { usePendingReporter } from "./usePendingReporter";
+export { useDelay } from "./useDelay";
+export { useErrorRate } from "./useErrorRate";
+export { useOverhead } from "./useOverhead";
+export { useActivityEntries } from "./useActivityEntries";
+export { usePending } from "./usePending";
+export { useAuthToken } from "./useAuthToken";

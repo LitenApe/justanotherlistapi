@@ -1,11 +1,7 @@
-import { authStore } from "@shared/api/authStore";
-import { useSyncExternalStore } from "react";
+import { useAuthToken } from "@shared/hooks";
 
 export function useAuth() {
-  const token = useSyncExternalStore(
-    authStore.subscribe,
-    authStore.getSnapshot,
-  );
+  const token = useAuthToken();
 
   return {
     isAuthenticated: token !== null,

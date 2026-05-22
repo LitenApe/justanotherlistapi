@@ -1,13 +1,14 @@
-import {
-  activityLog,
-  delayStore,
-  errorRateStore,
-  seedResource,
-} from "@shared/api";
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { delayStore, errorRateStore, seedResource } from "@shared/api";
+import { useCallback, useEffect, useState } from "react";
 
 import type { LogEntry } from "@shared/api";
 import { computeOverheadStore } from "@shared/api/computeOverhead";
+import {
+  useActivityEntries,
+  useDelay,
+  useErrorRate,
+  useOverhead,
+} from "@shared/hooks";
 import type { FeatureFlags } from "./FeaturesContext";
 import { useFeatures } from "./FeaturesContext";
 import * as sessionPersistence from "./sessionPersistence";
@@ -120,22 +121,10 @@ export function useDevPanelModel(): DevPanelModel {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const delay = useSyncExternalStore(
-    delayStore.subscribe,
-    delayStore.getSnapshot,
-  );
-  const errorRate = useSyncExternalStore(
-    errorRateStore.subscribe,
-    errorRateStore.getSnapshot,
-  );
-  const overhead = useSyncExternalStore(
-    computeOverheadStore.subscribe,
-    computeOverheadStore.getSnapshot,
-  );
-  const entries = useSyncExternalStore(
-    activityLog.subscribe,
-    activityLog.getSnapshot,
-  );
+  const delay = useDelay();
+  const errorRate = useErrorRate();
+  const overhead = useOverhead();
+  const entries = useActivityEntries();
   const [seeding, setSeeding] = useState(false);
 
   useEffect(() => {

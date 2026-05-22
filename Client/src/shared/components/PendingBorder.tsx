@@ -1,13 +1,8 @@
-import { useSyncExternalStore } from "react";
-
-import { pendingService } from "@shared/api";
+import { usePending } from "@shared/hooks";
 import styles from "./PendingBorder.module.css";
 
 export function PendingBorder() {
-  const isPending = useSyncExternalStore(
-    pendingService.subscribe,
-    pendingService.getSnapshot,
-  );
+  const isPending = usePending();
 
   return (
     <div
