@@ -47,19 +47,21 @@ export function useChecklistListModel(
 
   const select = useCallback(
     (id: string) => {
+      const group = checklists.find((g) => g.id === id);
+      const state = group ? { name: group.name } : undefined;
       setPendingId(id);
       if (flags.useTransition) {
         startTransition(() => {
-          navigate(routes.checklist(id));
+          navigate(routes.checklist(id), { state });
         });
       } else {
-        navigate(routes.checklist(id));
+        navigate(routes.checklist(id), { state });
       }
     },
-    [flags.useTransition, startTransition, navigate],
+    [flags.useTransition, startTransition, navigate, checklists],
   );
 
-  const activeId = isTransitioning ? pendingId ?? groupId : groupId;
+  const activeId = isTransitioning ? (pendingId ?? groupId) : groupId;
 
   const handleAdd = useCallback(
     async (name: string) => {

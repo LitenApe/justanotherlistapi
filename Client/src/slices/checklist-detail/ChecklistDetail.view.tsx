@@ -8,6 +8,7 @@ import styles from "./ChecklistDetail.module.css";
 export interface ChecklistDetailViewProps {
   groupId: string;
   checklist: ItemGroup | null;
+  previewName: string | undefined;
   refresh: () => void;
   onItemChanged: () => Promise<void>;
   addItem: () => void;
@@ -16,12 +17,23 @@ export interface ChecklistDetailViewProps {
 export function ChecklistDetailView({
   groupId,
   checklist,
+  previewName,
   refresh,
   onItemChanged,
   addItem,
 }: ChecklistDetailViewProps) {
   if (!checklist) {
-    return <p>Loading…</p>;
+    return previewName ? (
+      <div style={{ position: "relative" }}>
+        <RenderCount label="ChecklistDetail" />
+        <div className={styles.header}>
+          <h2 className={styles.title}>{previewName}</h2>
+        </div>
+        <p>Loading items…</p>
+      </div>
+    ) : (
+      <p>Loading…</p>
+    );
   }
 
   return (
