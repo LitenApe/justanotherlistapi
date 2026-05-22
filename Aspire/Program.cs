@@ -1,3 +1,4 @@
+using Aspire.Hosting.JavaScript;
 using Projects;
 
 IDistributedApplicationBuilder builder = DistributedApplication.CreateBuilder(args);
@@ -22,5 +23,12 @@ IResourceBuilder<ProjectResource> core = builder
         "OAuth__Authority",
         ReferenceExpression.Create($"{oauth.GetEndpoint("http")}/default")
     );
+
+IResourceBuilder<ViteAppResource> client = builder
+    .AddViteApp("client", "../Client")
+    .WithReference(core)
+    .WithEnvironment("services__oauth__http__0", oauth.GetEndpoint("http"))
+    .WaitFor(core)
+    .WithHttpEndpoint(port: 5173, env: "PORT");
 
 builder.Build().Run();
