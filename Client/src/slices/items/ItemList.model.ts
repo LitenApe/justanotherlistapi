@@ -3,6 +3,7 @@ import { useItemsLegacy, useItemsOptimistic } from "./hooks";
 import type { Item } from "@shared/types";
 import { deleteItem } from "./api";
 import { routes } from "@shared/routes";
+import { useCallback } from "react";
 import { useFeatures } from "../dev-panel";
 import { useNavigate } from "react-router";
 
@@ -26,14 +27,20 @@ export function useItemListModel(
     : legacy;
   const navigate = useNavigate();
 
-  async function remove(item: Item) {
-    await deleteItem(groupId, item.id);
-    onRefresh();
-  }
+  const remove = useCallback(
+    async (item: Item) => {
+      await deleteItem(groupId, item.id);
+      onRefresh();
+    },
+    [groupId, onRefresh],
+  );
 
-  function edit(item: Item) {
-    navigate(routes.itemEdit(groupId, item.id));
-  }
+  const edit = useCallback(
+    (item: Item) => {
+      navigate(routes.itemEdit(groupId, item.id));
+    },
+    [navigate, groupId],
+  );
 
   return { optimisticItems, toggle, edit, remove };
 }
