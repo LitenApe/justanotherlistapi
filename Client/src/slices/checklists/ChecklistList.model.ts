@@ -2,6 +2,7 @@ import { useChecklistsConcurrent, useChecklistsLegacy } from "./hooks";
 import { useNavigate, useParams } from "react-router";
 
 import type { ItemGroup } from "@shared/types";
+import { routes } from "@shared/routes";
 import { useEffect } from "react";
 
 export interface ChecklistListModel {
@@ -19,7 +20,7 @@ export function useChecklistListConcurrentModel(): ChecklistListModel {
   const { groupId } = useParams();
 
   function select(id: string) {
-    navigate(`/${id}`);
+    navigate(routes.checklist(id));
   }
 
   return { checklists, isPending, activeId: groupId, select, add, remove };
@@ -35,7 +36,7 @@ export function useChecklistListLegacyModel(): ChecklistListModel {
   }, [refresh]);
 
   function select(id: string) {
-    navigate(`/${id}`);
+    navigate(routes.checklist(id));
   }
 
   return { checklists, isPending, activeId: groupId, select, add, remove };

@@ -1,4 +1,5 @@
 import type { ItemGroup } from "@shared/types";
+import { routes } from "@shared/routes";
 import { useChecklistDetailConcurrent } from "./hooks";
 import { useNavigate } from "react-router";
 
@@ -16,7 +17,7 @@ export function useChecklistDetailModel(groupId: string): ChecklistDetailModel {
     useChecklistDetailConcurrent(groupId);
 
   function addItem() {
-    navigate(`/${groupId}/items/new`);
+    navigate(routes.itemCreate(groupId));
   }
 
   return { groupId, checklist, isPending, refresh, addItem };

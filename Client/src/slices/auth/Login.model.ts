@@ -1,4 +1,5 @@
 import { login } from "./api";
+import { routes } from "@shared/routes";
 import { useActionState } from "react";
 import { useNavigate } from "react-router";
 
@@ -21,7 +22,7 @@ export function useLoginModel(): LoginModel {
 
       try {
         await login(clientId, clientSecret);
-        navigate("/", { replace: true });
+        navigate(routes.home(), { replace: true });
         return { error: null };
       } catch (e) {
         return {

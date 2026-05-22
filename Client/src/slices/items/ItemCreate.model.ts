@@ -1,4 +1,5 @@
 import { createItem } from "./api";
+import { routes } from "@shared/routes";
 import { useActionState } from "react";
 import { useNavigate } from "react-router";
 
@@ -28,7 +29,7 @@ export function useItemCreateModel(groupId: string): ItemCreateModel {
           name,
           ...(description && { description }),
         });
-        navigate(`/${groupId}`, { replace: true });
+        navigate(routes.checklist(groupId), { replace: true });
         return { error: null };
       } catch (e) {
         return {
@@ -40,7 +41,7 @@ export function useItemCreateModel(groupId: string): ItemCreateModel {
   );
 
   function cancel() {
-    navigate(`/${groupId}`);
+    navigate(routes.checklist(groupId));
   }
 
   return { error: state.error, isPending, formAction, cancel };

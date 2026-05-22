@@ -1,5 +1,6 @@
 import type { Item } from "@shared/types";
 import { deleteItem } from "./api";
+import { routes } from "@shared/routes";
 import { useItemsOptimistic } from "./hooks";
 import { useNavigate } from "react-router";
 
@@ -27,7 +28,7 @@ export function useItemListModel(
   }
 
   function edit(item: Item) {
-    navigate(`/${groupId}/items/${item.id}`);
+    navigate(routes.itemEdit(groupId, item.id));
   }
 
   return { optimisticItems, toggle, edit, remove };

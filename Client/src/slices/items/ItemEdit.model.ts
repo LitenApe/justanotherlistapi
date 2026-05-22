@@ -1,6 +1,7 @@
 import { use, useActionState } from "react";
 
 import { checklistsResource } from "@shared/api";
+import { routes } from "@shared/routes";
 import { updateItem } from "./api";
 import { useNavigate } from "react-router";
 
@@ -57,7 +58,7 @@ export function useItemEditModel(
           isComplete,
         });
         itemCache.delete(`${groupId}/${itemId}`);
-        navigate(`/${groupId}`, { replace: true });
+        navigate(routes.checklist(groupId), { replace: true });
         return { error: null };
       } catch (e) {
         return {
@@ -69,7 +70,7 @@ export function useItemEditModel(
   );
 
   function cancel() {
-    navigate(`/${groupId}`);
+    navigate(routes.checklist(groupId));
   }
 
   return { item, error: state.error, isPending, formAction, cancel };
