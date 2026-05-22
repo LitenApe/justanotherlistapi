@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router";
 
 import type { ItemGroup } from "@shared/types";
 import { routes } from "@shared/routes";
-import { useEffect } from "react";
+import { useEffect, useTransition } from "react";
 import { useFeatures } from "../dev-panel";
 
 export interface ChecklistListModel {
@@ -22,13 +22,18 @@ export function useChecklistListModel(
   const { flags } = useFeatures();
   const navigate = useNavigate();
   const { groupId } = useParams();
+  const [isTransitioning, startTransition] = useTransition();
 
   const concurrent = useChecklistsConcurrent();
   const legacy = useChecklistsLegacy();
 
-  const { checklists, isPending, refresh, add, remove } = flags.suspense
-    ? { ...concurrent, refresh: concurrent.refresh }
-    : legacy;
+  const {
+    checklists,
+    isPending: hookPending,
+    refresh,
+    add,
+    remove,
+  } = flags.suspense ? { ...concurrent, refresh: concurrent.refresh } : legacy;
 
   // Re-fetch when refreshSignal changes (legacy path)
   useEffect(() => {
@@ -36,7 +41,13 @@ export function useChecklistListModel(
   }, [refreshSignal, refresh]);
 
   function select(id: string) {
-    navigate(routes.checklist(id));
+    if (flags.useTransition) {
+      startTransition(() => {
+        navigate(routes.checklist(id));
+      });
+    } else {
+      navigate(routes.checklist(id));
+    }
   }
 
   async function handleAdd(name: string) {
@@ -48,7 +59,7 @@ export function useChecklistListModel(
 
   return {
     checklists,
-    isPending,
+    isPending: hookPending || isTransitioning,
     activeId: groupId,
     select,
     add: handleAdd,
