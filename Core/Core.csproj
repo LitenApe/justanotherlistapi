@@ -15,6 +15,7 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
     <PackageReference Include="Scalar.AspNetCore" />
+    <PackageReference Include="Bogus" />
   </ItemGroup>
 
   <ItemGroup>

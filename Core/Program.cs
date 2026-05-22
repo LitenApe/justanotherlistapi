@@ -2,6 +2,7 @@ using System.Data;
 using System.Diagnostics;
 using Core;
 using Core.AuditLog;
+using Core.DevSeed;
 using Core.Utility;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -146,6 +147,11 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapChecklistApi();
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapDevSeedEndpoints();
+}
 
 app.MapOpenApi();
 app.MapScalarApiReference(opt =>
