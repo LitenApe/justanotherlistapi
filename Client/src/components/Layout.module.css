@@ -33,11 +33,7 @@
   font-size: var(--text-lg);
   font-weight: var(--weight-bold);
   letter-spacing: -0.02em;
-  background: linear-gradient(
-    135deg,
-    var(--accent),
-    var(--accent-hover)
-  );
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;

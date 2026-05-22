@@ -1,9 +1,9 @@
 import { useChecklistsConcurrent, useChecklistsLegacy } from "./hooks";
+import { useEffect, useTransition } from "react";
 import { useNavigate, useParams } from "react-router";
 
 import type { ItemGroup } from "@shared/types";
 import { routes } from "@shared/routes";
-import { useEffect, useTransition } from "react";
 import { useFeatures } from "../dev-panel";
 
 export interface ChecklistListModel {
@@ -26,18 +26,22 @@ export function useChecklistListModel(
   const concurrent = useChecklistsConcurrent();
   const legacy = useChecklistsLegacy();
 
+  const usingSuspense = flags.suspense;
+
   const {
     checklists,
     isPending: hookPending,
     refresh,
     add,
     remove,
-  } = flags.suspense ? { ...concurrent, refresh: concurrent.refresh } : legacy;
+  } = usingSuspense ? { ...concurrent, refresh: concurrent.refresh } : legacy;
 
-  // Fetch on mount (legacy path)
+  // Fetch on mount (legacy path only — concurrent path uses use() which auto-fetches)
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (!usingSuspense) {
+      refresh();
+    }
+  }, [usingSuspense, refresh]);
 
   function select(id: string) {
     if (flags.useTransition) {
