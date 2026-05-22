@@ -1,15 +1,17 @@
-import type { ReactNode } from "react";
+import { useSyncExternalStore } from "react";
+
+import { pendingService } from "@shared/api";
 import styles from "./PendingBorder.module.css";
 
-interface Props {
-  pending: boolean;
-  children: ReactNode;
-}
+export function PendingBorder() {
+  const isPending = useSyncExternalStore(
+    pendingService.subscribe,
+    pendingService.getSnapshot,
+  );
 
-export function PendingBorder({ pending, children }: Props) {
   return (
-    <div className={`${styles.border} ${pending ? styles.pending : ""}`}>
-      {children}
-    </div>
+    <div
+      className={`${styles.pendingBorder} ${isPending ? styles.active : ""}`}
+    />
   );
 }

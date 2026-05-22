@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { DevPanel, FeaturesProvider } from "./slices/dev-panel";
 import {
   ErrorBoundary,
+  PendingBorder,
   PendingBoundary,
   ProtectedRoute,
 } from "@shared/components";
@@ -65,6 +66,7 @@ export function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
+      {import.meta.env.DEV && <PendingBorder />}
       {import.meta.env.DEV && <DevPanel />}
     </FeaturesProvider>
   );

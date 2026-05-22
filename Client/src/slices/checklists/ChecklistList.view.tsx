@@ -1,7 +1,6 @@
 import { useRef, type FormEvent } from "react";
 
 import type { ItemGroup } from "@shared/types";
-import { PendingBorder } from "@shared/components";
 import styles from "./ChecklistList.module.css";
 
 interface ChecklistItemProps {
@@ -94,7 +93,7 @@ export function ChecklistListView({
   remove,
 }: ChecklistListViewProps) {
   return (
-    <PendingBorder pending={isPending}>
+    <>
       <nav className={styles.list} aria-label="Checklists">
         {checklists.length === 0 && !isPending && (
           <p className={styles.empty}>No checklists yet.</p>
@@ -110,6 +109,6 @@ export function ChecklistListView({
         ))}
       </nav>
       <AddForm onAdd={add} disabled={isPending} />
-    </PendingBorder>
+    </>
   );
 }

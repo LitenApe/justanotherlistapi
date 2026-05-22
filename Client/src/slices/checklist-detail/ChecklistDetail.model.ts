@@ -11,7 +11,6 @@ import { useNavigate } from "react-router";
 export interface ChecklistDetailModel {
   groupId: string;
   checklist: ItemGroup | null;
-  isPending: boolean;
   refresh: () => void;
   addItem: () => void;
 }
@@ -22,13 +21,11 @@ export function useChecklistDetailModel(groupId: string): ChecklistDetailModel {
 
   const concurrent = useChecklistDetailConcurrent(groupId);
   const legacy = useChecklistDetailLegacy(groupId);
-  const { checklist, isPending, refresh } = flags.suspense
-    ? concurrent
-    : legacy;
+  const { checklist, refresh } = flags.suspense ? concurrent : legacy;
 
   function addItem() {
     navigate(routes.itemCreate(groupId));
   }
 
-  return { groupId, checklist, isPending, refresh, addItem };
+  return { groupId, checklist, refresh, addItem };
 }

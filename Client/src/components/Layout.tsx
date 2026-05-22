@@ -2,11 +2,7 @@ import {
   ChecklistListConcurrent,
   ChecklistListLegacy,
 } from "../slices/checklists";
-import {
-  ErrorBoundary,
-  PendingBorder,
-  PendingBoundary,
-} from "@shared/components";
+import { ErrorBoundary, PendingBoundary } from "@shared/components";
 import { Outlet, useNavigate } from "react-router";
 
 import { logout } from "../slices/auth";
@@ -17,7 +13,7 @@ import { useTransition } from "react";
 
 export function Layout() {
   const navigate = useNavigate();
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const { flags } = useFeatures();
 
   const wrappedStartTransition = flags.useTransition
@@ -62,9 +58,7 @@ export function Layout() {
       </aside>
 
       <main className={styles.main}>
-        <PendingBorder pending={isPending}>
-          <Outlet context={{ startTransition: wrappedStartTransition, flags }} />
-        </PendingBorder>
+        <Outlet context={{ startTransition: wrappedStartTransition, flags }} />
       </main>
     </div>
   );
