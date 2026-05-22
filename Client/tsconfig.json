@@ -21,8 +21,7 @@
       "@shared/*": ["./src/shared/*"],
       "@slices/*": ["./src/slices/*"],
       "@components/*": ["./src/components/*"]
-    },
-    "baseUrl": "."
+    }
   },
   "include": ["src", "vite-env.d.ts"]
 }
