@@ -23,9 +23,9 @@ export function useChecklistDetailConcurrent(groupId: string) {
   const [isPending, startTransition] = useTransition();
 
   const refresh = useCallback(() => {
-    startTransition(() => {
+    startTransition(async () => {
       invalidateDetail(groupId);
-      getDetailPromise(groupId);
+      await getDetailPromise(groupId);
     });
   }, [groupId, startTransition]);
 

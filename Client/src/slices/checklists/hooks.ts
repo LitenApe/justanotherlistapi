@@ -22,9 +22,9 @@ export function useChecklistsConcurrent() {
   const [isPending, startTransition] = useTransition();
 
   const refresh = useCallback(() => {
-    startTransition(() => {
+    startTransition(async () => {
       invalidateChecklists();
-      getChecklistsPromise();
+      await getChecklistsPromise();
     });
   }, [startTransition]);
 
@@ -34,7 +34,7 @@ export function useChecklistsConcurrent() {
       startTransition(async () => {
         created = await createChecklist(name);
         invalidateChecklists();
-        getChecklistsPromise();
+        await getChecklistsPromise();
       });
       return Promise.resolve(created);
     },
@@ -46,7 +46,7 @@ export function useChecklistsConcurrent() {
       startTransition(async () => {
         await deleteChecklist(id);
         invalidateChecklists();
-        getChecklistsPromise();
+        await getChecklistsPromise();
       });
     },
     [startTransition],
