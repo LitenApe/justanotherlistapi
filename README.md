@@ -25,6 +25,7 @@ JustAnotherList is an open-source, minimalist app for organising life into share
 | ----------------- | --------------------------------------------------------------- |
 | Runtime           | .NET 10                                                         |
 | Backend           | ASP.NET Core 10 (Minimal API)                                   |
+| Frontend          | React 19, TypeScript, Vite                                      |
 | Data access       | Dapper + SQL Server                                             |
 | Authentication    | JWT Bearer — delegated to an external OAuth 2.0 / OIDC provider |
 | API docs          | Scalar (OpenAPI)                                                |
@@ -67,12 +68,20 @@ Core.Tests/                         - xUnit tests (SQLite in-memory, no running 
     ChannelAuditWriter.Tests.cs     - Unit tests for ChannelAuditWriter (batching, flush, failure handling)
     NoOpAuditWriter.cs              - IAuditWriter that discards all entries (used to isolate other tests)
   Checklist/                        - Unit + HTTP integration tests mirroring the Core/Checklist structure
+Client/                             - React 19 SPA (Vite + TypeScript)
+  src/
+    shared/                         - Infrastructure (api client, hooks, components, styles, routes)
+    slices/                         - Vertical feature slices (auth, checklists, items, members, dev-panel)
+    components/                     - App shell (Layout)
 Directory.Build.props               - Solution-wide MSBuild settings and analyzer packages
 Directory.Build.targets             - CSharpier format check wired into every CLI build
 dotnet-tools.json                   - Pins CSharpier version for local tool restore
 specifications/                     - Design and architecture specifications
   checklist.md                      - Checklist feature: domain model, endpoints, DB schema
   audit-logs.md                     - Audit log feature: schema, implementation design
+  authentication.md                 - Authentication: JWT setup, claim resolution
+  client.md                         - Client SPA: architecture, concurrent rendering, data flow
+  dev-tools.md                      - Dev tools: chaos controls, presets, activity log
 ```
 
 ## Specifications
@@ -84,6 +93,8 @@ Design and architecture documents for planned and implemented features live in t
 | [checklist.md](specifications/checklist.md)           | Checklist feature — domain model, authorization model, database schema, all API endpoints with request/response shapes, and structural conventions |
 | [audit-logs.md](specifications/audit-logs.md)         | Audit Log feature — database schema, per-operation audit data, implementation design, and future extensibility                                     |
 | [authentication.md](specifications/authentication.md) | Authentication feature — JWT Bearer setup, token validation behavior, user identity claim resolution, and how users authenticate against the API   |
+| [client.md](specifications/client.md)                 | Client application — React 19 concurrent rendering architecture, vertical slices, MVC pattern, data flow, and visual design                        |
+| [dev-tools.md](specifications/dev-tools.md)           | Dev tools — DevPanel chaos controls, scenario presets, activity log, seed endpoint, and pending infrastructure                                     |
 
 ## Requirements
 

@@ -43,23 +43,23 @@ The system consists of:
 
 ## DevPanel
 
-The DevPanel is a collapsible panel rendered only in development builds. It provides full control over the application's concurrent rendering behaviour.
+The DevPanel is a collapsible panel rendered only in development builds. It provides chaos controls that stress the application's concurrent rendering and an activity log to observe the results.
 
-**Location:** `src/slices/dev-panel/` — follows the MVC pattern:\n- `DevPanel.model.ts` — `useDevPanelModel()` hook (store subscriptions, keyboard shortcut, preset logic, seed handler)\n- `DevPanel.view.tsx` — `DevPanelView` (pure rendering of sliders, buttons, log entries)\n- `DevPanel.tsx` — Controller connecting model → view
+**Location:** `src/slices/dev-panel/DevPanel.tsx` — single file with MVC sections:
 
-### Feature Flags
+- Model: `useDevPanelModel()` hook (store subscriptions, keyboard shortcut, preset logic, seed handler)
+- View: `DevPanelView` (pure rendering of sliders, buttons, log entries)
+- Controller: exported `DevPanel` connecting model → view
+
+### Display Flags
 
 Managed via `FeaturesContext` — the only React context in the application (used for display flags, not data).
 
-| Flag               | Type      | Default | Effect                                                              |
-| ------------------ | --------- | ------- | ------------------------------------------------------------------- |
-| `suspense`         | `boolean` | `true`  | Switches between `use()` + Suspense and `useEffect` + loading state |
-| `useTransition`    | `boolean` | `true`  | Wraps mutations/refetches in `startTransition` vs. immediate        |
-| `useDeferredValue` | `boolean` | `true`  | Deferred search filtering vs. synchronous                           |
-| `useOptimistic`    | `boolean` | `true`  | Optimistic item mutations vs. wait-for-server                       |
-| `showRenderCounts` | `boolean` | `false` | Displays render count badges on components                          |
+| Flag               | Type      | Default | Effect                                     |
+| ------------------ | --------- | ------- | ------------------------------------------ |
+| `showRenderCounts` | `boolean` | `false` | Displays render count badges on components |
 
-Each flag can be toggled independently to observe a single concurrent primitive in isolation. When a flag is off, the corresponding Legacy variant renders.
+This is an observation tool — it does not change application behaviour, only reveals how React re-renders components under different conditions.
 
 ### Chaos Controls
 
@@ -77,7 +77,7 @@ Three independent controls that simulate real-world conditions:
 - **Type:** Synchronous (blocks main thread intentionally)
 - **Range:** 0–500ms (slider)
 - **Effect:** Busy-wait loop during filter functions
-- **Purpose:** Makes `useDeferredValue` benefit observable — legacy mode freezes input, concurrent mode stays responsive
+- **Purpose:** Makes `useDeferredValue` benefit observable — without it, heavy filtering would freeze the input; with it, input stays responsive while results update in the background
 - **Key teaching moment:** The pending border will NOT appear during sync overhead because the thread is blocked (React cannot update DOM). This is intentional.
 
 #### Error Rate (`shared/api/errorRate.ts`)

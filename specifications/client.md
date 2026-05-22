@@ -117,13 +117,13 @@ Tests create fresh instances — no shared mutable state, no `__resetForTesting(
 
 ### MVC Component Pattern
 
-Every UI feature is split into three files that map to Model-View-Controller:
+Every UI feature uses the Model-View-Controller pattern within a single `.tsx` file, separated by section comments:
 
-| File           | Role       | Contains                                                               |
-| -------------- | ---------- | ---------------------------------------------------------------------- |
-| `Xxx.model.ts` | Model      | `useXxxModel()` hook — state, effects, API calls, navigation, handlers |
-| `Xxx.view.tsx` | View       | `XxxView` — pure presentational JSX, receives all data via typed props |
-| `Xxx.tsx`      | Controller | Thin connector: calls model hook, spreads result into view             |
+| Section         | Role       | Contains                                                               |
+| --------------- | ---------- | ---------------------------------------------------------------------- |
+| `// Model`      | Model      | `useXxxModel()` hook — state, effects, API calls, navigation, handlers |
+| `// View`       | View       | `XxxView` — pure presentational JSX, receives all data via typed props |
+| `// Controller` | Controller | Thin exported connector: calls model hook, spreads result into view    |
 
 **Rules:**
 
@@ -133,9 +133,20 @@ Every UI feature is split into three files that map to Model-View-Controller:
 - Views can contain sub-components (e.g. `ItemRow`) that are internal presentation helpers.
 
 ```typescript
-// ItemCreate.tsx (Controller)
-import { ItemCreateView } from "./ItemCreate.view";
-import { useItemCreateModel } from "./ItemCreate.model";
+// ItemCreate.tsx
+import { createItem } from "./api";
+import { routes } from "@shared/routes";
+import styles from "./ItemForm.module.css";
+
+// ─── Model ────────────────────────────────────────────────────────────────────
+
+function useItemCreateModel(groupId: string) { /* ... */ }
+
+// ─── View ─────────────────────────────────────────────────────────────────────
+
+function ItemCreateView({ error, isPending, formAction, cancel }) { /* ... */ }
+
+// ─── Controller ───────────────────────────────────────────────────────────────
 
 export function ItemCreate({ groupId }: Props) {
   const model = useItemCreateModel(groupId);
@@ -149,10 +160,10 @@ This separation enables:
 - Unit testing views with mock props (no API dependencies)
 - Swapping views without touching business logic
 
-**Suspense Split Pattern:** When a controller needs to render content both inside and outside a Suspense boundary, it is split into two components:
+**Suspense Split Pattern:** When a controller needs to render content both inside and outside a Suspense boundary, the file contains an internal suspending component:
 
-- `ChecklistDetail.tsx` (controller) — renders the header (with name from location state) and the `+ New Item` button immediately; wraps the data-dependent content in `<PendingBoundary>`.
-- `ChecklistDetailContent.tsx` (suspending child) — calls the model hook (which uses `use()` and suspends), then renders the view.
+- `ChecklistDetail` (exported controller) — renders the header (with name from location state) and the `+ New Item` button immediately; wraps `ChecklistDetailContent` in `<PendingBoundary>`.
+- `ChecklistDetailContent` (internal, same file) — calls the model hook (which uses `use()` and suspends), then renders the view.
 
 This ensures the header displays instantly on navigation while only the items/members area shows the skeleton fallback.
 
@@ -550,56 +561,39 @@ Client/
         index.ts
         api.ts
         Login.tsx
-        Login.model.ts
-        Login.view.tsx
         Login.module.css
       checklists/
         index.ts
         api.ts
         hooks.ts
         ChecklistList.tsx
-        ChecklistList.model.ts
-        ChecklistList.view.tsx
         ChecklistList.module.css
       checklist-search/
         index.ts
         hooks.ts
         filter.ts
         ChecklistSearch.tsx
-        ChecklistSearch.model.ts
-        ChecklistSearch.view.tsx
         ChecklistSearch.module.css
       checklist-detail/
         index.ts
         api.ts
         hooks.ts
         ChecklistDetail.tsx
-        ChecklistDetailContent.tsx
-        ChecklistDetail.model.ts
-        ChecklistDetail.view.tsx
         ChecklistDetail.module.css
       item-search/
         index.ts
         hooks.ts
         filter.ts
         ItemSearch.tsx
-        ItemSearch.model.ts
-        ItemSearch.view.tsx
         ItemSearch.module.css
       items/
         index.ts
         api.ts
         hooks.ts
         ItemList.tsx
-        ItemList.model.ts
-        ItemList.view.tsx
         ItemList.module.css
         ItemCreate.tsx
-        ItemCreate.model.ts
-        ItemCreate.view.tsx
         ItemEdit.tsx
-        ItemEdit.model.ts
-        ItemEdit.view.tsx
         ItemForm.module.css
         ItemCreatePage.tsx
         ItemEditPage.tsx
@@ -607,14 +601,10 @@ Client/
         index.ts
         api.ts
         Members.tsx
-        Members.model.ts
-        Members.view.tsx
         Members.module.css
       dev-panel/
         index.ts
         DevPanel.tsx
-        DevPanel.model.ts
-        DevPanel.view.tsx
         DevPanel.module.css
         FeaturesContext.tsx
         sessionPersistence.ts
@@ -623,7 +613,7 @@ Client/
       Layout.module.css
 ```
 
-Each slice follows the MVC triple: `Component.tsx` (controller), `Component.model.ts` (model hook), `Component.view.tsx` (view). Page-level route wrappers (e.g., `ItemCreatePage.tsx`) live in their owning slice.
+Each slice contains a single `.tsx` file with Model, View, and Controller sections. Page-level route wrappers (e.g., `ItemCreatePage.tsx`) live in their owning slice.
 
 ---
 
