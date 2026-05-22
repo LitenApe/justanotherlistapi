@@ -24,7 +24,7 @@ export function useItemsOptimistic(items: Item[], onRefresh: () => void) {
         } catch {
           // Optimistic update auto-reverts on next render with fresh items
         }
-        onRefresh();
+        await onRefresh();
       });
     },
     [addOptimistic, startTransition, onRefresh],
