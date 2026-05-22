@@ -2,14 +2,11 @@ import type { ItemGroup } from "@shared/types";
 import { ItemList } from "../items/ItemList";
 import { ItemSearch } from "../item-search";
 import { Members } from "../members/Members";
-import { RenderCount } from "@shared/components";
 import styles from "./ChecklistDetail.module.css";
 
 export interface ChecklistDetailViewProps {
   groupId: string;
-  checklist: ItemGroup | null;
-  previewName: string | undefined;
-  refresh: () => void;
+  checklist: ItemGroup;
   onItemChanged: () => Promise<void>;
   addItem: () => void;
 }
@@ -17,28 +14,11 @@ export interface ChecklistDetailViewProps {
 export function ChecklistDetailView({
   groupId,
   checklist,
-  previewName,
-  refresh,
   onItemChanged,
   addItem,
 }: ChecklistDetailViewProps) {
-  if (!checklist) {
-    return previewName ? (
-      <div style={{ position: "relative" }}>
-        <RenderCount label="ChecklistDetail" />
-        <div className={styles.header}>
-          <h2 className={styles.title}>{previewName}</h2>
-        </div>
-        <p>Loading items…</p>
-      </div>
-    ) : (
-      <p>Loading…</p>
-    );
-  }
-
   return (
-    <div style={{ position: "relative" }}>
-      <RenderCount label="ChecklistDetail" />
+    <>
       <div className={styles.header}>
         <h2 className={styles.title}>{checklist.name}</h2>
         <button type="button" className={styles.addBtn} onClick={addItem}>
@@ -56,6 +36,6 @@ export function ChecklistDetailView({
         )}
       </ItemSearch>
       <Members groupId={groupId} />
-    </div>
+    </>
   );
 }

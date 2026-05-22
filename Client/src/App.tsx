@@ -50,9 +50,7 @@ export function App() {
                       </p>
                     )}
                   >
-                    <PendingBoundary>
-                      <ChecklistDetail />
-                    </PendingBoundary>
+                    <ChecklistDetail />
                   </ErrorBoundary>
                 </ProtectedRoute>
               }
