@@ -120,13 +120,14 @@ Tests create fresh instances — no shared mutable state, no `__resetForTesting(
 
 Every UI feature is split into three files that map to Model-View-Controller:
 
-| File              | Role       | Contains                                                                 |
-| ----------------- | ---------- | ------------------------------------------------------------------------ |
-| `Xxx.model.ts`    | Model      | `useXxxModel()` hook — state, effects, API calls, navigation, handlers   |
-| `Xxx.view.tsx`    | View       | `XxxView` — pure presentational JSX, receives all data via typed props   |
-| `Xxx.tsx`         | Controller | Thin connector: calls model hook, spreads result into view               |
+| File           | Role       | Contains                                                               |
+| -------------- | ---------- | ---------------------------------------------------------------------- |
+| `Xxx.model.ts` | Model      | `useXxxModel()` hook — state, effects, API calls, navigation, handlers |
+| `Xxx.view.tsx` | View       | `XxxView` — pure presentational JSX, receives all data via typed props |
+| `Xxx.tsx`      | Controller | Thin connector: calls model hook, spreads result into view             |
 
 **Rules:**
+
 - Views never import hooks, API modules, or `useNavigate`. They are pure functions of props.
 - Models return a flat props-compatible object that spreads directly into the view.
 - Controllers are 3–5 lines — no logic, no conditional rendering (guards go above the hook call).
@@ -144,6 +145,7 @@ export function ItemCreate({ groupId }: Props) {
 ```
 
 This separation enables:
+
 - Unit testing models (hook logic) without rendering
 - Unit testing views with mock props (no API dependencies)
 - Swapping views without touching business logic
@@ -228,12 +230,15 @@ BrowserRouter
 
 Toggled at runtime via the DevPanel through `FeaturesContext`:
 
-| Flag               | Controls                                                             |
-| ------------------ | -------------------------------------------------------------------- |
-| `useConcurrent`    | Master toggle: `use()` + Suspense + transitions vs. Legacy variants  |
-| `showRenderCounts` | Render count badges on components                                    |
+| Flag               | Default | Controls                                                             |
+| ------------------ | ------- | -------------------------------------------------------------------- |
+| `suspense`         | `true`  | `use()` + Suspense for data fetching vs. `useEffect` + loading state |
+| `useTransition`    | `true`  | Navigation wrapped in `startTransition` vs. immediate                |
+| `useDeferredValue` | `true`  | Deferred search filtering vs. synchronous                            |
+| `useOptimistic`    | `true`  | Optimistic item toggle vs. wait-for-server                           |
+| `showRenderCounts` | `false` | Render count badges on components                                    |
 
-When `useConcurrent` is off, Legacy variants render for all features.
+Each flag can be toggled independently to observe a single concurrent primitive in isolation. When a flag is off, its Legacy variant renders instead.
 
 ### `use()` and Suspense
 

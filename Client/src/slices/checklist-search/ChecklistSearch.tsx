@@ -1,6 +1,11 @@
+import {
+  useChecklistSearchConcurrent,
+  useChecklistSearchLegacy,
+} from "./hooks";
+
 import type { ItemGroup } from "@shared/types";
 import styles from "./ChecklistSearch.module.css";
-import { useChecklistSearch } from "./hooks";
+import { useFeatures } from "../dev-panel";
 
 interface Props {
   checklists: ItemGroup[];
@@ -8,7 +13,12 @@ interface Props {
 }
 
 export function ChecklistSearch({ checklists, children }: Props) {
-  const { query, setQuery, filtered, isStale } = useChecklistSearch(checklists);
+  const { flags } = useFeatures();
+  const concurrent = useChecklistSearchConcurrent(checklists);
+  const legacy = useChecklistSearchLegacy(checklists);
+  const { query, setQuery, filtered, isStale } = flags.useDeferredValue
+    ? concurrent
+    : legacy;
 
   return (
     <div>

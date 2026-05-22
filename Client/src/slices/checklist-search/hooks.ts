@@ -3,7 +3,7 @@ import { useDeferredValue, useMemo, useState } from "react";
 import type { ItemGroup } from "@shared/types";
 import { filterChecklists } from "./filter";
 
-export function useChecklistSearch(checklists: ItemGroup[]) {
+export function useChecklistSearchConcurrent(checklists: ItemGroup[]) {
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const isStale = query !== deferredQuery;
@@ -14,4 +14,15 @@ export function useChecklistSearch(checklists: ItemGroup[]) {
   );
 
   return { query, setQuery, filtered, isStale };
+}
+
+export function useChecklistSearchLegacy(checklists: ItemGroup[]) {
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(
+    () => filterChecklists(checklists, query),
+    [checklists, query],
+  );
+
+  return { query, setQuery, filtered, isStale: false };
 }

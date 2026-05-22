@@ -6,7 +6,7 @@ import styles from "./ChecklistDetail.module.css";
 
 export interface ChecklistDetailViewProps {
   groupId: string;
-  checklist: ItemGroup;
+  checklist: ItemGroup | null;
   isPending: boolean;
   refresh: () => void;
   addItem: () => void;
@@ -19,6 +19,14 @@ export function ChecklistDetailView({
   refresh,
   addItem,
 }: ChecklistDetailViewProps) {
+  if (!checklist) {
+    return (
+      <PendingBorder pending={isPending}>
+        <p>Loading…</p>
+      </PendingBorder>
+    );
+  }
+
   return (
     <PendingBorder pending={isPending}>
       <div className={styles.header}>

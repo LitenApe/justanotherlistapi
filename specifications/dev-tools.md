@@ -53,10 +53,13 @@ Managed via `FeaturesContext` — the only React context in the application (use
 
 | Flag               | Type      | Default | Effect                                                              |
 | ------------------ | --------- | ------- | ------------------------------------------------------------------- |
-| `useConcurrent`    | `boolean` | `true`  | Master toggle: switches all features between Concurrent and Legacy variants |
+| `suspense`         | `boolean` | `true`  | Switches between `use()` + Suspense and `useEffect` + loading state |
+| `useTransition`    | `boolean` | `true`  | Wraps navigation in `startTransition` vs. immediate                 |
+| `useDeferredValue` | `boolean` | `true`  | Deferred search filtering vs. synchronous                           |
+| `useOptimistic`    | `boolean` | `true`  | Optimistic item mutations vs. wait-for-server                       |
 | `showRenderCounts` | `boolean` | `false` | Displays render count badges on components                          |
 
-When `useConcurrent` is off, Legacy variants render (useEffect-based fetching, synchronous filtering, no optimistic updates).
+Each flag can be toggled independently to observe a single concurrent primitive in isolation. When a flag is off, the corresponding Legacy variant renders.
 
 ### Chaos Controls
 

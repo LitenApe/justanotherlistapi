@@ -1,11 +1,16 @@
+import {
+  useChecklistDetailConcurrent,
+  useChecklistDetailLegacy,
+} from "./hooks";
+
 import type { ItemGroup } from "@shared/types";
 import { routes } from "@shared/routes";
-import { useChecklistDetailConcurrent } from "./hooks";
+import { useFeatures } from "../dev-panel";
 import { useNavigate } from "react-router";
 
 export interface ChecklistDetailModel {
   groupId: string;
-  checklist: ItemGroup;
+  checklist: ItemGroup | null;
   isPending: boolean;
   refresh: () => void;
   addItem: () => void;
@@ -13,8 +18,13 @@ export interface ChecklistDetailModel {
 
 export function useChecklistDetailModel(groupId: string): ChecklistDetailModel {
   const navigate = useNavigate();
-  const { checklist, isPending, refresh } =
-    useChecklistDetailConcurrent(groupId);
+  const { flags } = useFeatures();
+
+  const concurrent = useChecklistDetailConcurrent(groupId);
+  const legacy = useChecklistDetailLegacy(groupId);
+  const { checklist, isPending, refresh } = flags.suspense
+    ? concurrent
+    : legacy;
 
   function addItem() {
     navigate(routes.itemCreate(groupId));

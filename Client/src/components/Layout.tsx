@@ -1,23 +1,37 @@
 import {
+  ChecklistListConcurrent,
+  ChecklistListLegacy,
+} from "../slices/checklists";
+import {
   ErrorBoundary,
   PendingBorder,
   PendingBoundary,
 } from "@shared/components";
 import { Outlet, useNavigate } from "react-router";
 
-import { ChecklistListConcurrent } from "../slices/checklists";
 import { logout } from "../slices/auth";
+import { routes } from "@shared/routes";
 import styles from "./Layout.module.css";
+import { useFeatures } from "../slices/dev-panel";
 import { useTransition } from "react";
 
 export function Layout() {
   const navigate = useNavigate();
   const [isPending, startTransition] = useTransition();
+  const { flags } = useFeatures();
+
+  const wrappedStartTransition = flags.useTransition
+    ? startTransition
+    : (fn: () => void) => fn();
 
   function handleLogout() {
     logout();
-    navigate("/login", { replace: true });
+    navigate(routes.login(), { replace: true });
   }
+
+  const ChecklistList = flags.suspense
+    ? ChecklistListConcurrent
+    : ChecklistListLegacy;
 
   return (
     <div className={styles.layout}>
@@ -34,7 +48,7 @@ export function Layout() {
           )}
         >
           <PendingBoundary>
-            <ChecklistListConcurrent />
+            <ChecklistList />
           </PendingBoundary>
         </ErrorBoundary>
 
@@ -49,7 +63,7 @@ export function Layout() {
 
       <main className={styles.main}>
         <PendingBorder pending={isPending}>
-          <Outlet context={{ startTransition }} />
+          <Outlet context={{ startTransition: wrappedStartTransition, flags }} />
         </PendingBorder>
       </main>
     </div>

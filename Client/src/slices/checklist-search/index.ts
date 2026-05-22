@@ -1,3 +1,6 @@
 export { ChecklistSearch } from "./ChecklistSearch";
-export { useChecklistSearch } from "./hooks";
+export {
+  useChecklistSearchConcurrent,
+  useChecklistSearchLegacy,
+} from "./hooks";
 export { filterChecklists } from "./filter";
