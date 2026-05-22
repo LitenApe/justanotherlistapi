@@ -1,0 +1,11 @@
+.searchInput {
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.stale {
+  opacity: 0.6;
+  transition: opacity var(--transition-fast);
+}

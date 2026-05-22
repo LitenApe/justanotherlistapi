@@ -1,6 +1,11 @@
+import {
+  ErrorBoundary,
+  PendingBorder,
+  PendingBoundary,
+} from "@shared/components";
 import { Outlet, useNavigate } from "react-router";
 
-import { PendingBorder } from "@shared/components";
+import { ChecklistListConcurrent } from "../slices/checklists";
 import { logout } from "../slices/auth";
 import styles from "./Layout.module.css";
 import { useTransition } from "react";
@@ -21,7 +26,17 @@ export function Layout() {
           <h1 className={styles.sidebarTitle}>Checklists</h1>
         </div>
 
-        {/* Checklist navigation will be rendered here by Phase 4 */}
+        <ErrorBoundary
+          fallback={(err, reset) => (
+            <p>
+              Error: {err.message} <button onClick={reset}>Retry</button>
+            </p>
+          )}
+        >
+          <PendingBoundary>
+            <ChecklistListConcurrent />
+          </PendingBoundary>
+        </ErrorBoundary>
 
         <button
           type="button"
