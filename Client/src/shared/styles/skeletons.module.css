@@ -1,0 +1,36 @@
+@keyframes skeleton-pulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
+.skeleton {
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-sm);
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-text {
+  composes: skeleton;
+  height: 1em;
+  width: 100%;
+}
+
+.skeleton-heading {
+  composes: skeleton;
+  height: 1.5em;
+  width: 60%;
+}
+
+.skeleton-card {
+  composes: skeleton;
+  height: 64px;
+  width: 100%;
+  border-radius: var(--radius-md);
+}

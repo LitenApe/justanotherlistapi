@@ -1,0 +1,28 @@
+.border {
+  position: relative;
+}
+
+.border::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  pointer-events: none;
+  transition: border-color var(--transition-fast);
+}
+
+.pending::after {
+  border-color: var(--color-pending);
+  animation: pulse-border 1s ease-in-out infinite;
+}
+
+@keyframes pulse-border {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
