@@ -177,6 +177,11 @@ public static class DevSeedEndpoint
     {
         Faker faker = new();
 
+        if (db.State != ConnectionState.Open)
+        {
+            db.Open();
+        }
+
         using IDbTransaction tx = db.BeginTransaction();
 
         await db.ExecuteAsync(
