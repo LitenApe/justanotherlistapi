@@ -1,5 +1,5 @@
+import { useCallback, useEffect, useTransition } from "react";
 import { useChecklistsConcurrent, useChecklistsLegacy } from "./hooks";
-import { useEffect, useTransition } from "react";
 import { useNavigate, useParams } from "react-router";
 
 import type { ItemGroup } from "@shared/types";
@@ -43,22 +43,28 @@ export function useChecklistListModel(
     }
   }, [usingSuspense, refresh]);
 
-  function select(id: string) {
-    if (flags.useTransition) {
-      startTransition(() => {
+  const select = useCallback(
+    (id: string) => {
+      if (flags.useTransition) {
+        startTransition(() => {
+          navigate(routes.checklist(id));
+        });
+      } else {
         navigate(routes.checklist(id));
-      });
-    } else {
-      navigate(routes.checklist(id));
-    }
-  }
+      }
+    },
+    [flags.useTransition, startTransition, navigate],
+  );
 
-  async function handleAdd(name: string) {
-    const created = await add(name);
-    if (created) {
-      onCreated(created.id);
-    }
-  }
+  const handleAdd = useCallback(
+    async (name: string) => {
+      const created = await add(name);
+      if (created) {
+        onCreated(created.id);
+      }
+    },
+    [add, onCreated],
+  );
 
   return {
     checklists,

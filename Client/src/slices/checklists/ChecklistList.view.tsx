@@ -1,4 +1,4 @@
-import { useRef, type FormEvent } from "react";
+import { memo, useRef, type FormEvent } from "react";
 
 import type { ItemGroup } from "@shared/types";
 import { RenderCount } from "@shared/components";
@@ -12,7 +12,7 @@ interface ChecklistItemProps {
   onDelete: (id: string) => void;
 }
 
-function ChecklistItem({
+const ChecklistItem = memo(function ChecklistItem({
   group,
   isActive,
   onSelect,
@@ -43,7 +43,7 @@ function ChecklistItem({
       </button>
     </div>
   );
-}
+});
 
 function AddForm({
   onAdd,
