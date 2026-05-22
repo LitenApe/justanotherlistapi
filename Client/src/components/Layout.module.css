@@ -1,7 +1,11 @@
 .layout {
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: 1fr;
   min-height: 100dvh;
+}
+
+.layout:has(.sidebar) {
+  grid-template-columns: 300px 1fr;
 }
 
 .sidebar {
