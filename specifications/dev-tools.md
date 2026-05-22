@@ -4,7 +4,7 @@
 
 - [Overview](#overview)
 - [DevPanel](#devpanel)
-  - [Feature Flags](#feature-flags)
+  - [Display Flags](#display-flags)
   - [Chaos Controls](#chaos-controls)
   - [Presets](#presets)
   - [Activity Log](#activity-log)
@@ -30,11 +30,11 @@
 
 ## Overview
 
-Dev tools are development-only features that make React's concurrent rendering behaviour observable and controllable. They are completely excluded from production builds via `import.meta.env.DEV` guards (Vite dead-code elimination).
+Dev tools are development-only features that make React's concurrent rendering behaviour observable under stress. They are completely excluded from production builds via `import.meta.env.DEV` guards (Vite dead-code elimination).
 
 The system consists of:
 
-1. **DevPanel** — UI control panel for chaos injection, feature toggling, and activity monitoring
+1. **DevPanel** — UI control panel for chaos injection, render count display, and activity monitoring
 2. **Seed endpoint** — Server-side bulk data generator for meaningful test scenarios
 3. **Dev guards** — Build-time feature gating, StrictMode, and error monitoring
 4. **Pending infrastructure** — Global pending border + pending service + activity log
@@ -49,15 +49,15 @@ The DevPanel is a collapsible panel rendered only in development builds. It prov
 
 ### Feature Flags
 
-Managed via `FeaturesContext` — the only React context in the application (used for feature flags, not data).
+Managed via `FeaturesContext` — the only React context in the application (used for display flags, not data).
 
 | Flag               | Type      | Default | Effect                                                              |
 | ------------------ | --------- | ------- | ------------------------------------------------------------------- |
-| `suspense`         | `boolean` | `true`  | Switches between `use()` + Suspense and `useEffect` + loading state     |
-| `useTransition`    | `boolean` | `true`  | Wraps mutations/refetches in `startTransition` vs. immediate            |
-| `useDeferredValue` | `boolean` | `true`  | Deferred search filtering vs. synchronous                               |
-| `useOptimistic`    | `boolean` | `true`  | Optimistic item mutations vs. wait-for-server                           |
-| `showRenderCounts` | `boolean` | `false` | Displays render count badges on components                              |
+| `suspense`         | `boolean` | `true`  | Switches between `use()` + Suspense and `useEffect` + loading state |
+| `useTransition`    | `boolean` | `true`  | Wraps mutations/refetches in `startTransition` vs. immediate        |
+| `useDeferredValue` | `boolean` | `true`  | Deferred search filtering vs. synchronous                           |
+| `useOptimistic`    | `boolean` | `true`  | Optimistic item mutations vs. wait-for-server                       |
+| `showRenderCounts` | `boolean` | `false` | Displays render count badges on components                          |
 
 Each flag can be toggled independently to observe a single concurrent primitive in isolation. When a flag is off, the corresponding Legacy variant renders.
 
@@ -110,17 +110,15 @@ export function createDelayStore() {
 
 ### Presets
 
-One-click configurations that set chaos controls + feature flags to demonstrate specific behaviours:
+One-click scenario configurations that set chaos controls to demonstrate concurrent rendering under specific real-world conditions:
 
-| Preset         | Delay  | Overhead | Error Rate | Flags On                           |
-| -------------- | ------ | -------- | ---------- | ---------------------------------- |
-| Suspense       | 3000ms | 0ms      | 0%         | suspense                           |
-| Transitions    | 2500ms | 0ms      | 0%         | suspense, useTransition            |
-| Optimistic     | 2500ms | 0ms      | 0%         | suspense, useOptimistic            |
-| Deferred Value | 0ms    | 300ms    | 0%         | useDeferredValue, showRenderCounts |
-| Error Recovery | 1500ms | 0ms      | 80%        | suspense, useOptimistic            |
-| Kitchen Sink   | 2000ms | 150ms    | 10%        | all on                             |
-| Reset          | 0ms    | 0ms      | 0%         | all off                            |
+| Preset       | Delay  | Overhead | Error Rate | Purpose                                                       |
+| ------------ | ------ | -------- | ---------- | ------------------------------------------------------------- |
+| Slow Network | 3000ms | 0ms      | 0%         | Makes Suspense fallbacks and transitions visible              |
+| Laggy Device | 0ms    | 300ms    | 0%         | Makes useDeferredValue benefit observable (input stays fluid) |
+| Unreliable   | 1500ms | 0ms      | 50%        | Demonstrates ErrorBoundary recovery, optimistic rollback      |
+| Worst Case   | 3000ms | 300ms    | 30%        | All chaos combined                                            |
+| Reset        | 0ms    | 0ms      | 0%         | Clears all chaos controls                                     |
 
 ### Activity Log
 
@@ -168,7 +166,7 @@ A button in the DevPanel that calls `POST /api/dev/seed`:
 
 - Denser, more compact layout than the main application
 - Developer tool aesthetic with `--font-mono` throughout
-- Section dividers: `CHAOS CONTROLS` / `FEATURES` / `SCENARIOS` / `ACTIVITY` (uppercase, `--text-muted`, `--text-xs`)
+- Section dividers: `CHAOS CONTROLS` / `DISPLAY` / `SCENARIOS` / `ACTIVITY` (uppercase, `--text-muted`, `--text-xs`)
 - Custom-styled range inputs (themed to dark mode)
 - Collapsible to a single toggle button (floating, bottom-right)
 
@@ -184,7 +182,7 @@ All DevPanel state persists to `sessionStorage`:
 
 - Open/collapsed state
 - Chaos control values (delay, overhead, error rate)
-- Feature flag states
+- Display flag state (showRenderCounts)
 - Survives page refresh within the same tab
 - Fresh state on new tab/window
 

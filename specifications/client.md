@@ -15,7 +15,6 @@
   - [Navigation Patterns](#navigation-patterns)
   - [Protected Routes](#protected-routes)
 - [React 19 Concurrent Features](#react-19-concurrent-features)
-  - [Feature Flags](#feature-flags)
   - [use() and Suspense](#use-and-suspense)
   - [useTransition](#usetransition)
   - [useDeferredValue](#usedeferredvalue)
@@ -53,14 +52,14 @@
 
 ## Overview
 
-The Client is a React 19 single-page application that serves as an interactive explorer for React's concurrent rendering capabilities. It connects to the JustAnotherListApi backend (checklist CRUD) and provides a side-by-side comparison of concurrent vs. legacy rendering patterns for each feature.
+The Client is a React 19 single-page application that fully utilizes concurrent rendering to build a clean, responsive checklist UI. It connects to the JustAnotherListApi backend (checklist CRUD) and demonstrates that React 19 primitives alone (`use`, `useTransition`, `useDeferredValue`, `useOptimistic`, `useActionState`) are sufficient for a production-quality SPA — helping developers develop an intuition for when they should reach for a third-party library.
 
-The application uses Vertical Slice Architecture to keep each UI feature self-contained. A development-only DevPanel provides chaos controls (artificial delay, compute overhead, error injection) and per-feature toggles that make concurrent rendering behaviour observable.
+The application uses Vertical Slice Architecture to keep each UI feature self-contained. A development-only DevPanel provides chaos controls (artificial delay, compute overhead, error injection) that make concurrent rendering behaviour observable.
 
 **Key constraints:**
 
 - Direct use of React 19 primitives — no third-party data-fetching or state management libraries.
-- Each concurrent feature has a Legacy counterpart for comparison.
+- Single rendering mode: always concurrent. No legacy fallback paths.
 - Production-grade patterns: typed errors, factory DI, pure functions, co-located tests.
 - Dark mode only. Pleasing aesthetics via CSS custom properties.
 
@@ -235,25 +234,9 @@ BrowserRouter (useTransitions={false})
 
 ## React 19 Concurrent Features
 
-### Feature Flags
-
-Toggled at runtime via the DevPanel through `FeaturesContext`:
-
-| Flag               | Default | Controls                                                             |
-| ------------------ | ------- | -------------------------------------------------------------------- |
-| `suspense`         | `true`  | `use()` + Suspense for data fetching vs. `useEffect` + loading state |
-| `useTransition`    | `true`  | Wraps mutations/refetches in `startTransition` vs. immediate         |
-| `useDeferredValue` | `true`  | Deferred search filtering vs. synchronous                            |
-| `useOptimistic`    | `true`  | Optimistic item toggle vs. wait-for-server                           |
-| `showRenderCounts` | `false` | Render count badges on components                                    |
-
-Each flag can be toggled independently to observe a single concurrent primitive in isolation. When a flag is off, its Legacy variant renders instead.
-
 ### `use()` and Suspense
 
-**Concurrent variant:** A module-level promise cache (`Map<string, Promise>` or singleton) stores in-flight/resolved promises keyed by ID. The hook calls `use(getPromise(id))` which suspends on first access and returns immediately from cache on subsequent renders. `PendingBoundary` (Suspense wrapper) shows skeleton fallback during suspension.
-
-**Legacy variant:** `useEffect` fires fetch on mount/deps change. Manual `loading`/`error`/`data` state via `useState`.
+A module-level promise cache (`Map<string, Promise>` or singleton) stores in-flight/resolved promises keyed by ID. The hook calls `use(getPromise(id))` which suspends on first access and returns immediately from cache on subsequent renders. `PendingBoundary` (Suspense wrapper) shows skeleton fallback during suspension.
 
 **Promise stability:** Promises are cached at module level (`detailCache` Map for checklist detail, `checklistsPromise` singleton for the list). Cache invalidation (`invalidateDetail(id)` / `invalidateChecklists()`) deletes the entry; the next `use()` call creates a fresh promise and re-suspends.
 
@@ -263,7 +246,7 @@ Used for **data mutations** — wraps refetch and mutation operations to keep th
 
 **Used in:**
 
-- `checklists/hooks.ts` — wraps list refresh, create, and delete operations in the concurrent path
+- `checklists/hooks.ts` — wraps list refresh, create, and delete operations
 - `checklist-detail/hooks.ts` — wraps detail refresh after item mutations
 - `items/hooks.ts` — wraps optimistic item toggle (required for `useOptimistic` to work)
 
@@ -273,8 +256,7 @@ Used for **data mutations** — wraps refetch and mutation operations to keep th
 
 Used in search slices (`checklist-search`, `item-search`).
 
-- **Concurrent:** `const deferredTerm = useDeferredValue(term)` — filter runs on deferred value; input stays responsive. Stale state indicated by `opacity: 0.6` + "Updating…" micro-label.
-- **Legacy:** Filter runs synchronously on every keystroke — with compute overhead, the input visibly freezes.
+`const deferredTerm = useDeferredValue(term)` — filter runs on deferred value; input stays responsive. Stale state indicated by `opacity: 0.6` + "Updating…" micro-label.
 
 `React.memo` on `ItemRow` components amplifies the benefit: unchanged rows skip re-render entirely, visible in render count badges.
 
@@ -282,8 +264,7 @@ Used in search slices (`checklist-search`, `item-search`).
 
 Used for item `isComplete` toggle (the primary item interaction).
 
-- **Concurrent:** `useOptimistic` immediately reflects the new state. On error: automatic rollback + `@keyframes flash-error` animation. Optimistic items shown with `opacity: 0.5`, italic, animated pulse dot.
-- **Legacy:** Wait for server response before updating UI. Loading spinner on the toggled item.
+`useOptimistic` immediately reflects the new state. On error: automatic rollback + `@keyframes flash-error` animation. Optimistic items shown with `opacity: 0.5`, italic, animated pulse dot.
 
 Temp IDs for optimistic creates use `crypto.randomUUID()` for stable React keys.
 
@@ -327,21 +308,11 @@ Plain module (`shared/api/authStore.ts`) — not a React context.
 
 ### Fetching
 
-**Concurrent path:**
-
 1. Navigation updates URL synchronously (`useTransitions={false}`)
 2. Route component reads new `groupId` from `useParams()`
 3. Suspending child calls `use(getDetailPromise(groupId))` → suspends if not cached
 4. `PendingBoundary` shows skeleton fallback
 5. Promise resolves → component renders data
-
-**Legacy path:**
-
-1. Navigation triggers route mount / re-render with new params
-2. `useEffect` fires with new `groupId`
-3. Manual loading state shown
-4. On success: `setChecklist(data)`
-5. On deps change: new effect fires (previous completes and is ignored)
 
 ### Mutations
 
@@ -359,10 +330,10 @@ Plain module (`shared/api/authStore.ts`) — not a React context.
 
 ### Data Freshness
 
-- **After item toggle/create/edit:** Cache invalidation (`invalidateDetail(groupId)`) + refetch. In concurrent path, this is done inside `useTransition` so old items stay visible until new data arrives.
-- **After checklist create:** Navigate to `/:newId`. Concurrent path refreshes list via `startTransition`.
-- **After checklist delete:** Concurrent path refreshes list via `startTransition`.
-- **Sidebar refreshes on:** Mount (legacy path `useEffect` calls `refresh()`). Concurrent path uses `use()` with module-level singleton promise — auto-fetches on first render, subsequent refreshes via `startTransition`.
+- **After item toggle/create/edit:** Cache invalidation (`invalidateDetail(groupId)`) + refetch inside `useTransition` so old items stay visible until new data arrives.
+- **After checklist create:** Navigate to `/:newId`. List refreshes via `startTransition`.
+- **After checklist delete:** List refreshes via `startTransition`.
+- **Sidebar list:** Uses `use()` with module-level singleton promise — auto-fetches on first render, subsequent refreshes via `startTransition`.
 
 ### Optimistic Updates
 
@@ -401,8 +372,7 @@ Action functions pattern-match on `status`:
 
 ### Render Errors
 
-- **Concurrent:** `use(promise)` rejection caught by `ErrorBoundary` in `PendingBoundary`. Error panel with status message + "Retry" button (increments `retryKey` → remount → re-fetch).
-- **Legacy:** `useReducer` error state; inline error display within the component.
+`use(promise)` rejection caught by `ErrorBoundary` in `PendingBoundary`. Error panel with status message + "Retry" button (increments `retryKey` → remount → re-fetch).
 
 ### Mutation Errors
 
@@ -756,8 +726,7 @@ Tests are co-located within their slice:
 ```
 slices/items/ItemList/
   ItemList.test.tsx
-  useItemListConcurrent.test.ts
-  useItemListLegacy.test.ts
+  useItemToggle.test.ts
   actions.test.ts
 ```
 
