@@ -1,10 +1,9 @@
-import { useCallback, useEffect } from "react";
-import { useChecklistsConcurrent, useChecklistsLegacy } from "./hooks";
+import { useCallback } from "react";
+import { useChecklists } from "./hooks";
 import { useNavigate, useParams } from "react-router";
 
 import type { ItemGroup } from "@shared/types";
 import { routes } from "@shared/routes";
-import { useFeatures } from "../dev-panel";
 
 export interface ChecklistListModel {
   checklists: ItemGroup[];
@@ -18,29 +17,9 @@ export interface ChecklistListModel {
 export function useChecklistListModel(
   onCreated: (newId: string) => void,
 ): ChecklistListModel {
-  const { flags } = useFeatures();
   const navigate = useNavigate();
   const { groupId } = useParams();
-
-  const concurrent = useChecklistsConcurrent();
-  const legacy = useChecklistsLegacy();
-
-  const usingSuspense = flags.suspense;
-
-  const {
-    checklists,
-    isPending: hookPending,
-    refresh,
-    add,
-    remove,
-  } = usingSuspense ? { ...concurrent, refresh: concurrent.refresh } : legacy;
-
-  // Fetch on mount (legacy path only — concurrent path uses use() which auto-fetches)
-  useEffect(() => {
-    if (!usingSuspense) {
-      refresh();
-    }
-  }, [usingSuspense, refresh]);
+  const { checklists, isPending, add, remove } = useChecklists();
 
   const select = useCallback(
     (id: string) => {
@@ -63,7 +42,7 @@ export function useChecklistListModel(
 
   return {
     checklists,
-    isPending: hookPending,
+    isPending,
     activeId: groupId,
     select,
     add: handleAdd,

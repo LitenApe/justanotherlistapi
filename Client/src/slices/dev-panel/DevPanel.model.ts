@@ -21,66 +21,42 @@ export interface Preset {
   flags: FeatureFlags;
 }
 
-const ALL_ON: FeatureFlags = {
-  suspense: true,
-  useTransition: true,
-  useDeferredValue: true,
-  useOptimistic: true,
-  showRenderCounts: true,
-};
-
-const ALL_OFF: FeatureFlags = {
-  suspense: false,
-  useTransition: false,
-  useDeferredValue: false,
-  useOptimistic: false,
-  showRenderCounts: false,
-};
-
 export const presets: Preset[] = [
   {
-    label: "Suspense",
+    label: "Slow Network",
     delay: 3000,
     errorRate: 0,
     overhead: 0,
-    flags: { ...ALL_OFF, suspense: true },
+    flags: { showRenderCounts: false },
   },
   {
-    label: "Transitions",
-    delay: 2500,
-    errorRate: 0,
-    overhead: 0,
-    flags: { ...ALL_OFF, suspense: true, useTransition: true },
-  },
-  {
-    label: "Optimistic",
-    delay: 2500,
-    errorRate: 0,
-    overhead: 0,
-    flags: { ...ALL_OFF, suspense: true, useOptimistic: true },
-  },
-  {
-    label: "Deferred Value",
+    label: "Laggy Device",
     delay: 0,
     errorRate: 0,
     overhead: 300,
-    flags: { ...ALL_OFF, useDeferredValue: true, showRenderCounts: true },
+    flags: { showRenderCounts: true },
   },
   {
-    label: "Error Recovery",
+    label: "Unreliable",
     delay: 1500,
-    errorRate: 80,
+    errorRate: 50,
     overhead: 0,
-    flags: { ...ALL_OFF, suspense: true, useOptimistic: true },
+    flags: { showRenderCounts: false },
   },
   {
-    label: "Kitchen Sink",
+    label: "Worst Case",
     delay: 2000,
-    errorRate: 10,
-    overhead: 150,
-    flags: ALL_ON,
+    errorRate: 20,
+    overhead: 200,
+    flags: { showRenderCounts: true },
   },
-  { label: "Reset", delay: 0, errorRate: 0, overhead: 0, flags: ALL_OFF },
+  {
+    label: "Reset",
+    delay: 0,
+    errorRate: 0,
+    overhead: 0,
+    flags: { showRenderCounts: false },
+  },
 ];
 
 export interface DevPanelModel {

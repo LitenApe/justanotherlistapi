@@ -8,8 +8,6 @@ interface Props {
 export function ChecklistDetailContent({ groupId }: Props) {
   const { checklist, onItemChanged } = useChecklistDetailModel(groupId);
 
-  if (!checklist) return null;
-
   return (
     <ChecklistDetailView
       groupId={groupId}

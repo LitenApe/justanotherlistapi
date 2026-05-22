@@ -1,4 +1,4 @@
-import { use, useCallback, useEffect, useState, useTransition } from "react";
+import { use, useCallback, useTransition } from "react";
 
 import type { ItemGroup } from "@shared/types";
 import { fetchChecklist } from "./api";
@@ -18,7 +18,7 @@ export function invalidateDetail(id: string): void {
   detailCache.delete(id);
 }
 
-export function useChecklistDetailConcurrent(groupId: string) {
+export function useChecklistDetail(groupId: string) {
   const checklist = use(getDetailPromise(groupId));
   const [isPending, startTransition] = useTransition();
 
@@ -32,29 +32,4 @@ export function useChecklistDetailConcurrent(groupId: string) {
   }, [startTransition, invalidateAndRefetch]);
 
   return { checklist, isPending, refresh, invalidateAndRefetch };
-}
-
-export function useChecklistDetailLegacy(groupId: string) {
-  const [checklist, setChecklist] = useState<ItemGroup | null>(null);
-  const [isPending, setIsPending] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  const refresh = useCallback(async () => {
-    setIsPending(true);
-    setError(null);
-    try {
-      const data = await fetchChecklist(groupId);
-      setChecklist(data);
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-    } finally {
-      setIsPending(false);
-    }
-  }, [groupId]);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  return { checklist, isPending, error, refresh };
 }

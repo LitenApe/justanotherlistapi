@@ -126,47 +126,7 @@ export function DevPanelView({
       </div>
 
       <div className={styles.section}>
-        <div className={styles.sectionTitle}>Feature Flags</div>
-        <label className={styles.toggle}>
-          <input
-            type="checkbox"
-            checked={flags.suspense}
-            onChange={(e) => setFlag("suspense", e.target.checked)}
-          />
-          <span className={styles.toggleLabel}>
-            use() + Suspense (vs useEffect)
-          </span>
-        </label>
-        <label className={styles.toggle}>
-          <input
-            type="checkbox"
-            checked={flags.useTransition}
-            onChange={(e) => setFlag("useTransition", e.target.checked)}
-          />
-          <span className={styles.toggleLabel}>
-            useTransition (vs immediate nav)
-          </span>
-        </label>
-        <label className={styles.toggle}>
-          <input
-            type="checkbox"
-            checked={flags.useDeferredValue}
-            onChange={(e) => setFlag("useDeferredValue", e.target.checked)}
-          />
-          <span className={styles.toggleLabel}>
-            useDeferredValue (vs sync filter)
-          </span>
-        </label>
-        <label className={styles.toggle}>
-          <input
-            type="checkbox"
-            checked={flags.useOptimistic}
-            onChange={(e) => setFlag("useOptimistic", e.target.checked)}
-          />
-          <span className={styles.toggleLabel}>
-            useOptimistic (vs wait-for-server)
-          </span>
-        </label>
+        <div className={styles.sectionTitle}>Display</div>
         <label className={styles.toggle}>
           <input
             type="checkbox"

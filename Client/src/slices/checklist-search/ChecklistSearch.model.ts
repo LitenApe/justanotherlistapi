@@ -1,10 +1,6 @@
-import {
-  useChecklistSearchConcurrent,
-  useChecklistSearchLegacy,
-} from "./hooks";
+import { useChecklistSearch } from "./hooks";
 
 import type { ItemGroup } from "@shared/types";
-import { useFeatures } from "../dev-panel";
 
 export interface ChecklistSearchModel {
   query: string;
@@ -16,12 +12,5 @@ export interface ChecklistSearchModel {
 export function useChecklistSearchModel(
   checklists: ItemGroup[],
 ): ChecklistSearchModel {
-  const { flags } = useFeatures();
-  const concurrent = useChecklistSearchConcurrent(checklists);
-  const legacy = useChecklistSearchLegacy(checklists);
-  const { query, setQuery, filtered, isStale } = flags.useDeferredValue
-    ? concurrent
-    : legacy;
-
-  return { query, setQuery, filtered, isStale };
+  return useChecklistSearch(checklists);
 }

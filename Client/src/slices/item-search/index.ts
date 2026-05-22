@@ -1,3 +1,3 @@
 export { ItemSearch } from "./ItemSearch";
-export { useItemSearchConcurrent, useItemSearchLegacy } from "./hooks";
+export { useItemSearch } from "./hooks";
 export { filterItems } from "./filter";

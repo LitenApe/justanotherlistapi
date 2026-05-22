@@ -1,6 +1,2 @@
-export {
-  useChecklistDetailConcurrent,
-  useChecklistDetailLegacy,
-  invalidateDetail,
-} from "./hooks";
+export { useChecklistDetail, invalidateDetail } from "./hooks";
 export { fetchChecklist, renameChecklist } from "./api";

@@ -1,10 +1,9 @@
-import { useItemsLegacy, useItemsOptimistic } from "./hooks";
+import { useItemToggle } from "./hooks";
 
 import type { Item } from "@shared/types";
 import { deleteItem } from "./api";
 import { routes } from "@shared/routes";
 import { useCallback } from "react";
-import { useFeatures } from "../dev-panel";
 import { useNavigate } from "react-router";
 
 export interface ItemListModel {
@@ -19,12 +18,7 @@ export function useItemListModel(
   groupId: string,
   onRefresh: () => void,
 ): ItemListModel {
-  const { flags } = useFeatures();
-  const optimistic = useItemsOptimistic(items, onRefresh);
-  const legacy = useItemsLegacy(items, onRefresh);
-  const { items: optimisticItems, toggle } = flags.useOptimistic
-    ? optimistic
-    : legacy;
+  const { items: optimisticItems, toggle } = useItemToggle(items, onRefresh);
   const navigate = useNavigate();
 
   const remove = useCallback(

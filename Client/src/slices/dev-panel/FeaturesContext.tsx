@@ -7,18 +7,10 @@ import {
 } from "react";
 
 export interface FeatureFlags {
-  suspense: boolean;
-  useTransition: boolean;
-  useDeferredValue: boolean;
-  useOptimistic: boolean;
   showRenderCounts: boolean;
 }
 
 export const defaultFlags: FeatureFlags = {
-  suspense: true,
-  useTransition: true,
-  useDeferredValue: true,
-  useOptimistic: true,
   showRenderCounts: false,
 };
 

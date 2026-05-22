@@ -1,5 +1,5 @@
-import { createChecklist, deleteChecklist, fetchChecklists } from "./api";
-import { use, useCallback, useState, useTransition } from "react";
+import { createChecklist, deleteChecklist } from "./api";
+import { use, useCallback, useTransition } from "react";
 
 import type { ItemGroup } from "@shared/types";
 import { checklistsResource } from "@shared/api";
@@ -17,7 +17,7 @@ export function invalidateChecklists(): void {
   checklistsPromise = null;
 }
 
-export function useChecklistsConcurrent() {
+export function useChecklists() {
   const checklists = use(getChecklistsPromise());
   const [isPending, startTransition] = useTransition();
 
@@ -51,55 +51,6 @@ export function useChecklistsConcurrent() {
     },
     [startTransition],
   );
-
-  return { checklists, isPending, refresh, add, remove };
-}
-
-export function useChecklistsLegacy() {
-  const [checklists, setChecklists] = useState<ItemGroup[]>([]);
-  const [isPending, setIsPending] = useState(false);
-
-  const refresh = useCallback(async () => {
-    setIsPending(true);
-    try {
-      const data = await fetchChecklists();
-      setChecklists(data);
-    } catch (e) {
-      throw e instanceof Error ? e : new Error(String(e));
-    } finally {
-      setIsPending(false);
-    }
-  }, []);
-
-  const add = useCallback(
-    async (name: string): Promise<ItemGroup | undefined> => {
-      setIsPending(true);
-      try {
-        const created = await createChecklist(name);
-        const data = await fetchChecklists();
-        setChecklists(data);
-        return created;
-      } catch (e) {
-        throw e instanceof Error ? e : new Error(String(e));
-      } finally {
-        setIsPending(false);
-      }
-    },
-    [],
-  );
-
-  const remove = useCallback(async (id: string) => {
-    setIsPending(true);
-    try {
-      await deleteChecklist(id);
-      const data = await fetchChecklists();
-      setChecklists(data);
-    } catch (e) {
-      throw e instanceof Error ? e : new Error(String(e));
-    } finally {
-      setIsPending(false);
-    }
-  }, []);
 
   return { checklists, isPending, refresh, add, remove };
 }
