@@ -250,9 +250,9 @@ Each flag can be toggled independently to observe a single concurrent primitive 
 
 ### `useTransition`
 
-Lives in **Layout only**. Wraps `navigate()` calls for group selection.
+Lives in **ChecklistList.model** — wraps sidebar `navigate()` calls for group selection.
 
-- **Concurrent:** `startTransition(() => navigate(...))` — React keeps old content visible while new route suspends. `isPending` drives the global pending border + `aria-busy`.
+- **Concurrent:** `startTransition(() => navigate(...))` — React keeps old content visible while new route suspends. `isPending` (merged with `isTransitioning`) drives the global pending border + `aria-busy`.
 - **Legacy:** Direct `navigate()` — immediate Suspense fallback (skeleton) on every navigation.
 
 ### `useDeferredValue`
@@ -346,9 +346,9 @@ Plain module (`shared/api/authStore.ts`) — not a React context.
 ### Data Freshness
 
 - **After item create/edit:** Navigate back to `/:groupId` triggers route remount → fresh fetch.
-- **After checklist create:** Navigate to `/:newId` + increment `refreshSignal` for sidebar.
-- **After checklist delete:** Navigate to `/` + increment `refreshSignal`.
-- **Sidebar refreshes on:** Checklist create, rename, delete. NOT on item mutations (sidebar shows names only).
+- **After checklist create:** Navigate to `/:newId`. Sidebar re-fetches on mount.
+- **After checklist delete:** Navigate to `/`. Sidebar re-fetches on mount.
+- **Sidebar refreshes on:** Mount (legacy path `useEffect` calls `refresh()`). NOT on item mutations (sidebar shows names only).
 
 ### Optimistic Updates
 
@@ -416,15 +416,15 @@ Each slice exports its public API from `index.ts`. No deep imports allowed.
 
 Typed interfaces define the contract between Layout and slice components:
 
-| Slice             | Props                                                           |
-| ----------------- | --------------------------------------------------------------- |
-| `ChecklistList`   | `{ refreshSignal: number; onCreated: (newId: string) => void }` |
-| `ChecklistSearch` | `{ items: ItemGroup[] }`                                        |
-| `ChecklistDetail` | Uses `useParams()` internally                                   |
-| `ItemList`        | `{ groupId: string; items: Item[]; onMutate: () => void }`      |
-| `ItemSearch`      | `{ items: Item[] }`                                             |
-| `Members`         | `{ groupId: string }`                                           |
-| `ChecklistForm`   | `{ onCreated: (newId: string) => void }`                        |
+| Slice             | Props                                                      |
+| ----------------- | ---------------------------------------------------------- |
+| `ChecklistList`   | `{ onCreated: (newId: string) => void }`                   |
+| `ChecklistSearch` | `{ items: ItemGroup[] }`                                   |
+| `ChecklistDetail` | Uses `useParams()` internally                              |
+| `ItemList`        | `{ groupId: string; items: Item[]; onMutate: () => void }` |
+| `ItemSearch`      | `{ items: Item[] }`                                        |
+| `Members`         | `{ groupId: string }`                                      |
+| `ChecklistForm`   | `{ onCreated: (newId: string) => void }`                   |
 
 ### Layer 3: ESLint Enforcement
 
@@ -554,6 +554,7 @@ Client/
         ErrorBoundary.tsx
         PendingBoundary.tsx
         PendingBorder.tsx
+        ProtectedRoute.tsx
     slices/
       auth/
         index.ts
@@ -575,6 +576,8 @@ Client/
         hooks.ts
         filter.ts
         ChecklistSearch.tsx
+        ChecklistSearch.model.ts
+        ChecklistSearch.view.tsx
         ChecklistSearch.module.css
       checklist-detail/
         index.ts
@@ -584,6 +587,14 @@ Client/
         ChecklistDetail.model.ts
         ChecklistDetail.view.tsx
         ChecklistDetail.module.css
+      item-search/
+        index.ts
+        hooks.ts
+        filter.ts
+        ItemSearch.tsx
+        ItemSearch.model.ts
+        ItemSearch.view.tsx
+        ItemSearch.module.css
       items/
         index.ts
         api.ts
@@ -615,6 +626,7 @@ Client/
         DevPanel.view.tsx
         DevPanel.module.css
         FeaturesContext.tsx
+        sessionPersistence.ts
     components/
       Layout.tsx
       Layout.module.css

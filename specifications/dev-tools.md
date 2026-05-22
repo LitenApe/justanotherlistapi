@@ -225,8 +225,9 @@ Qualifiers (~20): for hallway, for kitchen, for bathroom, about leak, about wiri
 
 **Data variety:**
 
-- ~30–50% of items marked `isComplete`
+- ~40% of items marked `isComplete`
 - ~60% of items have descriptions (generated from Bogus `Lorem.Sentence()`)
+- ~40% of items include a qualifier suffix
 - Random each time (no fixed Bogus seed) — different data on every call
 
 **Uniqueness:** Combinatorial explosion (30 × 40 × 20 = 24,000 possible item names) ensures practical uniqueness at 250 items.
