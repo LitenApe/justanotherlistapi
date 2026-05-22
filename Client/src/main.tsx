@@ -1,9 +1,9 @@
+import "@shared/styles/global.css";
+import "@shared/api";
+
+import { App } from "./App";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-
-function App() {
-  return <h1>JustAnotherList</h1>;
-}
 
 const root = createRoot(document.getElementById("root")!);
 const app = <App />;
