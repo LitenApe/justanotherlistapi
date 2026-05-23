@@ -1,4 +1,6 @@
 import { createItem } from "./api";
+import { invalidateChecklists } from "../checklists/hooks";
+import { invalidateDetail } from "../checklist-detail/hooks";
 import { routes } from "@shared/routes";
 import styles from "./ItemForm.module.css";
 import { useNavigate } from "react-router";
@@ -33,6 +35,8 @@ function useItemCreateModel(groupId: string): ItemCreateModel {
           name,
           ...(description && { description }),
         });
+        invalidateChecklists();
+        invalidateDetail(groupId);
         navigate(routes.checklist(groupId), { replace: true });
         return { error: null };
       } catch (e) {

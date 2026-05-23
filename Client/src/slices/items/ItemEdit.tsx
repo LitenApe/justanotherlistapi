@@ -1,6 +1,8 @@
 import { use } from "react";
 
 import { checklistsResource } from "@shared/api";
+import { invalidateChecklists } from "../checklists/hooks";
+import { invalidateDetail } from "../checklist-detail/hooks";
 import { routes } from "@shared/routes";
 import styles from "./ItemForm.module.css";
 import { updateItem } from "./api";
@@ -60,6 +62,8 @@ function useItemEditModel(groupId: string, itemId: string): ItemEditModel {
           isComplete,
         });
         itemCache.delete(`${groupId}/${itemId}`);
+        invalidateChecklists();
+        invalidateDetail(groupId);
         navigate(routes.checklist(groupId), { replace: true });
         return { error: null };
       } catch (e) {

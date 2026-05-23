@@ -2,6 +2,7 @@ import { useCallback, useOptimistic } from "react";
 
 import type { Item } from "@shared/types";
 import { deleteItem, toggleItem } from "./api";
+import { invalidateChecklists } from "../checklists/hooks";
 import { useTrackedTransition } from "@shared/hooks";
 
 type ItemAction =
@@ -39,6 +40,7 @@ export function useItemActions(
         } catch {
           // Optimistic update auto-reverts on next render with fresh items
         }
+        invalidateChecklists();
         await onRefresh();
       });
     },
@@ -54,6 +56,7 @@ export function useItemActions(
         } catch {
           // Optimistic update auto-reverts on next render with fresh items
         }
+        invalidateChecklists();
         await onRefresh();
       });
     },
