@@ -1,6 +1,6 @@
 import { createItem } from "./api";
-import { invalidateChecklists } from "../checklists/hooks";
-import { invalidateDetail } from "../checklist-detail/hooks";
+import { invalidateChecklists } from "../checklists";
+import { invalidateDetail } from "../checklist-detail";
 import { routes } from "@shared/routes";
 import styles from "./ItemForm.module.css";
 import { useNavigate } from "react-router";

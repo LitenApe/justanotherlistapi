@@ -3,9 +3,9 @@ import { RenderCount } from "@shared/components";
 import { Link, useLocation, useParams } from "react-router";
 
 import type { Item, ItemGroup } from "@shared/types";
-import { ItemList } from "../items/ItemList";
+import { ItemList } from "../items";
 import { ItemSearch } from "../item-search";
-import { Members } from "../members/Members";
+import { Members } from "../members";
 import { routes } from "@shared/routes";
 import { useChecklistDetail } from "./hooks";
 import styles from "./ChecklistDetail.module.css";
