@@ -52,7 +52,9 @@ function ChecklistDetailView({
           />
         )}
       </ItemSearch>
-      <Members groupId={groupId} />
+      <PendingBoundary>
+        <Members groupId={groupId} />
+      </PendingBoundary>
     </>
   );
 }
