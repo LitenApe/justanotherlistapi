@@ -71,7 +71,8 @@
   transition: opacity var(--transition);
 }
 
-.row:hover .actions {
+.row:hover .actions,
+.row:focus-within .actions {
   opacity: 1;
 }
 
@@ -92,6 +93,7 @@
 
 .actionBtn:focus-visible {
   outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .empty {

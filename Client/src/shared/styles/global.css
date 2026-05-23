@@ -78,6 +78,7 @@ button {
 
 button:focus-visible {
   outline: none;
+  box-shadow: var(--focus-ring);
   border-radius: var(--radius-sm);
 }
 
@@ -95,11 +96,12 @@ select {
     box-shadow var(--transition);
 }
 
-input:focus,
-textarea:focus,
-select:focus {
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
   outline: none;
   border-color: var(--accent);
+  box-shadow: var(--focus-ring);
 }
 
 input::placeholder,

@@ -31,6 +31,7 @@
 
 .item:focus-visible {
   outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .itemActive {
@@ -68,7 +69,8 @@
 }
 
 .item:hover .deleteBtn,
-.itemActive .deleteBtn {
+.itemActive .deleteBtn,
+.item:focus-within .deleteBtn {
   opacity: 1;
 }
 

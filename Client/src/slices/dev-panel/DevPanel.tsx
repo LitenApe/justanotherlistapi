@@ -208,7 +208,7 @@ function DevPanelView({
         type="button"
         className={styles.fab}
         onClick={() => setOpen(true)}
-        title="Dev Panel (Ctrl+Shift+D)"
+        aria-label="Open Dev Panel"
       >
         ⚙
       </button>
@@ -223,6 +223,7 @@ function DevPanelView({
           type="button"
           className={styles.closeBtn}
           onClick={() => setOpen(false)}
+          aria-label="Close Dev Panel"
         >
           ✕
         </button>
@@ -240,6 +241,7 @@ function DevPanelView({
             step={100}
             value={delay}
             onChange={(e) => setDelay(Number(e.target.value))}
+            aria-label="Delay"
           />
           <span className={styles.sliderValue}>{delay}ms</span>
         </div>
@@ -253,6 +255,7 @@ function DevPanelView({
             step={5}
             value={errorRate}
             onChange={(e) => setErrorRate(Number(e.target.value))}
+            aria-label="Error Rate"
           />
           <span className={styles.sliderValue}>{errorRate}%</span>
         </div>
@@ -266,6 +269,7 @@ function DevPanelView({
             step={25}
             value={overhead}
             onChange={(e) => setOverhead(Number(e.target.value))}
+            aria-label="CPU Load"
           />
           <span className={styles.sliderValue}>{overhead}ms</span>
         </div>

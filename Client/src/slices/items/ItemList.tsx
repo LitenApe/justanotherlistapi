@@ -40,7 +40,7 @@ const ItemRow = memo(function ItemRow({
   onDelete,
 }: ItemRowProps) {
   return (
-    <div className={styles.row}>
+    <div className={styles.row} role="listitem">
       <RenderCount label={`Item:${item.name}`} />
       <input
         type="checkbox"
