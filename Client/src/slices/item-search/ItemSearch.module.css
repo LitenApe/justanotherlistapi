@@ -8,6 +8,7 @@
   font-size: var(--text-sm);
   outline: none;
   transition: var(--transition);
+  margin-bottom: var(--space-4);
 }
 
 .searchInput:focus {
