@@ -87,7 +87,7 @@ Three independent controls that simulate real-world conditions:
 - **Effect:** Before each fetch, if `Math.random() < rate`, throws `SimulatedNetworkError`
 - **Purpose:** Demonstrates ErrorBoundary recovery, retry mechanisms, optimistic rollback
 
-All three use the same `useSyncExternalStore`-compatible factory pattern. Each store is consumed via a dedicated custom hook in `shared/hooks/` (`useDelay`, `useErrorRate`, `useOverhead`) that encapsulates the `useSyncExternalStore` wiring:
+All three use the same `useSyncExternalStore`-compatible factory pattern. Each store is consumed via a dedicated custom hook in `slices/dev-panel/hooks.ts` (`useDelay`, `useErrorRate`, `useOverhead`, `useActivityEntries`) that encapsulates the `useSyncExternalStore` wiring:
 
 ```typescript
 export function createDelayStore() {

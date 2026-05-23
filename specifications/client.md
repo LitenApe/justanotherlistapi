@@ -69,7 +69,7 @@ The application uses Vertical Slice Architecture to keep each UI feature self-co
 
 ### Vertical Slice Architecture
 
-Each UI feature is a self-contained slice under `src/slices/`. Slices own their components, hooks, actions, validators, types, and tests. Slices never import from each other — communication happens through prop interfaces and callbacks wired in the Layout.
+Each UI feature is a self-contained slice under `src/slices/`. Slices own their components, hooks, actions, validators, types, and tests. Cross-slice imports are allowed only through barrel exports (`index.ts`) and are enforced by ESLint boundaries rules.
 
 Infrastructure lives in `src/shared/` and is available to all slices.
 
@@ -80,17 +80,16 @@ src/
   components/   ← app-shell only (Layout)
 ```
 
-### Three-Layer HTTP Stack
+### Two-Layer HTTP Stack
 
-HTTP communication is separated into three layers with clear responsibilities:
+HTTP communication is separated into two layers with clear responsibilities:
 
-| Layer     | Location                    | Responsibility                                            | Example                                                             |
-| --------- | --------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------- |
-| Transport | `shared/api/client.ts`      | HOW — timeout, delay, error injection, auth header, fetch | `apiClient.get<ItemGroup[]>(url)`                                   |
-| Resource  | `shared/api/resources/*.ts` | WHERE — URL paths, HTTP methods, request shaping          | `checklistsResource.list()`                                         |
-| Slice API | `slices/*/api.ts`           | WHAT — business semantics, pending tracking               | `getItemGroups()` wraps `track('checklists/list', resource.list())` |
+| Layer     | Location               | Responsibility                                            | Example                                              |
+| --------- | ---------------------- | --------------------------------------------------------- | ---------------------------------------------------- |
+| Transport | `shared/api/client.ts` | HOW — timeout, delay, error injection, auth header, fetch | `apiClient.get<ItemGroup[]>(url)`                    |
+| Slice API | `slices/*/api.ts`      | WHAT — business semantics, URLs, pending tracking         | `fetchChecklists()` wraps `apiClient.get('/api/list')` |
 
-**Key rule:** Slices never see URL paths. URLs exist in exactly one place (the resource layer).
+**Key rule:** Each slice owns its own URL paths in its `api.ts` file. URL knowledge is co-located with the business operation.
 
 ### Factory Pattern
 
@@ -341,19 +340,20 @@ Plain module (`shared/api/authStore.ts`) — not a React context.
 
 ### Data Freshness
 
-- **After item toggle/create/edit:** Cache invalidation (`invalidateDetail(groupId)`) + refetch inside `useTransition` so old items stay visible until new data arrives.
+- **After item toggle/delete:** Synchronous cache mutation via `updateDetailItems()` — mutates the cached promise in-place with a React-tagged resolved promise. Parent component re-renders via `useSyncExternalStore` subscription. No refetch needed.
+- **After item create/edit:** Cache invalidation (`invalidateDetail(groupId)`) + navigate back to detail route (remount triggers fresh fetch).
 - **After checklist create:** Navigate to `/:newId`. List refreshes via `startTransition`.
 - **After checklist delete:** List refreshes via `startTransition`.
 - **Sidebar list:** Uses `use()` with module-level singleton promise — auto-fetches on first render, subsequent refreshes via `startTransition`.
 
 ### Optimistic Updates
 
-For item toggle (`isComplete`):
+For item toggle (`isComplete`) and delete:
 
-1. `useOptimistic` immediately shows new checked/unchecked state
-2. PUT fires with all current fields + flipped `isComplete`
-3. On success: re-fetch confirms state (optimistic item replaced by server truth)
-4. On error: automatic rollback + `flash-error` animation + inline error message
+1. `useOptimistic` immediately shows new checked/unchecked state (or removes item)
+2. API call fires (PUT with flipped `isComplete`, or DELETE)
+3. On success: `updateDetailItems()` mutates cache with the same transformation — when the transition commits, `useOptimistic` reveals the base state which now matches the optimistic state
+4. On error: automatic rollback (transition ends without cache mutation, base state unchanged)
 
 ---
 
@@ -411,23 +411,24 @@ Each slice exports its public API from `index.ts`. No deep imports allowed.
 
 Typed interfaces define the contract between Layout and slice components:
 
-| Slice             | Props                                                       |
-| ----------------- | ----------------------------------------------------------- |
-| `ChecklistList`   | `{ onCreated: (newId: string) => void }`                    |
-| `ChecklistSearch` | `{ items: ItemGroup[] }`                                    |
-| `ChecklistDetail` | Uses `useParams()` + `useLocation().state.name` internally  |
-| `ItemList`        | `{ groupId: string; items: Item[]; onRefresh: () => void }` |
-| `ItemSearch`      | `{ items: Item[] }`                                         |
-| `Members`         | `{ groupId: string }`                                       |
-| `ChecklistForm`   | `{ onCreated: (newId: string) => void }`                    |
+| Slice             | Props                                                      |
+| ----------------- | ---------------------------------------------------------- |
+| `ChecklistList`   | `{ onCreated: (newId: string) => void }`                   |
+| `ChecklistSearch` | `{ items: ItemGroup[] }`                                   |
+| `ChecklistDetail` | Uses `useParams()` + `useLocation().state.name` internally |
+| `ItemList`        | `{ groupId: string; items: Item[] }`                       |
+| `ItemSearch`      | `{ items: Item[] }`                                        |
+| `Members`         | `{ groupId: string }`                                      |
+| `ChecklistForm`   | `{ onCreated: (newId: string) => void }`                   |
 
 ### Layer 3: ESLint Enforcement
 
 `eslint-plugin-boundaries` enforces zone rules:
 
 - `shared/` + `components/` → accessible from anywhere
-- `slices/*` → only importable from `components/Layout.tsx` and `App.tsx`
-- No cross-slice imports. No deep imports past the barrel.
+- `slices/*` → importable from other slices, `components/Layout.tsx`, and `App.tsx` (barrel-only via `internalPath: "index.ts"`)
+- No deep imports past the barrel (`@slices/foo/internal` forbidden)
+- No parent-relative imports (`../` forbidden via `no-restricted-imports`)
 
 ---
 
@@ -523,6 +524,8 @@ Client/
     App.tsx
     shared/
       routes.ts
+      features.tsx
+      types.ts
       api/
         client.ts
         authStore.ts
@@ -531,22 +534,12 @@ Client/
         errorRate.ts
         pendingService.ts
         activityLog.ts
-        resources/
-          auth.ts
-          checklists.ts
-          items.ts
-          members.ts
-          seed.ts
       hooks/
-        useActivityEntries.ts
         useAuthToken.ts
-        useDelay.ts
-        useErrorRate.ts
-        useOverhead.ts
         usePending.ts
-        usePendingReporter.ts
         useRenderCount.ts
-      types.ts
+        useTrackedActionState.ts
+        useTrackedTransition.ts
       styles/
         tokens.css
         global.css
@@ -556,6 +549,7 @@ Client/
         PendingBoundary.tsx
         PendingBorder.tsx
         ProtectedRoute.tsx
+        RenderCount.tsx
     slices/
       auth/
         index.ts
@@ -604,9 +598,9 @@ Client/
         Members.module.css
       dev-panel/
         index.ts
+        hooks.ts
         DevPanel.tsx
         DevPanel.module.css
-        FeaturesContext.tsx
         sessionPersistence.ts
     components/
       Layout.tsx
