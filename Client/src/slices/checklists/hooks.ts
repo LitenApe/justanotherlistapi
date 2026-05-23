@@ -1,15 +1,14 @@
-import { createChecklist, deleteChecklist } from "./api";
+import { createChecklist, deleteChecklist, fetchChecklists } from "./api";
 import { use, useCallback, useOptimistic } from "react";
 
 import type { ItemGroup } from "@shared/types";
-import { checklistsResource } from "@shared/api";
 import { useTrackedTransition } from "@shared/hooks";
 
 let checklistsPromise: Promise<ItemGroup[]> | null = null;
 
 function getChecklistsPromise(): Promise<ItemGroup[]> {
   if (!checklistsPromise) {
-    checklistsPromise = checklistsResource.getAll();
+    checklistsPromise = fetchChecklists();
   }
   return checklistsPromise;
 }

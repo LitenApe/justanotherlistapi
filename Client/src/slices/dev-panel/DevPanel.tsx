@@ -1,16 +1,17 @@
 import * as sessionPersistence from "./sessionPersistence";
 
-import { delayStore, errorRateStore, seedResource } from "@shared/api";
+import { delayStore, errorRateStore } from "@shared/api";
 import {
   useActivityEntries,
   useDelay,
   useErrorRate,
   useOverhead,
-} from "@shared/hooks";
+} from "./hooks";
 import { useCallback, useEffect, useState } from "react";
 
 import type { FeatureFlags } from "@shared/features";
 import type { LogEntry } from "@shared/api";
+import { apiClient } from "@shared/api/client";
 import { computeOverheadStore } from "@shared/api/computeOverhead";
 import styles from "./DevPanel.module.css";
 import { useFeatures } from "@shared/features";
@@ -133,7 +134,7 @@ function useDevPanelModel(): DevPanelModel {
   const handleSeed = useCallback(async () => {
     setSeeding(true);
     try {
-      await seedResource.seed();
+      await apiClient.post<void>("/api/dev/seed");
     } catch {
       /* ignore */
     }

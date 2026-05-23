@@ -1,19 +1,23 @@
-import { membersResource, pendingService } from "@shared/api";
+import { apiClient } from "@shared/api/client";
+import { pendingService } from "@shared/api/pendingService";
 
 export function fetchMembers(groupId: string): Promise<string[]> {
-  return pendingService.track("members/list", membersResource.getAll(groupId));
+  return pendingService.track(
+    "members/list",
+    apiClient.get<string[]>(`/api/list/${groupId}/member`),
+  );
 }
 
 export function addMember(groupId: string, memberId: string): Promise<void> {
   return pendingService.track(
     "members/add",
-    membersResource.add(groupId, memberId),
+    apiClient.post<void>(`/api/list/${groupId}/member/${memberId}`),
   );
 }
 
 export function removeMember(groupId: string, memberId: string): Promise<void> {
   return pendingService.track(
     "members/remove",
-    membersResource.remove(groupId, memberId),
+    apiClient.delete<void>(`/api/list/${groupId}/member/${memberId}`),
   );
 }

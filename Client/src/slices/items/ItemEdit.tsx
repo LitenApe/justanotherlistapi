@@ -1,6 +1,6 @@
 import { use } from "react";
 
-import { checklistsResource } from "@shared/api";
+import { fetchChecklist } from "@slices/checklist-detail";
 import { invalidateChecklists } from "@slices/checklists";
 import { invalidateDetail } from "@slices/checklist-detail";
 import { routes } from "@shared/routes";
@@ -20,7 +20,7 @@ function getItemPromise(groupId: string, itemId: string) {
   const key = `${groupId}/${itemId}`;
   let promise = itemCache.get(key);
   if (!promise) {
-    promise = checklistsResource.getById(groupId).then((group) => {
+    promise = fetchChecklist(groupId).then((group) => {
       const item = group.items.find((i) => i.id === itemId);
       if (!item) throw new Error("Item not found");
       return item;

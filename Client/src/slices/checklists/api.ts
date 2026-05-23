@@ -1,20 +1,24 @@
 import type { ItemGroup } from "@shared/types";
-import { checklistsResource, pendingService } from "@shared/api";
+import { apiClient } from "@shared/api/client";
+import { pendingService } from "@shared/api/pendingService";
 
 export function fetchChecklists(): Promise<ItemGroup[]> {
-  return pendingService.track("checklists/list", checklistsResource.getAll());
+  return pendingService.track(
+    "checklists/list",
+    apiClient.get<ItemGroup[]>("/api/list"),
+  );
 }
 
 export function createChecklist(name: string): Promise<ItemGroup> {
   return pendingService.track(
     "checklists/create",
-    checklistsResource.create({ name }),
+    apiClient.post<ItemGroup>("/api/list", { name }),
   );
 }
 
 export function deleteChecklist(id: string): Promise<void> {
   return pendingService.track(
     "checklists/delete",
-    checklistsResource.remove(id),
+    apiClient.delete<void>(`/api/list/${id}`),
   );
 }
