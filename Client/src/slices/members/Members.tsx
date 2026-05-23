@@ -20,10 +20,6 @@ function useMembersModel(groupId: string): MembersModel {
 
 // ─── View ─────────────────────────────────────────────────────────────────────
 
-function truncateId(id: string): string {
-  return id.length > 8 ? `${id.slice(0, 8)}…` : id;
-}
-
 interface MembersViewProps {
   members: string[];
   isPending: boolean;
@@ -54,14 +50,14 @@ function MembersView({
         {members.map((id) => (
           <div key={id} className={styles.member}>
             <span className={styles.memberId} title={id}>
-              {truncateId(id)}
+              {id}
             </span>
             <button
               type="button"
               className={styles.removeBtn}
               onClick={() => handleRemove(id)}
               disabled={isPending}
-              aria-label={`Remove member ${truncateId(id)}`}
+              aria-label={`Remove member ${id}`}
             >
               ✕
             </button>
