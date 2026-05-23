@@ -1,25 +1,16 @@
-import boundaries from "eslint-plugin-boundaries";
+import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
-import tseslint from "@typescript-eslint/eslint-plugin";
-import tsparser from "@typescript-eslint/parser";
+import boundaries from "eslint-plugin-boundaries";
 
-export default [
+export default tseslint.config(
   {
     ignores: ["dist/**", "node_modules/**"],
   },
+  ...tseslint.configs.recommended,
+  reactHooks.configs.flat.recommended,
   {
     files: ["src/**/*.{ts,tsx}"],
-    languageOptions: {
-      parser: tsparser,
-      parserOptions: {
-        ecmaVersion: "latest",
-        sourceType: "module",
-        ecmaFeatures: { jsx: true },
-      },
-    },
     plugins: {
-      "@typescript-eslint": tseslint,
-      "react-hooks": reactHooks,
       boundaries,
     },
     settings: {
@@ -43,7 +34,10 @@ export default [
       },
     },
     rules: {
-      ...reactHooks.configs.recommended.rules,
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
       "@typescript-eslint/consistent-type-imports": [
         "error",
         { prefer: "type-imports", fixStyle: "inline-type-imports" },
@@ -106,4 +100,4 @@ export default [
       ],
     },
   },
-];
+);
