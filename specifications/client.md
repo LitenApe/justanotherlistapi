@@ -46,7 +46,6 @@
   - [ESLint Configuration](#eslint-configuration)
   - [Package Scripts](#package-scripts)
 - [Aspire Integration](#aspire-integration)
-- [Testing Strategy](#testing-strategy)
 
 ---
 
@@ -84,9 +83,9 @@ src/
 
 HTTP communication is separated into two layers with clear responsibilities:
 
-| Layer     | Location               | Responsibility                                            | Example                                              |
-| --------- | ---------------------- | --------------------------------------------------------- | ---------------------------------------------------- |
-| Transport | `shared/api/client.ts` | HOW — timeout, delay, error injection, auth header, fetch | `apiClient.get<ItemGroup[]>(url)`                    |
+| Layer     | Location               | Responsibility                                            | Example                                                |
+| --------- | ---------------------- | --------------------------------------------------------- | ------------------------------------------------------ |
+| Transport | `shared/api/client.ts` | HOW — timeout, delay, error injection, auth header, fetch | `apiClient.get<ItemGroup[]>(url)`                      |
 | Slice API | `slices/*/api.ts`      | WHAT — business semantics, URLs, pending tracking         | `fetchChecklists()` wraps `apiClient.get('/api/list')` |
 
 **Key rule:** Each slice owns its own URL paths in its `api.ts` file. URL knowledge is co-located with the business operation.
@@ -194,7 +193,7 @@ Models call `navigate(routes.checklist(groupId))` instead of `navigate(`/${group
 | Language  | TypeScript (strict)                                   | Type safety, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` |
 | Routing   | React Router v7                                       | Standard router; keeps routing logic out of demo code                 |
 | Styling   | CSS Modules + CSS custom properties                   | Scoped styles, design token system                                    |
-| Testing   | Vitest + React Testing Library + MSW                  | Vite-native, mock at network layer                                    |
+| Testing   | Vitest + React Testing Library + MSW                  | Vite-native, mock at network layer (planned)                          |
 | Linting   | ESLint + boundaries + react-hooks + typescript-eslint | Zone enforcement, hook rules, type imports                            |
 
 ---
@@ -691,43 +690,3 @@ var client = builder.AddNpmApp("client", "../Client", "dev")
 - `PORT` — Dev server port (5173)
 
 **Fallback values** (running without Aspire): `http://localhost:55733` (Core), `http://localhost:8080` (OAuth).
-
----
-
-## Testing Strategy
-
-### Stack
-
-- **Vitest** — Vite-native test runner (shares config, aliases, plugins)
-- **React Testing Library** — Component testing (`@testing-library/react` v16+)
-- **MSW (Mock Service Worker)** — Network-level mocking
-- **Setup:** `src/test-setup.ts` — imports `@testing-library/jest-dom`, starts MSW server
-
-### Test Organization
-
-Tests are co-located within their slice:
-
-```
-slices/items/ItemList/
-  ItemList.test.tsx
-  useItemToggle.test.ts
-  actions.test.ts
-```
-
-### Testing by Layer
-
-| Layer                             | Tool                             | Asserts                                          |
-| --------------------------------- | -------------------------------- | ------------------------------------------------ |
-| `filter.ts`, validators, reducers | Vitest unit                      | Input → output, edge cases                       |
-| `actions.ts`                      | Vitest + mock resource           | State transitions on success/error/validation    |
-| Resource clients                  | Vitest + mock ApiClient          | Correct path, method, body                       |
-| `createApiClient`                 | Vitest + MSW                     | Pipeline: delay, error injection, 401, timeout   |
-| Slice `api.ts`                    | Vitest + mock resource           | `track()` called with correct ID                 |
-| Custom hooks                      | `renderHook` + `act` + `waitFor` | State transitions, isPending, error states       |
-| Components                        | RTL + MSW                        | Renders hook state, user interactions, callbacks |
-
-### Testing Concurrent Features
-
-- **useTransition:** `act(async () => {...})`, assert `isPending` true during transition, false after.
-- **useOptimistic:** Assert optimistic state appears before await, server state after `waitFor`.
-- **useDeferredValue:** `waitFor` for deferred value to settle; assert stale state shown during deferral.
