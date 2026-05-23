@@ -6,11 +6,12 @@ import { filterItems } from "./filter";
 export function useItemSearch(items: Item[]) {
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
-  const isStale = query !== deferredQuery;
+  const deferredItems = useDeferredValue(items);
+  const isStale = query !== deferredQuery || items !== deferredItems;
 
   const filtered = useMemo(
-    () => filterItems(items, deferredQuery),
-    [items, deferredQuery],
+    () => filterItems(deferredItems, deferredQuery),
+    [deferredItems, deferredQuery],
   );
 
   return { query, setQuery, filtered, isStale };
