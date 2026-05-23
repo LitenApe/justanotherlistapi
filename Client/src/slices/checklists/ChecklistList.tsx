@@ -3,8 +3,8 @@ import { Link, useParams } from "react-router";
 
 import type { ItemGroup } from "@shared/types";
 import { RenderCount } from "@shared/components";
-import { ChecklistSearch } from "../checklist-search";
-import { preloadDetail } from "../checklist-detail";
+import { ChecklistSearch } from "@slices/checklist-search";
+import { preloadDetail } from "@slices/checklist-detail";
 import { routes } from "@shared/routes";
 import { useChecklists } from "./hooks";
 import styles from "./ChecklistList.module.css";

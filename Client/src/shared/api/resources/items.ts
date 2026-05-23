@@ -1,6 +1,6 @@
-import type { ApiClient } from "../client";
-import type { Item } from "../../types";
-import { apiClient } from "../client";
+import type { ApiClient } from "@shared/api/client";
+import type { Item } from "@shared/types";
+import { apiClient } from "@shared/api/client";
 
 export interface CreateItemRequest {
   name: string;

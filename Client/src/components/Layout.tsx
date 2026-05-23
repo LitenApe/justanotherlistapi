@@ -1,8 +1,8 @@
 import { ErrorBoundary, PendingBoundary } from "@shared/components";
 import { Outlet, useNavigate } from "react-router";
 
-import { ChecklistList } from "../slices/checklists";
-import { logout } from "../slices/auth";
+import { ChecklistList } from "@slices/checklists";
+import { logout } from "@slices/auth";
 import { routes } from "@shared/routes";
 import styles from "./Layout.module.css";
 import { useAuthToken } from "@shared/hooks";

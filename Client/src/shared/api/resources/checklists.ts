@@ -1,6 +1,6 @@
-import type { ApiClient } from "../client";
-import type { ItemGroup } from "../../types";
-import { apiClient } from "../client";
+import type { ApiClient } from "@shared/api/client";
+import type { ItemGroup } from "@shared/types";
+import { apiClient } from "@shared/api/client";
 
 export interface CreateItemGroupRequest {
   name: string;

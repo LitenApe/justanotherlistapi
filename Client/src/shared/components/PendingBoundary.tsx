@@ -1,5 +1,5 @@
 import { Suspense, type ReactNode } from "react";
-import styles from "../styles/skeletons.module.css";
+import styles from "@shared/styles/skeletons.module.css";
 
 interface Props {
   fallback?: ReactNode;

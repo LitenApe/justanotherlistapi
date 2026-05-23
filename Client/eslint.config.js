@@ -35,6 +35,7 @@ export default [
         { type: "app", pattern: "src/App.tsx" },
         { type: "main", pattern: "src/main.tsx" },
       ],
+      "boundaries/dependency-nodes": ["import"],
       "import/resolver": {
         typescript: {
           alwaysTryTypes: true,
@@ -47,26 +48,59 @@ export default [
         "error",
         { prefer: "type-imports", fixStyle: "inline-type-imports" },
       ],
-      "boundaries/element-types": [
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["../*", "../"],
+              message:
+                "Use path aliases (@shared/, @slices/, @components/) instead of parent directory imports.",
+            },
+          ],
+        },
+      ],
+      "boundaries/dependencies": [
         "error",
         {
           default: "disallow",
           rules: [
-            { from: "shared", allow: ["shared"] },
-            { from: "components", allow: ["shared", "slice", "components"] },
-            { from: "slice", allow: ["shared", "slice"] },
-            { from: "app", allow: ["shared", "slice", "components"] },
-            { from: "main", allow: ["shared", "slice", "components", "app"] },
-          ],
-        },
-      ],
-      "boundaries/entry-point": [
-        "error",
-        {
-          default: "allow",
-          rules: [
-            { target: ["slice"], disallow: "*" },
-            { target: ["slice"], allow: "index.ts" },
+            {
+              from: { type: "shared" },
+              allow: [{ to: { type: "shared" } }],
+            },
+            {
+              from: { type: "components" },
+              allow: [
+                { to: { type: "shared" } },
+                { to: { type: "slice", internalPath: "index.ts" } },
+                { to: { type: "components" } },
+              ],
+            },
+            {
+              from: { type: "slice" },
+              allow: [
+                { to: { type: "shared" } },
+                { to: { type: "slice", internalPath: "index.ts" } },
+              ],
+            },
+            {
+              from: { type: "app" },
+              allow: [
+                { to: { type: "shared" } },
+                { to: { type: "slice", internalPath: "index.ts" } },
+                { to: { type: "components" } },
+              ],
+            },
+            {
+              from: { type: "main" },
+              allow: [
+                { to: { type: "shared" } },
+                { to: { type: "slice", internalPath: "index.ts" } },
+                { to: { type: "components" } },
+                { to: { type: "app" } },
+              ],
+            },
           ],
         },
       ],

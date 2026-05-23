@@ -1,8 +1,8 @@
 import { use } from "react";
 
 import { checklistsResource } from "@shared/api";
-import { invalidateChecklists } from "../checklists";
-import { invalidateDetail } from "../checklist-detail";
+import { invalidateChecklists } from "@slices/checklists";
+import { invalidateDetail } from "@slices/checklist-detail";
 import { routes } from "@shared/routes";
 import styles from "./ItemForm.module.css";
 import { updateItem } from "./api";

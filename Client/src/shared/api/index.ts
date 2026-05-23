@@ -1,4 +1,4 @@
-export { type ItemGroup, type Item } from "../types";
+export { type ItemGroup, type Item } from "@shared/types";
 export {
   type ApiClient,
   type RequestOptions,

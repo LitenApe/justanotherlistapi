@@ -1,4 +1,4 @@
-import { pendingService } from "../api/pendingService";
+import { pendingService } from "@shared/api/pendingService";
 import { useCallback } from "react";
 
 export function usePendingReporter() {

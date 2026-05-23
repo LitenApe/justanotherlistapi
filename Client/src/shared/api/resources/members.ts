@@ -1,5 +1,5 @@
-import type { ApiClient } from "../client";
-import { apiClient } from "../client";
+import type { ApiClient } from "@shared/api/client";
+import { apiClient } from "@shared/api/client";
 
 export interface MembersResource {
   getAll(groupId: string): Promise<string[]>;
