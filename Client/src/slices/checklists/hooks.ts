@@ -1,5 +1,5 @@
 import { createChecklist, deleteChecklist } from "./api";
-import { use, useCallback } from "react";
+import { use, useCallback, useOptimistic } from "react";
 
 import type { ItemGroup } from "@shared/types";
 import { checklistsResource } from "@shared/api";
@@ -18,8 +18,24 @@ export function invalidateChecklists(): void {
   checklistsPromise = null;
 }
 
+type ChecklistAction = { type: "remove"; id: string };
+
+function checklistReducer(
+  checklists: ItemGroup[],
+  action: ChecklistAction,
+): ItemGroup[] {
+  switch (action.type) {
+    case "remove":
+      return checklists.filter((c) => c.id !== action.id);
+  }
+}
+
 export function useChecklists() {
   const checklists = use(getChecklistsPromise());
+  const [optimisticChecklists, addOptimistic] = useOptimistic(
+    checklists,
+    checklistReducer,
+  );
   const [isPending, startTransition] = useTrackedTransition(
     "checklists/mutation",
   );
@@ -52,13 +68,14 @@ export function useChecklists() {
   const remove = useCallback(
     (id: string) => {
       startTransition(async () => {
+        addOptimistic({ type: "remove", id });
         await deleteChecklist(id);
         invalidateChecklists();
         await getChecklistsPromise();
       });
     },
-    [startTransition],
+    [startTransition, addOptimistic],
   );
 
-  return { checklists, isPending, refresh, add, remove };
+  return { checklists: optimisticChecklists, isPending, refresh, add, remove };
 }

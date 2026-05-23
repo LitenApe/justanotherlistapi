@@ -2,10 +2,9 @@ import { memo, useCallback } from "react";
 
 import type { Item } from "@shared/types";
 import { RenderCount } from "@shared/components";
-import { deleteItem } from "./api";
 import { routes } from "@shared/routes";
 import styles from "./ItemList.module.css";
-import { useItemToggle } from "./hooks";
+import { useItemActions } from "./hooks";
 import { useNavigate } from "react-router";
 
 // ─── Model ────────────────────────────────────────────────────────────────────
@@ -22,16 +21,12 @@ function useItemListModel(
   groupId: string,
   onRefresh: () => void,
 ): ItemListModel {
-  const { items: optimisticItems, toggle } = useItemToggle(items, onRefresh);
+  const {
+    items: optimisticItems,
+    toggle,
+    remove,
+  } = useItemActions(items, groupId, onRefresh);
   const navigate = useNavigate();
-
-  const remove = useCallback(
-    async (item: Item) => {
-      await deleteItem(groupId, item.id);
-      onRefresh();
-    },
-    [groupId, onRefresh],
-  );
 
   const edit = useCallback(
     (item: Item) => {
