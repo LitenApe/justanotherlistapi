@@ -1,8 +1,7 @@
-import { memo } from "react";
-import { Link } from "react-router";
-
 import type { Item } from "@shared/types";
+import { Link } from "react-router";
 import { RenderCount } from "@shared/components";
+import { memo } from "react";
 import { routes } from "@shared/routes";
 import styles from "./ItemList.module.css";
 import { useItemActions } from "./hooks";
@@ -15,16 +14,12 @@ interface ItemListModel {
   remove: (item: Item) => void;
 }
 
-function useItemListModel(
-  items: Item[],
-  groupId: string,
-  onRefresh: () => void,
-): ItemListModel {
+function useItemListModel(items: Item[], groupId: string): ItemListModel {
   const {
     items: optimisticItems,
     toggle,
     remove,
-  } = useItemActions(items, groupId, onRefresh);
+  } = useItemActions(items, groupId);
 
   return { optimisticItems, toggle, remove };
 }
@@ -121,15 +116,10 @@ function ItemListView({
 interface Props {
   items: Item[];
   groupId: string;
-  onRefresh: () => void;
 }
 
-export function ItemList({ items, groupId, onRefresh }: Props) {
-  const { optimisticItems, toggle, remove } = useItemListModel(
-    items,
-    groupId,
-    onRefresh,
-  );
+export function ItemList({ items, groupId }: Props) {
+  const { optimisticItems, toggle, remove } = useItemListModel(items, groupId);
   return (
     <ItemListView
       items={optimisticItems}

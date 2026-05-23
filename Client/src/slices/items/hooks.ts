@@ -1,8 +1,9 @@
+import { deleteItem, toggleItem } from "./api";
 import { useCallback, useOptimistic } from "react";
 
 import type { Item } from "@shared/types";
-import { deleteItem, toggleItem } from "./api";
 import { invalidateChecklists } from "@slices/checklists";
+import { updateDetailItems } from "@slices/checklist-detail";
 import { useTrackedTransition } from "@shared/hooks";
 
 type ItemAction =
@@ -22,11 +23,7 @@ function reducer(items: Item[], action: ItemAction): Item[] {
   }
 }
 
-export function useItemActions(
-  items: Item[],
-  groupId: string,
-  onRefresh: () => void,
-) {
+export function useItemActions(items: Item[], groupId: string) {
   const [optimisticItems, addOptimistic] = useOptimistic(items, reducer);
   const [, startToggleTransition] = useTrackedTransition("items/toggle");
   const [, startDeleteTransition] = useTrackedTransition("items/delete");
@@ -35,32 +32,30 @@ export function useItemActions(
     (item: Item) => {
       startToggleTransition(async () => {
         addOptimistic({ type: "toggle", id: item.id });
-        try {
-          await toggleItem(item);
-        } catch {
-          // Optimistic update auto-reverts on next render with fresh items
-        }
+        await toggleItem(item);
+        updateDetailItems(groupId, (items) =>
+          items.map((i) =>
+            i.id === item.id ? { ...i, isComplete: !i.isComplete } : i,
+          ),
+        );
         invalidateChecklists();
-        await onRefresh();
       });
     },
-    [addOptimistic, startToggleTransition, onRefresh],
+    [addOptimistic, startToggleTransition, groupId],
   );
 
   const remove = useCallback(
     (item: Item) => {
       startDeleteTransition(async () => {
         addOptimistic({ type: "remove", id: item.id });
-        try {
-          await deleteItem(groupId, item.id);
-        } catch {
-          // Optimistic update auto-reverts on next render with fresh items
-        }
+        await deleteItem(groupId, item.id);
+        updateDetailItems(groupId, (items) =>
+          items.filter((i) => i.id !== item.id),
+        );
         invalidateChecklists();
-        await onRefresh();
       });
     },
-    [addOptimistic, startDeleteTransition, groupId, onRefresh],
+    [addOptimistic, startDeleteTransition, groupId],
   );
 
   return { items: optimisticItems, toggle, remove };

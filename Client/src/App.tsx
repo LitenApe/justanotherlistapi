@@ -2,7 +2,6 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { DevPanel, FeaturesProvider } from "./slices/dev-panel";
 import {
   ErrorBoundary,
-  NavigationPendingReporter,
   PendingBorder,
   ProtectedRoute,
 } from "@shared/components";
@@ -20,7 +19,6 @@ export function App() {
   return (
     <FeaturesProvider>
       <BrowserRouter>
-        <NavigationPendingReporter />
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route

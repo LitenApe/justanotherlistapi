@@ -1,14 +1,14 @@
-import { PendingBoundary } from "@shared/components";
-import { RenderCount } from "@shared/components";
+import type { Item, ItemGroup } from "@shared/types";
 import { Link, useLocation, useParams } from "react-router";
 
-import type { Item, ItemGroup } from "@shared/types";
 import { ItemList } from "@slices/items";
 import { ItemSearch } from "@slices/item-search";
 import { Members } from "@slices/members";
+import { PendingBoundary } from "@shared/components";
+import { RenderCount } from "@shared/components";
 import { routes } from "@shared/routes";
-import { useChecklistDetail } from "./hooks";
 import styles from "./ChecklistDetail.module.css";
+import { useChecklistDetail } from "./hooks";
 
 // ─── Model ────────────────────────────────────────────────────────────────────
 
@@ -33,24 +33,13 @@ function useChecklistDetailModel(groupId: string): ChecklistDetailModel {
 interface ChecklistDetailViewProps {
   groupId: string;
   checklist: ItemGroup;
-  onItemChanged: () => Promise<void>;
 }
 
-function ChecklistDetailView({
-  groupId,
-  checklist,
-  onItemChanged,
-}: ChecklistDetailViewProps) {
+function ChecklistDetailView({ groupId, checklist }: ChecklistDetailViewProps) {
   return (
     <>
       <ItemSearch items={checklist.items}>
-        {(filtered: Item[]) => (
-          <ItemList
-            items={filtered}
-            groupId={groupId}
-            onRefresh={onItemChanged}
-          />
-        )}
+        {(filtered: Item[]) => <ItemList items={filtered} groupId={groupId} />}
       </ItemSearch>
       <PendingBoundary>
         <Members groupId={groupId} />
@@ -62,15 +51,9 @@ function ChecklistDetailView({
 // ─── Controller ───────────────────────────────────────────────────────────────
 
 function ChecklistDetailContent({ groupId }: { groupId: string }) {
-  const { checklist, onItemChanged } = useChecklistDetailModel(groupId);
+  const { checklist } = useChecklistDetailModel(groupId);
 
-  return (
-    <ChecklistDetailView
-      groupId={groupId}
-      checklist={checklist}
-      onItemChanged={onItemChanged}
-    />
-  );
+  return <ChecklistDetailView groupId={groupId} checklist={checklist} />;
 }
 
 export function ChecklistDetail() {
