@@ -1,76 +1,21 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
+import { useRef, type FormEvent } from "react";
 
-import { HttpError } from "@shared/api";
-import { addMember, fetchMembers, removeMember } from "./api";
 import styles from "./Members.module.css";
+import { useMembers } from "./hooks";
 
 // ─── Model ────────────────────────────────────────────────────────────────────
 
 interface MembersModel {
   members: string[];
-  error: string | null;
   isPending: boolean;
   handleAdd: (memberId: string) => void;
   handleRemove: (memberId: string) => void;
 }
 
 function useMembersModel(groupId: string): MembersModel {
-  const [members, setMembers] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, setIsPending] = useState(false);
+  const { members, isPending, add, remove } = useMembers(groupId);
 
-  const refresh = useCallback(async () => {
-    const data = await fetchMembers(groupId);
-    setMembers(data);
-  }, [groupId]);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  async function handleAdd(memberId: string) {
-    setIsPending(true);
-    setError(null);
-    try {
-      await addMember(groupId, memberId);
-      await refresh();
-    } catch (err) {
-      if (err instanceof HttpError && err.status === 409) {
-        setError("Member already exists");
-      } else {
-        setError(err instanceof Error ? err.message : "Failed to add member");
-      }
-    } finally {
-      setIsPending(false);
-    }
-  }
-
-  async function handleRemove(memberId: string) {
-    setIsPending(true);
-    setError(null);
-    try {
-      await removeMember(groupId, memberId);
-      await refresh();
-    } catch (err) {
-      if (err instanceof HttpError && err.status === 409) {
-        setError("Cannot remove the last member");
-      } else {
-        setError(
-          err instanceof Error ? err.message : "Failed to remove member",
-        );
-      }
-    } finally {
-      setIsPending(false);
-    }
-  }
-
-  return { members, error, isPending, handleAdd, handleRemove };
+  return { members, isPending, handleAdd: add, handleRemove: remove };
 }
 
 // ─── View ─────────────────────────────────────────────────────────────────────
@@ -81,7 +26,6 @@ function truncateId(id: string): string {
 
 interface MembersViewProps {
   members: string[];
-  error: string | null;
   isPending: boolean;
   handleAdd: (memberId: string) => void;
   handleRemove: (memberId: string) => void;
@@ -89,7 +33,6 @@ interface MembersViewProps {
 
 function MembersView({
   members,
-  error,
   isPending,
   handleAdd,
   handleRemove,
@@ -136,7 +79,6 @@ function MembersView({
           Add
         </button>
       </form>
-      {error && <p className={styles.error}>{error}</p>}
     </section>
   );
 }

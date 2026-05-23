@@ -1,7 +1,8 @@
-import { useCallback, useOptimistic, useTransition } from "react";
+import { useCallback, useOptimistic } from "react";
 
 import type { Item } from "@shared/types";
 import { toggleItem } from "./api";
+import { useTrackedTransition } from "@shared/hooks";
 
 type ToggleAction = { type: "toggle"; id: string };
 
@@ -13,7 +14,7 @@ function reducer(items: Item[], action: ToggleAction): Item[] {
 
 export function useItemToggle(items: Item[], onRefresh: () => void) {
   const [optimisticItems, addOptimistic] = useOptimistic(items, reducer);
-  const [, startTransition] = useTransition();
+  const [, startTransition] = useTrackedTransition("items/toggle");
 
   const toggle = useCallback(
     (item: Item) => {

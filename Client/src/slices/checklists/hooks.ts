@@ -1,8 +1,9 @@
 import { createChecklist, deleteChecklist } from "./api";
-import { use, useCallback, useTransition } from "react";
+import { use, useCallback } from "react";
 
 import type { ItemGroup } from "@shared/types";
 import { checklistsResource } from "@shared/api";
+import { useTrackedTransition } from "@shared/hooks";
 
 let checklistsPromise: Promise<ItemGroup[]> | null = null;
 
@@ -19,7 +20,9 @@ export function invalidateChecklists(): void {
 
 export function useChecklists() {
   const checklists = use(getChecklistsPromise());
-  const [isPending, startTransition] = useTransition();
+  const [isPending, startTransition] = useTrackedTransition(
+    "checklists/mutation",
+  );
 
   const refresh = useCallback(() => {
     startTransition(async () => {
@@ -29,14 +32,19 @@ export function useChecklists() {
   }, [startTransition]);
 
   const add = useCallback(
-    (name: string): Promise<ItemGroup | undefined> => {
-      let created: ItemGroup | undefined;
-      startTransition(async () => {
-        created = await createChecklist(name);
-        invalidateChecklists();
-        await getChecklistsPromise();
+    (name: string): Promise<ItemGroup> => {
+      return new Promise((resolve, reject) => {
+        startTransition(async () => {
+          try {
+            const created = await createChecklist(name);
+            invalidateChecklists();
+            await getChecklistsPromise();
+            resolve(created);
+          } catch (e) {
+            reject(e);
+          }
+        });
       });
-      return Promise.resolve(created);
     },
     [startTransition],
   );
