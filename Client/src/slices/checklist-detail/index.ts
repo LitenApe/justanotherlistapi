@@ -1,2 +1,2 @@
-export { useChecklistDetail, invalidateDetail } from "./hooks";
+export { useChecklistDetail, invalidateDetail, preloadDetail } from "./hooks";
 export { fetchChecklist, renameChecklist } from "./api";

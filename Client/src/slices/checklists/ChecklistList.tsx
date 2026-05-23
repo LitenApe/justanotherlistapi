@@ -1,9 +1,10 @@
 import { memo, useRef, useCallback, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router";
+import { Link, useParams } from "react-router";
 
 import type { ItemGroup } from "@shared/types";
 import { RenderCount } from "@shared/components";
 import { ChecklistSearch } from "../checklist-search";
+import { preloadDetail } from "../checklist-detail/hooks";
 import { routes } from "@shared/routes";
 import { useChecklists } from "./hooks";
 import styles from "./ChecklistList.module.css";
@@ -14,7 +15,6 @@ interface ChecklistListModel {
   checklists: ItemGroup[];
   isPending: boolean;
   activeId: string | undefined;
-  select: (id: string) => void;
   add: (name: string) => void;
   remove: (id: string) => void;
 }
@@ -22,18 +22,8 @@ interface ChecklistListModel {
 function useChecklistListModel(
   onCreated: (newId: string) => void,
 ): ChecklistListModel {
-  const navigate = useNavigate();
   const { groupId } = useParams();
   const { checklists, isPending, add, remove } = useChecklists();
-
-  const select = useCallback(
-    (id: string) => {
-      const group = checklists.find((g) => g.id === id);
-      const state = group ? { name: group.name } : undefined;
-      navigate(routes.checklist(id), { state });
-    },
-    [navigate, checklists],
-  );
 
   const handleAdd = useCallback(
     async (name: string) => {
@@ -49,7 +39,6 @@ function useChecklistListModel(
     checklists,
     isPending,
     activeId: groupId,
-    select,
     add: handleAdd,
     remove,
   };
@@ -60,28 +49,26 @@ function useChecklistListModel(
 interface ChecklistItemProps {
   group: ItemGroup;
   isActive: boolean;
-  onSelect: (id: string) => void;
   onDelete: (id: string) => void;
 }
 
 const ChecklistItem = memo(function ChecklistItem({
   group,
   isActive,
-  onSelect,
   onDelete,
 }: ChecklistItemProps) {
   return (
-    <div
-      className={isActive ? styles.itemActive : styles.item}
-      onClick={() => onSelect(group.id)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => e.key === "Enter" && onSelect(group.id)}
-    >
-      <div>
+    <div className={isActive ? styles.itemActive : styles.item}>
+      <Link
+        to={routes.checklist(group.id)}
+        state={{ name: group.name }}
+        className={styles.itemLink}
+        onMouseEnter={() => preloadDetail(group.id)}
+        onFocus={() => preloadDetail(group.id)}
+      >
         <span className={styles.itemName}>{group.name}</span>
         <span className={styles.itemCount}> ({group.items.length} items)</span>
-      </div>
+      </Link>
       <button
         type="button"
         className={styles.deleteBtn}
@@ -133,7 +120,6 @@ interface ChecklistListViewProps {
   checklists: ItemGroup[];
   isPending: boolean;
   activeId: string | undefined;
-  select: (id: string) => void;
   add: (name: string) => void;
   remove: (id: string) => void;
 }
@@ -142,7 +128,6 @@ function ChecklistListView({
   checklists,
   isPending,
   activeId,
-  select,
   add,
   remove,
 }: ChecklistListViewProps) {
@@ -160,7 +145,6 @@ function ChecklistListView({
                 key={g.id}
                 group={g}
                 isActive={g.id === activeId}
-                onSelect={select}
                 onDelete={remove}
               />
             ))}

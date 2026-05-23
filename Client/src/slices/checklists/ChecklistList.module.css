@@ -39,6 +39,12 @@
   border-color: var(--accent);
 }
 
+.itemLink {
+  flex: 1;
+  text-decoration: none;
+  color: inherit;
+}
+
 .itemName {
   font-size: var(--text-base);
   font-weight: var(--weight-medium);

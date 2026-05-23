@@ -1,6 +1,6 @@
 import { PendingBoundary } from "@shared/components";
 import { RenderCount } from "@shared/components";
-import { useLocation, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useParams } from "react-router";
 
 import type { Item, ItemGroup } from "@shared/types";
 import { ItemList } from "../items/ItemList";
@@ -74,7 +74,6 @@ function ChecklistDetailContent({ groupId }: { groupId: string }) {
 export function ChecklistDetail() {
   const { groupId } = useParams<{ groupId: string }>();
   const location = useLocation();
-  const navigate = useNavigate();
   const name = (location.state as { name?: string } | null)?.name;
   if (!groupId) return null;
 
@@ -83,13 +82,9 @@ export function ChecklistDetail() {
       <RenderCount label="ChecklistDetail" />
       <div className={styles.header}>
         <h2 className={styles.title}>{name ?? "\u00A0"}</h2>
-        <button
-          type="button"
-          className={styles.addBtn}
-          onClick={() => navigate(routes.itemCreate(groupId))}
-        >
+        <Link to={routes.itemCreate(groupId)} className={styles.addBtn}>
           + New Item
-        </button>
+        </Link>
       </div>
       <PendingBoundary>
         <ChecklistDetailContent groupId={groupId} />
