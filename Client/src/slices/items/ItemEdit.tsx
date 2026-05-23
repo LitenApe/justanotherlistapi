@@ -1,10 +1,11 @@
-import { use, useActionState } from "react";
+import { use } from "react";
 
 import { checklistsResource } from "@shared/api";
 import { routes } from "@shared/routes";
 import styles from "./ItemForm.module.css";
 import { updateItem } from "./api";
 import { useNavigate } from "react-router";
+import { useTrackedActionState } from "@shared/hooks";
 
 // ─── Model ────────────────────────────────────────────────────────────────────
 
@@ -39,10 +40,11 @@ function useItemEditModel(groupId: string, itemId: string): ItemEditModel {
   const item = use(getItemPromise(groupId, itemId));
   const navigate = useNavigate();
 
-  const [state, formAction, isPending] = useActionState<
+  const [state, formAction, isPending] = useTrackedActionState<
     { error: string | null },
     FormData
   >(
+    "items/edit-form",
     async (_prev, formData) => {
       const name = (formData.get("name") as string).trim();
       const description =

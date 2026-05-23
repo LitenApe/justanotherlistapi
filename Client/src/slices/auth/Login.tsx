@@ -1,8 +1,8 @@
 import { login } from "./api";
 import { routes } from "@shared/routes";
 import styles from "./Login.module.css";
-import { useActionState } from "react";
 import { useNavigate } from "react-router";
+import { useTrackedActionState } from "@shared/hooks";
 
 // ─── Model ────────────────────────────────────────────────────────────────────
 
@@ -15,10 +15,11 @@ interface LoginModel {
 function useLoginModel(): LoginModel {
   const navigate = useNavigate();
 
-  const [state, formAction, isPending] = useActionState<
+  const [state, formAction, isPending] = useTrackedActionState<
     { error: string | null },
     FormData
   >(
+    "auth/login",
     async (_prev, formData) => {
       const clientId = formData.get("clientId") as string;
       const clientSecret = formData.get("clientSecret") as string;

@@ -1,8 +1,8 @@
 import { createItem } from "./api";
 import { routes } from "@shared/routes";
 import styles from "./ItemForm.module.css";
-import { useActionState } from "react";
 import { useNavigate } from "react-router";
+import { useTrackedActionState } from "@shared/hooks";
 
 // ─── Model ────────────────────────────────────────────────────────────────────
 
@@ -16,10 +16,11 @@ interface ItemCreateModel {
 function useItemCreateModel(groupId: string): ItemCreateModel {
   const navigate = useNavigate();
 
-  const [state, formAction, isPending] = useActionState<
+  const [state, formAction, isPending] = useTrackedActionState<
     { error: string | null },
     FormData
   >(
+    "items/create-form",
     async (_prev, formData) => {
       const name = (formData.get("name") as string).trim();
       const description =

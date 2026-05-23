@@ -2,8 +2,8 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { DevPanel, FeaturesProvider } from "./slices/dev-panel";
 import {
   ErrorBoundary,
+  NavigationPendingReporter,
   PendingBorder,
-  PendingBoundary,
   ProtectedRoute,
 } from "@shared/components";
 import { ItemCreatePage, ItemEditPage } from "./slices/items";
@@ -19,7 +19,8 @@ const Login = lazy(() =>
 export function App() {
   return (
     <FeaturesProvider>
-      <BrowserRouter useTransitions={false}>
+      <BrowserRouter>
+        <NavigationPendingReporter />
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route
@@ -75,9 +76,7 @@ export function App() {
                       </p>
                     )}
                   >
-                    <PendingBoundary>
-                      <ItemEditPage />
-                    </PendingBoundary>
+                    <ItemEditPage />
                   </ErrorBoundary>
                 </ProtectedRoute>
               }
