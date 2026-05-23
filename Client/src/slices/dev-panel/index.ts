@@ -3,4 +3,4 @@ export {
   FeaturesProvider,
   useFeatures,
   type FeatureFlags,
-} from "./FeaturesContext";
+} from "@shared/features";

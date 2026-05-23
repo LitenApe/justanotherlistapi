@@ -1,5 +1,5 @@
 import styles from "./RenderCount.module.css";
-import { useFeatures } from "../../slices/dev-panel";
+import { useFeatures } from "@shared/features";
 import { useRenderCount } from "@shared/hooks";
 
 interface RenderCountProps {

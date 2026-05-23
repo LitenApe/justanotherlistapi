@@ -9,11 +9,11 @@ import {
 } from "@shared/hooks";
 import { useCallback, useEffect, useState } from "react";
 
-import type { FeatureFlags } from "./FeaturesContext";
+import type { FeatureFlags } from "@shared/features";
 import type { LogEntry } from "@shared/api";
 import { computeOverheadStore } from "@shared/api/computeOverhead";
 import styles from "./DevPanel.module.css";
-import { useFeatures } from "./FeaturesContext";
+import { useFeatures } from "@shared/features";
 
 // ─── Model ────────────────────────────────────────────────────────────────────
 

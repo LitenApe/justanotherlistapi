@@ -1,4 +1,4 @@
-import type { FeatureFlags } from "./FeaturesContext";
+import type { FeatureFlags } from "@shared/features";
 
 export interface DevPanelState {
   open: boolean;
