@@ -10,8 +10,9 @@ After completing a logical unit of work, always commit with a clear, descriptive
 ## Workflow
 
 1. Run `dotnet build` (backend) and/or `cd Client && npm run check` (frontend) to verify no errors
-2. Stage relevant files with `git add`
-3. Commit with a conventional message:
+2. Check if `README.md` and `specifications/` docs need updating to reflect the changes — update them if so
+3. Stage relevant files with `git add`
+4. Commit with a conventional message:
 
 ```
 feat: add member removal endpoint
