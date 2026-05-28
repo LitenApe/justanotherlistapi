@@ -28,6 +28,8 @@ public static class RemoveMember
         ClaimsPrincipal claimsPrincipal,
         IDbConnection db,
         AuditContext auditContext,
+        IChecklistNotifier notifier,
+        HttpRequest httpRequest,
         CancellationToken ct
     )
     {
@@ -47,6 +49,8 @@ public static class RemoveMember
                 }
 
                 await RemoveData(itemGroupId, memberId, db, ct);
+                string? connectionId = httpRequest.Headers["X-SignalR-Connection-Id"];
+                await notifier.NotifyMemberRemoved(itemGroupId, memberId, connectionId);
                 return TypedResults.NoContent();
             },
             TypedResults.Unauthorized(),

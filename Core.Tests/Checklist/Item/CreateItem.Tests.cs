@@ -41,6 +41,8 @@ public sealed class CreateItemTests
                 claimsPrincipal,
                 db,
                 new AuditContext(),
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest(),
                 default
             );
 
@@ -95,6 +97,8 @@ public sealed class CreateItemTests
                 claimsPrincipal,
                 db,
                 new AuditContext(),
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest(),
                 default
             );
 
@@ -130,6 +134,8 @@ public sealed class CreateItemTests
                 claimsPrincipal,
                 db,
                 new AuditContext(),
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest(),
                 default
             );
 
@@ -166,6 +172,8 @@ public sealed class CreateItemTests
                 claimsPrincipal,
                 db,
                 new AuditContext(),
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest(),
                 default
             );
 

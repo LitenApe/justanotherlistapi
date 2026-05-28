@@ -51,7 +51,15 @@ public sealed class UpdateItemTests
 
         // Act
         Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await UpdateItem.Execute(itemGroupId, itemId, request, claimsPrincipal, db);
+            await UpdateItem.Execute(
+                itemGroupId,
+                itemId,
+                request,
+                claimsPrincipal,
+                db,
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest()
+            );
 
         // Assert
         Assert.IsType<NoContent>(result.Result);
@@ -108,7 +116,15 @@ public sealed class UpdateItemTests
 
         // Act
         Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await UpdateItem.Execute(itemGroupId, itemId, request, claimsPrincipal, db);
+            await UpdateItem.Execute(
+                itemGroupId,
+                itemId,
+                request,
+                claimsPrincipal,
+                db,
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest()
+            );
 
         // Assert
         Assert.IsType<BadRequest>(result.Result);
@@ -147,7 +163,15 @@ public sealed class UpdateItemTests
 
         // Act
         Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await UpdateItem.Execute(itemGroupId, itemId, request, claimsPrincipal, db);
+            await UpdateItem.Execute(
+                itemGroupId,
+                itemId,
+                request,
+                claimsPrincipal,
+                db,
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest()
+            );
 
         // Assert
         Assert.IsType<UnauthorizedHttpResult>(result.Result);
@@ -187,7 +211,15 @@ public sealed class UpdateItemTests
 
         // Act
         Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await UpdateItem.Execute(itemGroupId, itemId, request, claimsPrincipal, db);
+            await UpdateItem.Execute(
+                itemGroupId,
+                itemId,
+                request,
+                claimsPrincipal,
+                db,
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest()
+            );
 
         // Assert
         Assert.IsType<ForbidHttpResult>(result.Result);
@@ -220,7 +252,15 @@ public sealed class UpdateItemTests
 
         // Act
         Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await UpdateItem.Execute(itemGroupId, itemId, request, claimsPrincipal, db);
+            await UpdateItem.Execute(
+                itemGroupId,
+                itemId,
+                request,
+                claimsPrincipal,
+                db,
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest()
+            );
 
         // Assert
         Assert.IsType<NoContent>(result.Result);

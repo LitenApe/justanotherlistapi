@@ -2,6 +2,7 @@ using System.Data;
 using System.Diagnostics;
 using Core;
 using Core.AuditLog;
+using Core.Checklist;
 using Core.DevSeed;
 using Core.Utility;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -46,6 +47,10 @@ builder.Services.TryAddEnumerable(
     )
 );
 
+// Real-time notifications
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<IChecklistNotifier, ChecklistNotifier>();
+
 // Authentication & Authorization
 builder
     .Services.AddAuthentication()
@@ -74,6 +79,23 @@ builder
 
         options.Events = new JwtBearerEvents
         {
+            OnMessageReceived = context =>
+            {
+                if (
+                    context.Request.Path.StartsWithSegments(
+                        "/hubs",
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                    && context.Request.Query.TryGetValue(
+                        "access_token",
+                        out Microsoft.Extensions.Primitives.StringValues token
+                    )
+                )
+                {
+                    context.Token = token;
+                }
+                return Task.CompletedTask;
+            },
             OnAuthenticationFailed = context =>
             {
                 IAuditWriter writer =
@@ -147,6 +169,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapChecklistApi();
+app.MapHub<ChecklistHub>("/hubs/checklist");
 
 if (app.Environment.IsDevelopment())
 {

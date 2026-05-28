@@ -1,6 +1,13 @@
-import { use, useCallback, useOptimistic } from "react";
-
 import { addMember, fetchMembers, removeMember } from "./api";
+import {
+  startTransition,
+  use,
+  useCallback,
+  useEffect,
+  useOptimistic,
+} from "react";
+
+import { signalRStore } from "@shared/api/signalrStore";
 import { useTrackedTransition } from "@shared/hooks";
 
 const membersCache = new Map<string, Promise<string[]>>();
@@ -32,16 +39,19 @@ function memberReducer(members: string[], action: MemberAction): string[] {
 }
 
 export function useMembers(groupId: string) {
+  useMemberRealtimeSync(groupId);
+
   const members = use(getMembersPromise(groupId));
   const [optimisticMembers, addOptimistic] = useOptimistic(
     members,
     memberReducer,
   );
-  const [isPending, startTransition] = useTrackedTransition("members/mutation");
+  const [isPending, startTrackedTransition] =
+    useTrackedTransition("members/mutation");
 
   const add = useCallback(
     (memberId: string) => {
-      startTransition(async () => {
+      startTrackedTransition(async () => {
         addOptimistic({ type: "add", memberId });
         try {
           await addMember(groupId, memberId);
@@ -52,12 +62,12 @@ export function useMembers(groupId: string) {
         await getMembersPromise(groupId);
       });
     },
-    [groupId, startTransition, addOptimistic],
+    [groupId, startTrackedTransition, addOptimistic],
   );
 
   const remove = useCallback(
     (memberId: string) => {
-      startTransition(async () => {
+      startTrackedTransition(async () => {
         addOptimistic({ type: "remove", memberId });
         try {
           await removeMember(groupId, memberId);
@@ -68,8 +78,34 @@ export function useMembers(groupId: string) {
         await getMembersPromise(groupId);
       });
     },
-    [groupId, startTransition, addOptimistic],
+    [groupId, startTrackedTransition, addOptimistic],
   );
 
   return { members: optimisticMembers, isPending, add, remove };
+}
+
+function useMemberRealtimeSync(groupId: string): void {
+  useEffect(() => {
+    const handleMemberAdded = () => {
+      startTransition(() => {
+        invalidateMembers(groupId);
+        getMembersPromise(groupId);
+      });
+    };
+
+    const handleMemberRemoved = () => {
+      startTransition(() => {
+        invalidateMembers(groupId);
+        getMembersPromise(groupId);
+      });
+    };
+
+    signalRStore.on("MemberAdded", handleMemberAdded as never);
+    signalRStore.on("MemberRemoved", handleMemberRemoved as never);
+
+    return () => {
+      signalRStore.off("MemberAdded", handleMemberAdded as never);
+      signalRStore.off("MemberRemoved", handleMemberRemoved as never);
+    };
+  }, [groupId]);
 }

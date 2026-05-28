@@ -28,7 +28,14 @@ public sealed class DeleteItemGroupTests
 
         // Act
         Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
+            await DeleteItemGroup.Execute(
+                itemGroupId,
+                claimsPrincipal,
+                db,
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest(),
+                default
+            );
 
         // Assert
         Assert.IsType<NoContent>(result.Result);
@@ -76,7 +83,14 @@ public sealed class DeleteItemGroupTests
         );
 
         // Act
-        await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
+        await DeleteItemGroup.Execute(
+            itemGroupId,
+            claimsPrincipal,
+            db,
+            new CapturingNotifier(),
+            TestHelpers.CreateHttpRequest(),
+            default
+        );
 
         // Assert — cascade delete should remove items and members
         IEnumerable<Item> remainingItems = await db.QueryAsync<Item>(
@@ -103,7 +117,14 @@ public sealed class DeleteItemGroupTests
 
         // Act
         Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
+            await DeleteItemGroup.Execute(
+                itemGroupId,
+                claimsPrincipal,
+                db,
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest(),
+                default
+            );
 
         // Assert
         Assert.IsType<UnauthorizedHttpResult>(result.Result);
@@ -126,7 +147,14 @@ public sealed class DeleteItemGroupTests
 
         // Act
         Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
+            await DeleteItemGroup.Execute(
+                itemGroupId,
+                claimsPrincipal,
+                db,
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest(),
+                default
+            );
 
         // Assert
         Assert.IsType<ForbidHttpResult>(result.Result);
@@ -170,7 +198,14 @@ public sealed class DeleteItemGroupTests
 
         // Act
         Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await DeleteItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
+            await DeleteItemGroup.Execute(
+                itemGroupId,
+                claimsPrincipal,
+                db,
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest(),
+                default
+            );
 
         // Assert
         Assert.IsType<NoContent>(result.Result);

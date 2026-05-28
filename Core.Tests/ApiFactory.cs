@@ -2,6 +2,7 @@ using System.Data;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Core.AuditLog;
+using Core.Checklist;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -52,6 +53,10 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // but since IAuditWriter resolves to NoOpAuditWriter, no entries are ever enqueued.
             services.RemoveAll<IAuditWriter>();
             services.AddSingleton<IAuditWriter, NoOpAuditWriter>();
+
+            // Replace IChecklistNotifier with a capturing implementation for test assertions.
+            services.RemoveAll<IChecklistNotifier>();
+            services.AddSingleton<IChecklistNotifier, CapturingNotifier>();
 
             services
                 .AddAuthentication("Test")

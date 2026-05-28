@@ -28,6 +28,8 @@ public static class UpdateItem
         Request request,
         ClaimsPrincipal claimsPrincipal,
         IDbConnection db,
+        IChecklistNotifier notifier,
+        HttpRequest httpRequest,
         CancellationToken ct = default
     )
     {
@@ -44,6 +46,16 @@ public static class UpdateItem
             async _ =>
             {
                 await UpdateData(itemGroupId, itemId, request, db, ct);
+                var item = new Item
+                {
+                    Id = itemId,
+                    ItemGroupId = itemGroupId,
+                    Name = request.Name,
+                    Description = request.Description,
+                    IsComplete = request.IsComplete,
+                };
+                string? connectionId = httpRequest.Headers["X-SignalR-Connection-Id"];
+                await notifier.NotifyItemUpdated(itemGroupId, item, connectionId);
                 return TypedResults.NoContent();
             },
             TypedResults.Unauthorized(),

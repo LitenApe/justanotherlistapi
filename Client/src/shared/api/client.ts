@@ -35,6 +35,7 @@ export interface ApiClientStores {
   errorRate: ErrorRateStore;
   getToken: () => string | null;
   clearToken: () => void;
+  getConnectionId?: () => string | null;
   timeout?: number;
 }
 
@@ -100,6 +101,10 @@ export function createApiClient(stores: ApiClientStores): ApiClient {
         if (token) {
           headers["Authorization"] = `Bearer ${token}`;
         }
+        const connectionId = stores.getConnectionId?.();
+        if (connectionId) {
+          headers["X-SignalR-Connection-Id"] = connectionId;
+        }
       }
 
       const response = await fetch(url, {
@@ -147,6 +152,7 @@ export function createApiClient(stores: ApiClientStores): ApiClient {
 // Temporarily uses placeholder getToken/clearToken; real wiring happens in the barrel export
 let _getToken: () => string | null = () => null;
 let _clearToken: () => void = () => {};
+let _getConnectionId: () => string | null = () => null;
 
 export function wireAuth(
   getToken: () => string | null,
@@ -156,9 +162,14 @@ export function wireAuth(
   _clearToken = clearToken;
 }
 
+export function wireSignalR(getConnectionId: () => string | null) {
+  _getConnectionId = getConnectionId;
+}
+
 export const apiClient: ApiClient = createApiClient({
   delay: delayStore,
   errorRate: errorRateStore,
   getToken: () => _getToken(),
   clearToken: () => _clearToken(),
+  getConnectionId: () => _getConnectionId(),
 });

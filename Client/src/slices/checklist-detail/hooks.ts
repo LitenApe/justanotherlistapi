@@ -1,7 +1,15 @@
 import type { Item, ItemGroup } from "@shared/types";
-import { use, useCallback, useSyncExternalStore } from "react";
+import {
+  startTransition,
+  use,
+  useCallback,
+  useEffect,
+  useSyncExternalStore,
+} from "react";
 
 import { fetchChecklist } from "./api";
+import { invalidateChecklists } from "@slices/checklists";
+import { signalRStore } from "@shared/api/signalrStore";
 import { useTrackedTransition } from "@shared/hooks";
 
 const detailCache = new Map<string, Promise<ItemGroup>>();
@@ -76,12 +84,15 @@ export function updateDetailItems(
 }
 
 export function useChecklistDetail(groupId: string) {
+  useRealtimeSync(groupId);
+
   useSyncExternalStore(
     (cb) => subscribeDetail(groupId, cb),
     () => getDetailVersion(groupId),
   );
   const checklist = use(getDetailPromise(groupId));
-  const [isPending, startTransition] = useTrackedTransition("detail/refresh");
+  const [isPending, startTrackedTransition] =
+    useTrackedTransition("detail/refresh");
 
   const invalidateAndRefetch = useCallback(async () => {
     invalidateDetail(groupId);
@@ -91,8 +102,76 @@ export function useChecklistDetail(groupId: string) {
   }, [groupId]);
 
   const refresh = useCallback(() => {
-    startTransition(() => invalidateAndRefetch());
-  }, [startTransition, invalidateAndRefetch]);
+    startTrackedTransition(() => invalidateAndRefetch());
+  }, [startTrackedTransition, invalidateAndRefetch]);
 
   return { checklist, isPending, refresh, invalidateAndRefetch };
+}
+
+function useRealtimeSync(groupId: string): void {
+  useEffect(() => {
+    signalRStore.joinGroup(groupId);
+
+    const handleItemCreated = (_gId: string, item: Item) => {
+      startTransition(() => {
+        updateDetailItems(groupId, (items) => [...items, item]);
+        invalidateChecklists();
+      });
+    };
+
+    const handleItemUpdated = (_gId: string, item: Item) => {
+      startTransition(() => {
+        updateDetailItems(groupId, (items) =>
+          items.map((i) => (i.id === item.id ? item : i)),
+        );
+        invalidateChecklists();
+      });
+    };
+
+    const handleItemDeleted = (_gId: string, itemId: string) => {
+      startTransition(() => {
+        updateDetailItems(groupId, (items) =>
+          items.filter((i) => i.id !== itemId),
+        );
+        invalidateChecklists();
+      });
+    };
+
+    const handleGroupRenamed = () => {
+      startTransition(() => {
+        invalidateDetail(groupId);
+        invalidateChecklists();
+      });
+    };
+
+    const handleGroupDeleted = () => {
+      startTransition(() => {
+        invalidateChecklists();
+      });
+    };
+
+    signalRStore.on("ItemCreated", handleItemCreated as never);
+    signalRStore.on("ItemUpdated", handleItemUpdated as never);
+    signalRStore.on("ItemDeleted", handleItemDeleted as never);
+    signalRStore.on("GroupRenamed", handleGroupRenamed as never);
+    signalRStore.on("GroupDeleted", handleGroupDeleted as never);
+
+    const unsubReconnect = signalRStore.onReconnected(() => {
+      signalRStore.joinGroup(groupId);
+      invalidateDetail(groupId);
+      getDetailPromise(groupId);
+      detailVersions.set(groupId, (detailVersions.get(groupId) ?? 0) + 1);
+      notifyDetailListeners(groupId);
+    });
+
+    return () => {
+      signalRStore.leaveGroup(groupId);
+      signalRStore.off("ItemCreated", handleItemCreated as never);
+      signalRStore.off("ItemUpdated", handleItemUpdated as never);
+      signalRStore.off("ItemDeleted", handleItemDeleted as never);
+      signalRStore.off("GroupRenamed", handleGroupRenamed as never);
+      signalRStore.off("GroupDeleted", handleGroupDeleted as never);
+      unsubReconnect();
+    };
+  }, [groupId]);
 }

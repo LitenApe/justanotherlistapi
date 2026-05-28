@@ -3,3 +3,4 @@ export { usePending } from "./usePending";
 export { useAuthToken } from "./useAuthToken";
 export { useTrackedTransition } from "./useTrackedTransition";
 export { useTrackedActionState } from "./useTrackedActionState";
+export { useSignalRStatus } from "./useSignalRStatus";

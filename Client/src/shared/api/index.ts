@@ -31,8 +31,17 @@ export {
   createActivityLog,
   activityLog,
 } from "./activityLog";
+export {
+  type ConnectionState,
+  type SignalRStore,
+  type SignalRStoreDeps,
+  createSignalRStore,
+  signalRStore,
+} from "./signalrStore";
 
 // Wire auth store into the API client
-import { wireAuth } from "./client";
+import { wireAuth, wireSignalR } from "./client";
 import { authStore } from "./authStore";
+import { signalRStore } from "./signalrStore";
 wireAuth(authStore.getToken, authStore.clearToken);
+wireSignalR(signalRStore.getConnectionId);

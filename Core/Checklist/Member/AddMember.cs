@@ -28,6 +28,8 @@ public static class AddMember
         ClaimsPrincipal claimsPrincipal,
         IDbConnection db,
         AuditContext auditContext,
+        IChecklistNotifier notifier,
+        HttpRequest httpRequest,
         CancellationToken ct = default
     )
     {
@@ -47,6 +49,8 @@ public static class AddMember
                 }
 
                 await CreateData(itemGroupId, memberId, db, ct);
+                string? connectionId = httpRequest.Headers["X-SignalR-Connection-Id"];
+                await notifier.NotifyMemberAdded(itemGroupId, memberId, connectionId);
                 return TypedResults.NoContent();
             },
             TypedResults.Unauthorized(),

@@ -25,6 +25,7 @@
     - [POST /api/list/{itemGroupId}/member/{memberId} — AddMember](#post-apilistitemgroupidmembermemberid--addmember)
     - [DELETE /api/list/{itemGroupId}/member/{memberId} — RemoveMember](#delete-apilistitemgroupidmembermemberid--removemember)
 - [Shared Patterns](#shared-patterns)
+- [Real-Time Notifications](#real-time-notifications)
 - [Structural Conventions](#structural-conventions)
 
 ---
@@ -43,12 +44,12 @@ The feature is implemented as a vertical slice under `Core/Checklist/` using ASP
 
 Represents a shared list owned collectively by its members.
 
-| Property | Type | Description |
-|---|---|---|
-| `Id` | `Guid` | Unique identifier |
-| `Name` | `string` | Display name. Must not be blank |
-| `Items` | `IReadOnlyList<Item>` | Items belonging to this group |
-| `Members` | `IReadOnlyList<Guid>` | User IDs of all members |
+| Property  | Type                  | Description                     |
+| --------- | --------------------- | ------------------------------- |
+| `Id`      | `Guid`                | Unique identifier               |
+| `Name`    | `string`              | Display name. Must not be blank |
+| `Items`   | `IReadOnlyList<Item>` | Items belonging to this group   |
+| `Members` | `IReadOnlyList<Guid>` | User IDs of all members         |
 
 `Items` and `Members` are populated contextually — see individual endpoint descriptions for what is included in each response.
 
@@ -56,13 +57,13 @@ Represents a shared list owned collectively by its members.
 
 Represents a task within an item group.
 
-| Property | Type | Description |
-|---|---|---|
-| `Id` | `Guid` | Unique identifier |
-| `Name` | `string` | Display name. Must not be blank |
-| `Description` | `string?` | Optional longer description |
-| `IsComplete` | `bool` | Completion flag. Defaults to `false` |
-| `ItemGroupId` | `Guid` | The group this item belongs to |
+| Property      | Type      | Description                          |
+| ------------- | --------- | ------------------------------------ |
+| `Id`          | `Guid`    | Unique identifier                    |
+| `Name`        | `string`  | Display name. Must not be blank      |
+| `Description` | `string?` | Optional longer description          |
+| `IsComplete`  | `bool`    | Completion flag. Defaults to `false` |
+| `ItemGroupId` | `Guid`    | The group this item belongs to       |
 
 ### Members
 
@@ -132,14 +133,15 @@ Returns all item groups where the authenticated user is a member. Each group is 
 
 **Responses**
 
-| Status | Condition |
-|---|---|
-| `200 OK` | `List<ItemGroup>` — may be empty |
-| `401 Unauthorized` | Missing user ID claim |
+| Status             | Condition                        |
+| ------------------ | -------------------------------- |
+| `200 OK`           | `List<ItemGroup>` — may be empty |
+| `401 Unauthorized` | Missing user ID claim            |
 
 **Query behaviour**
 
 Executes both queries in a single `QueryMultipleAsync` call:
+
 1. SELECT all groups where the user is a member (JOIN on `Members`)
 2. SELECT all incomplete items for those groups (JOIN on `Members` using the same `@UserId` parameter)
 
@@ -174,18 +176,18 @@ Returns a single item group including **all items** (complete and incomplete) an
 
 **Route parameters**
 
-| Parameter | Type | Description |
-|---|---|---|
+| Parameter     | Type   | Description                |
+| ------------- | ------ | -------------------------- |
 | `itemGroupId` | `Guid` | The item group to retrieve |
 
 **Responses**
 
-| Status | Condition |
-|---|---|
-| `200 OK` | `ItemGroup` with all items and all member IDs |
-| `401 Unauthorized` | Missing user ID claim |
-| `403 Forbidden` | Authenticated user is not a member |
-| `404 Not Found` | Item group does not exist |
+| Status             | Condition                                     |
+| ------------------ | --------------------------------------------- |
+| `200 OK`           | `ItemGroup` with all items and all member IDs |
+| `401 Unauthorized` | Missing user ID claim                         |
+| `403 Forbidden`    | Authenticated user is not a member            |
+| `404 Not Found`    | Item group does not exist                     |
 
 **Note:** The 403 check runs before the existence check. A non-member probing for a non-existent group receives 403, not 404. This is intentional — it avoids leaking whether a group exists to non-members.
 
@@ -216,17 +218,17 @@ Creates a new item group and automatically adds the authenticated user as its fi
 
 **Request body**
 
-| Field | Type | Validation |
-|---|---|---|
+| Field  | Type     | Validation                  |
+| ------ | -------- | --------------------------- |
 | `Name` | `string` | Required. Must not be blank |
 
 **Responses**
 
-| Status | Condition |
-|---|---|
-| `201 Created` | `ItemGroup` with `Members` containing the creator's ID. `Location` header set to `/list/{id}` |
-| `400 Bad Request` | `Name` is blank or whitespace |
-| `401 Unauthorized` | Missing user ID claim |
+| Status             | Condition                                                                                     |
+| ------------------ | --------------------------------------------------------------------------------------------- |
+| `201 Created`      | `ItemGroup` with `Members` containing the creator's ID. `Location` header set to `/list/{id}` |
+| `400 Bad Request`  | `Name` is blank or whitespace                                                                 |
+| `401 Unauthorized` | Missing user ID claim                                                                         |
 
 **Request body example**
 
@@ -255,14 +257,14 @@ Renames an existing item group.
 
 **Route parameters**
 
-| Parameter | Type | Description |
-|---|---|---|
+| Parameter     | Type   | Description              |
+| ------------- | ------ | ------------------------ |
 | `itemGroupId` | `Guid` | The item group to update |
 
 **Request body**
 
-| Field | Type | Validation |
-|---|---|---|
+| Field  | Type     | Validation                  |
+| ------ | -------- | --------------------------- |
 | `Name` | `string` | Required. Must not be blank |
 
 **Request body example**
@@ -273,12 +275,12 @@ Renames an existing item group.
 
 **Responses**
 
-| Status | Condition |
-|---|---|
-| `204 No Content` | Update successful |
-| `400 Bad Request` | `Name` is blank or whitespace |
-| `401 Unauthorized` | Missing user ID claim |
-| `403 Forbidden` | Authenticated user is not a member |
+| Status             | Condition                          |
+| ------------------ | ---------------------------------- |
+| `204 No Content`   | Update successful                  |
+| `400 Bad Request`  | `Name` is blank or whitespace      |
+| `401 Unauthorized` | Missing user ID claim              |
+| `403 Forbidden`    | Authenticated user is not a member |
 
 **Note:** If `itemGroupId` does not exist, the UPDATE affects zero rows and still returns `204 No Content`. There is no 404 response for this endpoint.
 
@@ -290,17 +292,17 @@ Permanently deletes an item group. All associated items and member records are r
 
 **Route parameters**
 
-| Parameter | Type | Description |
-|---|---|---|
+| Parameter     | Type   | Description              |
+| ------------- | ------ | ------------------------ |
 | `itemGroupId` | `Guid` | The item group to delete |
 
 **Responses**
 
-| Status | Condition |
-|---|---|
-| `204 No Content` | Deletion successful |
-| `401 Unauthorized` | Missing user ID claim |
-| `403 Forbidden` | Authenticated user is not a member |
+| Status             | Condition                          |
+| ------------------ | ---------------------------------- |
+| `204 No Content`   | Deletion successful                |
+| `401 Unauthorized` | Missing user ID claim              |
+| `403 Forbidden`    | Authenticated user is not a member |
 
 **Note:** If `itemGroupId` does not exist, the DELETE affects zero rows and still returns `204 No Content`. There is no 404 response for this endpoint.
 
@@ -314,26 +316,26 @@ Creates a new item within the specified item group.
 
 **Route parameters**
 
-| Parameter | Type | Description |
-|---|---|---|
+| Parameter     | Type   | Description                       |
+| ------------- | ------ | --------------------------------- |
 | `itemGroupId` | `Guid` | The item group to add the item to |
 
 **Request body**
 
-| Field | Type | Validation | Default |
-|---|---|---|---|
-| `Name` | `string` | Required. Must not be blank | — |
-| `Description` | `string?` | Optional | `null` |
-| `IsComplete` | `bool` | Optional | `false` |
+| Field         | Type      | Validation                  | Default |
+| ------------- | --------- | --------------------------- | ------- |
+| `Name`        | `string`  | Required. Must not be blank | —       |
+| `Description` | `string?` | Optional                    | `null`  |
+| `IsComplete`  | `bool`    | Optional                    | `false` |
 
 **Responses**
 
-| Status | Condition |
-|---|---|
-| `201 Created` | `Item`. `Location` header set to `/list/{itemGroupId}/{itemId}` |
-| `400 Bad Request` | `Name` is blank or whitespace |
-| `401 Unauthorized` | Missing user ID claim |
-| `403 Forbidden` | Authenticated user is not a member |
+| Status             | Condition                                                       |
+| ------------------ | --------------------------------------------------------------- |
+| `201 Created`      | `Item`. `Location` header set to `/list/{itemGroupId}/{itemId}` |
+| `400 Bad Request`  | `Name` is blank or whitespace                                   |
+| `401 Unauthorized` | Missing user ID claim                                           |
+| `403 Forbidden`    | Authenticated user is not a member                              |
 
 **Request body example**
 
@@ -361,18 +363,18 @@ Updates the name, description, and/or completion status of an existing item. All
 
 **Route parameters**
 
-| Parameter | Type | Description |
-|---|---|---|
+| Parameter     | Type   | Description                        |
+| ------------- | ------ | ---------------------------------- |
 | `itemGroupId` | `Guid` | The item group the item belongs to |
-| `itemId` | `Guid` | The item to update |
+| `itemId`      | `Guid` | The item to update                 |
 
 **Request body**
 
-| Field | Type | Validation | Default |
-|---|---|---|---|
-| `Name` | `string` | Required. Must not be blank | — |
-| `Description` | `string?` | Optional | `null` |
-| `IsComplete` | `bool` | Optional | `false` |
+| Field         | Type      | Validation                  | Default |
+| ------------- | --------- | --------------------------- | ------- |
+| `Name`        | `string`  | Required. Must not be blank | —       |
+| `Description` | `string?` | Optional                    | `null`  |
+| `IsComplete`  | `bool`    | Optional                    | `false` |
 
 **Request body example**
 
@@ -382,12 +384,12 @@ Updates the name, description, and/or completion status of an existing item. All
 
 **Responses**
 
-| Status | Condition |
-|---|---|
-| `204 No Content` | Update successful |
-| `400 Bad Request` | `Name` is blank or whitespace |
-| `401 Unauthorized` | Missing user ID claim |
-| `403 Forbidden` | Authenticated user is not a member |
+| Status             | Condition                          |
+| ------------------ | ---------------------------------- |
+| `204 No Content`   | Update successful                  |
+| `400 Bad Request`  | `Name` is blank or whitespace      |
+| `401 Unauthorized` | Missing user ID claim              |
+| `403 Forbidden`    | Authenticated user is not a member |
 
 **Note:** The UPDATE is scoped to both `Id = @itemId AND ItemGroupId = @itemGroupId`. If either does not exist or they do not match, zero rows are affected and `204 No Content` is still returned. There is no 404 response.
 
@@ -399,18 +401,18 @@ Permanently deletes an item from an item group.
 
 **Route parameters**
 
-| Parameter | Type | Description |
-|---|---|---|
+| Parameter     | Type   | Description                        |
+| ------------- | ------ | ---------------------------------- |
 | `itemGroupId` | `Guid` | The item group the item belongs to |
-| `itemId` | `Guid` | The item to delete |
+| `itemId`      | `Guid` | The item to delete                 |
 
 **Responses**
 
-| Status | Condition |
-|---|---|
-| `204 No Content` | Deletion successful |
-| `401 Unauthorized` | Missing user ID claim |
-| `403 Forbidden` | Authenticated user is not a member |
+| Status             | Condition                          |
+| ------------------ | ---------------------------------- |
+| `204 No Content`   | Deletion successful                |
+| `401 Unauthorized` | Missing user ID claim              |
+| `403 Forbidden`    | Authenticated user is not a member |
 
 **Note:** The DELETE is scoped to both `Id = @itemId AND ItemGroupId = @itemGroupId`. Non-existent items return `204 No Content`. There is no 404 response.
 
@@ -424,17 +426,17 @@ Returns the list of user IDs that are members of the specified item group.
 
 **Route parameters**
 
-| Parameter | Type | Description |
-|---|---|---|
+| Parameter     | Type   | Description             |
+| ------------- | ------ | ----------------------- |
 | `itemGroupId` | `Guid` | The item group to query |
 
 **Responses**
 
-| Status | Condition |
-|---|---|
-| `200 OK` | `List<Guid>` — all member IDs |
-| `401 Unauthorized` | Missing user ID claim |
-| `403 Forbidden` | Authenticated user is not a member |
+| Status             | Condition                          |
+| ------------------ | ---------------------------------- |
+| `200 OK`           | `List<Guid>` — all member IDs      |
+| `401 Unauthorized` | Missing user ID claim              |
+| `403 Forbidden`    | Authenticated user is not a member |
 
 ---
 
@@ -444,19 +446,19 @@ Grants another user access to an item group by adding them as a member. The auth
 
 **Route parameters**
 
-| Parameter | Type | Description |
-|---|---|---|
+| Parameter     | Type   | Description                         |
+| ------------- | ------ | ----------------------------------- |
 | `itemGroupId` | `Guid` | The item group to add the member to |
-| `memberId` | `Guid` | The user ID to add as a member |
+| `memberId`    | `Guid` | The user ID to add as a member      |
 
 **Responses**
 
-| Status | Condition |
-|---|---|
-| `204 No Content` | Member added successfully |
-| `401 Unauthorized` | Missing user ID claim |
-| `403 Forbidden` | Authenticated user is not a member |
-| `409 Conflict` | `memberId` is already a member of the group |
+| Status             | Condition                                   |
+| ------------------ | ------------------------------------------- |
+| `204 No Content`   | Member added successfully                   |
+| `401 Unauthorized` | Missing user ID claim                       |
+| `403 Forbidden`    | Authenticated user is not a member          |
+| `409 Conflict`     | `memberId` is already a member of the group |
 
 ---
 
@@ -466,19 +468,19 @@ Revokes a user's access to an item group. Any member can remove any other member
 
 **Route parameters**
 
-| Parameter | Type | Description |
-|---|---|---|
+| Parameter     | Type   | Description                              |
+| ------------- | ------ | ---------------------------------------- |
 | `itemGroupId` | `Guid` | The item group to remove the member from |
-| `memberId` | `Guid` | The user ID to remove |
+| `memberId`    | `Guid` | The user ID to remove                    |
 
 **Responses**
 
-| Status | Condition |
-|---|---|
-| `204 No Content` | Member removed successfully |
-| `401 Unauthorized` | Missing user ID claim |
-| `403 Forbidden` | Authenticated user is not a member |
-| `409 Conflict` | `memberId` is the last remaining member of the group. Removing them would leave the group permanently unreachable |
+| Status             | Condition                                                                                                         |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `204 No Content`   | Member removed successfully                                                                                       |
+| `401 Unauthorized` | Missing user ID claim                                                                                             |
+| `403 Forbidden`    | Authenticated user is not a member                                                                                |
+| `409 Conflict`     | `memberId` is the last remaining member of the group. Removing them would leave the group permanently unreachable |
 
 **Orphan prevention rule:** A group must always have at least one member. Attempting to remove the last member returns `409 Conflict`. The check is performed in a single query that simultaneously verifies the group has exactly one member and that member is the target `memberId`.
 
@@ -500,6 +502,38 @@ Name fields (`ItemGroup.Name`, `Item.Name`) are validated with `string.IsNullOrW
 
 - `IsMember(itemGroupId, userId)` — returns `false` immediately if `userId` is null, otherwise queries the `Members` table
 - `IsLastMember(itemGroupId, memberId)` — single query that checks both total member count and whether the target is the sole member
+
+---
+
+## Real-Time Notifications
+
+Checklist mutations are broadcast to group members in real time via SignalR.
+
+### Architecture
+
+- **Hub**: `ChecklistHub` at `/hubs/checklist` — authenticated, validates group membership on `JoinGroup`/`LeaveGroup`
+- **Client interface**: `IChecklistClient` — typed server→client messages (`ItemCreated`, `ItemUpdated`, `ItemDeleted`, `MemberAdded`, `MemberRemoved`, `GroupRenamed`, `GroupDeleted`)
+- **Notifier abstraction**: `IChecklistNotifier` — testable wrapper around `IHubContext<ChecklistHub, IChecklistClient>`
+- **Caller exclusion**: Mutations send an `X-SignalR-Connection-Id` header; the notifier uses `GroupExcept` to skip the caller
+
+### Events
+
+| Event           | Payload               | Triggered by    |
+| --------------- | --------------------- | --------------- |
+| `ItemCreated`   | `(groupId, item)`     | CreateItem      |
+| `ItemUpdated`   | `(groupId, item)`     | UpdateItem      |
+| `ItemDeleted`   | `(groupId, itemId)`   | DeleteItem      |
+| `MemberAdded`   | `(groupId, memberId)` | AddMember       |
+| `MemberRemoved` | `(groupId, memberId)` | RemoveMember    |
+| `GroupRenamed`  | `(groupId, name)`     | UpdateItemGroup |
+| `GroupDeleted`  | `(groupId)`           | DeleteItemGroup |
+
+### Client Strategy
+
+- Prefer real-time when connected, REST as fallback
+- Each slice owns its own SignalR subscriptions (no centralized hook)
+- Incoming events are wrapped in `startTransition()` for concurrent rendering
+- On reconnection: rejoin group + invalidate cache
 
 ---
 

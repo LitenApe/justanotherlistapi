@@ -40,6 +40,8 @@ public sealed class RemoveMemberTests
                 claimsPrincipal,
                 db,
                 new AuditContext(),
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest(),
                 default
             );
 
@@ -72,6 +74,8 @@ public sealed class RemoveMemberTests
                 claimsPrincipal,
                 db,
                 new AuditContext(),
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest(),
                 default
             );
 
@@ -103,6 +107,8 @@ public sealed class RemoveMemberTests
                 claimsPrincipal,
                 db,
                 new AuditContext(),
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest(),
                 default
             );
 
@@ -136,6 +142,8 @@ public sealed class RemoveMemberTests
                 claimsPrincipal,
                 db,
                 new AuditContext(),
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest(),
                 default
             );
 
@@ -170,6 +178,8 @@ public sealed class RemoveMemberTests
                 claimsPrincipal,
                 db,
                 new AuditContext(),
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest(),
                 default
             );
 

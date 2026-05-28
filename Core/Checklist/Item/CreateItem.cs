@@ -29,6 +29,8 @@ public static class CreateItem
         ClaimsPrincipal claimsPrincipal,
         IDbConnection db,
         AuditContext auditContext,
+        IChecklistNotifier notifier,
+        HttpRequest httpRequest,
         CancellationToken ct = default
     )
     {
@@ -46,6 +48,8 @@ public static class CreateItem
             {
                 Item data = await CreateData(itemGroupId, request, db, ct);
                 auditContext.SubResourceId = data.Id;
+                string? connectionId = httpRequest.Headers["X-SignalR-Connection-Id"];
+                await notifier.NotifyItemCreated(itemGroupId, data, connectionId);
                 return TypedResults.Created($"/list/{itemGroupId}/{data.Id}", data);
             },
             TypedResults.Unauthorized(),

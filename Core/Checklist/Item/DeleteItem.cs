@@ -24,6 +24,8 @@ public static class DeleteItem
         Guid itemId,
         ClaimsPrincipal claimsPrincipal,
         IDbConnection db,
+        IChecklistNotifier notifier,
+        HttpRequest httpRequest,
         CancellationToken ct = default
     )
     {
@@ -35,6 +37,8 @@ public static class DeleteItem
             async _ =>
             {
                 await DeleteData(itemGroupId, itemId, db, ct);
+                string? connectionId = httpRequest.Headers["X-SignalR-Connection-Id"];
+                await notifier.NotifyItemDeleted(itemGroupId, itemId, connectionId);
                 return TypedResults.NoContent();
             },
             TypedResults.Unauthorized(),

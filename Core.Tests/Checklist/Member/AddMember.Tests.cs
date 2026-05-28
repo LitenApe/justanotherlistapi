@@ -35,7 +35,9 @@ public sealed class AddMemberTests
                 newMemberId,
                 claimsPrincipal,
                 db,
-                new AuditContext()
+                new AuditContext(),
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest()
             );
 
         // Assert
@@ -66,7 +68,9 @@ public sealed class AddMemberTests
                 newMemberId,
                 claimsPrincipal,
                 db,
-                new AuditContext()
+                new AuditContext(),
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest()
             );
 
         // Assert
@@ -96,7 +100,9 @@ public sealed class AddMemberTests
                 newMemberId,
                 claimsPrincipal,
                 db,
-                new AuditContext()
+                new AuditContext(),
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest()
             );
 
         // Assert
@@ -133,7 +139,9 @@ public sealed class AddMemberTests
                 existingMemberId,
                 claimsPrincipal,
                 db,
-                new AuditContext()
+                new AuditContext(),
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest()
             );
 
         // Assert
