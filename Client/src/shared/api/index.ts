@@ -28,6 +28,7 @@ export {
 export {
   type ActivityLog,
   type LogEntry,
+  type LogSource,
   createActivityLog,
   activityLog,
 } from "./activityLog";

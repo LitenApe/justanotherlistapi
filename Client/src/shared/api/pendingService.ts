@@ -15,6 +15,7 @@ export function createPendingService(log: ActivityLog) {
       id: crypto.randomUUID(),
       operationId: id,
       event: "start",
+      source: "api",
       timestamp: now,
     });
     notify();
@@ -30,6 +31,7 @@ export function createPendingService(log: ActivityLog) {
       id: crypto.randomUUID(),
       operationId: id,
       event: "complete",
+      source: "api",
       timestamp: now,
       ...(startTime !== undefined && { duration: now - startTime }),
     });
@@ -45,6 +47,7 @@ export function createPendingService(log: ActivityLog) {
       id: crypto.randomUUID(),
       operationId: id,
       event: "error",
+      source: "api",
       timestamp: now,
       ...(startTime !== undefined && { duration: now - startTime }),
     });

@@ -1,7 +1,10 @@
+export type LogSource = "api" | "signalr";
+
 export interface LogEntry {
   id: string;
   operationId: string;
   event: "start" | "complete" | "error";
+  source: LogSource;
   timestamp: number;
   duration?: number;
 }

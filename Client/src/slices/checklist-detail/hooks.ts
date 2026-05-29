@@ -10,6 +10,7 @@ import {
 import { fetchChecklist } from "./api";
 import { invalidateChecklists } from "@slices/checklists";
 import { signalRStore } from "@shared/api/signalrStore";
+import { activityLog } from "@shared/api";
 import { useTrackedTransition } from "@shared/hooks";
 
 const detailCache = new Map<string, Promise<ItemGroup>>();
@@ -112,7 +113,18 @@ function useRealtimeSync(groupId: string): void {
   useEffect(() => {
     signalRStore.joinGroup(groupId);
 
+    function logSignalREvent(eventName: string): void {
+      activityLog.append({
+        id: crypto.randomUUID(),
+        operationId: eventName,
+        event: "complete",
+        source: "signalr",
+        timestamp: Date.now(),
+      });
+    }
+
     const handleItemCreated = (_gId: string, item: Item) => {
+      logSignalREvent("ItemCreated");
       startTransition(() => {
         updateDetailItems(groupId, (items) => [...items, item]);
         invalidateChecklists();
@@ -120,6 +132,7 @@ function useRealtimeSync(groupId: string): void {
     };
 
     const handleItemUpdated = (_gId: string, item: Item) => {
+      logSignalREvent("ItemUpdated");
       startTransition(() => {
         updateDetailItems(groupId, (items) =>
           items.map((i) => (i.id === item.id ? item : i)),
@@ -129,6 +142,7 @@ function useRealtimeSync(groupId: string): void {
     };
 
     const handleItemDeleted = (_gId: string, itemId: string) => {
+      logSignalREvent("ItemDeleted");
       startTransition(() => {
         updateDetailItems(groupId, (items) =>
           items.filter((i) => i.id !== itemId),
@@ -138,6 +152,7 @@ function useRealtimeSync(groupId: string): void {
     };
 
     const handleGroupRenamed = () => {
+      logSignalREvent("GroupRenamed");
       startTransition(() => {
         invalidateDetail(groupId);
         invalidateChecklists();
@@ -145,6 +160,7 @@ function useRealtimeSync(groupId: string): void {
     };
 
     const handleGroupDeleted = () => {
+      logSignalREvent("GroupDeleted");
       startTransition(() => {
         invalidateChecklists();
       });

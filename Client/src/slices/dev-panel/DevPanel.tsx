@@ -320,15 +320,21 @@ function DevPanelView({
           Activity Log ({entries.length})
         </div>
         <div className={styles.log}>
-          {entries
-            .slice(-20)
-            .reverse()
-            .map((entry: LogEntry) => (
-              <div key={entry.id} className={styles.logEntry}>
-                {entry.event} · {entry.operationId.slice(0, 8)} ·{" "}
-                {entry.duration != null ? `${entry.duration}ms` : "—"}
-              </div>
-            ))}
+          {[...entries].reverse().map((entry: LogEntry) => (
+            <div key={entry.id} className={styles.logEntry}>
+              <span
+                className={
+                  entry.source === "signalr"
+                    ? styles.sourceSignalr
+                    : styles.sourceApi
+                }
+              >
+                {entry.source === "signalr" ? "⚡ WS" : "↔ API"}
+              </span>{" "}
+              {entry.event} · {entry.operationId.slice(0, 12)} ·{" "}
+              {entry.duration != null ? `${entry.duration}ms` : "—"}
+            </div>
+          ))}
         </div>
       </div>
     </div>
