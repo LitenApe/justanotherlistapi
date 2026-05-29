@@ -7,10 +7,10 @@ import {
   useSyncExternalStore,
 } from "react";
 
+import { activityLog } from "@shared/api";
 import { fetchChecklist } from "./api";
 import { invalidateChecklists } from "@slices/checklists";
 import { signalRStore } from "@shared/api/signalrStore";
-import { activityLog } from "@shared/api";
 import { useTrackedTransition } from "@shared/hooks";
 
 const detailCache = new Map<string, Promise<ItemGroup>>();
@@ -126,7 +126,7 @@ function useRealtimeSync(groupId: string): void {
     const handleItemCreated = (_gId: string, item: Item) => {
       logSignalREvent("ItemCreated");
       startTransition(() => {
-        updateDetailItems(groupId, (items) => [...items, item]);
+        updateDetailItems(groupId, (items) => items.concat(item));
         invalidateChecklists();
       });
     };

@@ -320,7 +320,7 @@ function DevPanelView({
           Activity Log ({entries.length})
         </div>
         <div className={styles.log}>
-          {[...entries].reverse().map((entry: LogEntry) => (
+          {entries.toReversed().map((entry: LogEntry) => (
             <div key={entry.id} className={styles.logEntry}>
               <span
                 className={

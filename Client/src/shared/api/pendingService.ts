@@ -77,7 +77,7 @@ export function createPendingService(log: ActivityLog) {
       };
     },
     getSnapshot: (): boolean => active.size > 0,
-    getActiveOperations: (): readonly string[] => [...active],
+    getActiveOperations: (): readonly string[] => Array.from(active),
   };
 }
 

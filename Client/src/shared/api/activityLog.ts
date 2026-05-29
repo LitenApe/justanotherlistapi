@@ -19,7 +19,7 @@ export function createActivityLog() {
 
   return {
     append: (entry: LogEntry) => {
-      entries = [...entries, entry].slice(-MAX_ENTRIES);
+      entries = entries.concat(entry).slice(-MAX_ENTRIES);
       notify();
     },
     getSnapshot: (): readonly LogEntry[] => entries,
