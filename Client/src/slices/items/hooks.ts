@@ -35,7 +35,7 @@ export function useItemActions(items: Item[], groupId: string) {
         await toggleItem(item);
         updateDetailItems(groupId, (items) =>
           items.map((i) =>
-            i.id === item.id ? { ...i, isComplete: !i.isComplete } : i,
+            i.id === item.id ? { ...i, isComplete: !item.isComplete } : i,
           ),
         );
         invalidateChecklists();
