@@ -49,7 +49,12 @@ Core/                               - ASP.NET Core backend
     IAuditWriter.cs                 - Enqueue(AuditEntry) abstraction consumed by handlers and the filter
   Checklist/
     ChecklistApiEndpointRouteBuilderExtension.cs  - Maps all routes under /api/list
+    ChecklistAuthorizationExtensions.cs           - ExecuteAsItemGroupMember/ExecuteAsAuthenticatedUser helpers
     ChecklistConnectionExtensions.cs              - IDbConnection.IsMember() and IsLastMember() shared helpers
+    ChecklistHub.cs                 - SignalR hub at /hubs/checklist — JoinGroup (membership-gated) and LeaveGroup
+    ChecklistNotifier.cs            - IChecklistNotifier impl: broadcasts via IHubContext with optional caller exclusion
+    IChecklistClient.cs             - Typed client interface (ItemCreated, ItemUpdated, etc.)
+    IChecklistNotifier.cs           - Abstraction for broadcasting notifications (testable)
     Item/                           - CreateItem, UpdateItem, DeleteItem handlers
     ItemGroup/                      - GetItemGroups, GetItemGroup, CreateItemGroup,
     |                                 UpdateItemGroup, DeleteItemGroup handlers
@@ -59,7 +64,8 @@ Core/                               - ASP.NET Core backend
   Utility/
     BearerSecuritySchemeTransformer.cs  - Adds Bearer + OAuth2 security schemes to OpenAPI doc
 Core.Tests/                         - xUnit tests (SQLite in-memory, no running server needed)
-  ApiFactory.cs                     - WebApplicationFactory<Program> with SQLite + TestAuthHandler
+  ApiFactory.cs                     - WebApplicationFactory<Program> with SQLite + TestAuthHandler + CapturingNotifier
+  SignalRApiFactory.cs              - WebApplicationFactory that keeps real ChecklistNotifier + hub for e2e tests
   TestDatabase.cs                   - Creates in-memory SQLite with matching schema + GuidTypeHandler
   TestHelpers.cs                    - CreatePrincipal(Guid): builds a ClaimsPrincipal for unit tests
   AuditLog/
@@ -67,7 +73,12 @@ Core.Tests/                         - xUnit tests (SQLite in-memory, no running 
     CapturingAuditWriter.cs         - In-memory IAuditWriter that accumulates entries for assertion
     ChannelAuditWriter.Tests.cs     - Unit tests for ChannelAuditWriter (batching, flush, failure handling)
     NoOpAuditWriter.cs              - IAuditWriter that discards all entries (used to isolate other tests)
-  Checklist/                        - Unit + HTTP integration tests mirroring the Core/Checklist structure
+  Checklist/
+    CapturingNotifier.cs            - In-memory IChecklistNotifier that records notifications for assertion
+    ChecklistHubTests.cs            - SignalR hub auth tests + full end-to-end notification pipeline tests
+    Item/                           - Unit + HTTP tests for Item endpoints
+    ItemGroup/                      - Unit + HTTP tests for ItemGroup endpoints
+    Member/                         - Unit + HTTP tests for Member endpoints
 Client/                             - React 19 SPA (Vite + TypeScript)
   src/
     shared/                         - Infrastructure (api client, hooks, components, styles, routes)
@@ -241,6 +252,21 @@ All endpoints are under `/api/list` and require a valid Bearer token. Interactiv
 
 For detailed request/response shapes, validation rules, and edge cases see [specifications/checklist.md](specifications/checklist.md#api-endpoints).
 
+### Real-time notifications (SignalR)
+
+A SignalR hub at `/hubs/checklist` pushes mutations to connected group members in real time.
+
+| Hub method   | Description                                                                  |
+| ------------ | ---------------------------------------------------------------------------- |
+| `JoinGroup`  | Subscribe to notifications for a group (membership is validated server-side) |
+| `LeaveGroup` | Unsubscribe from a group's notifications                                     |
+
+**Client events** pushed by the server: `ItemCreated`, `ItemUpdated`, `ItemDeleted`, `MemberAdded`, `MemberRemoved`, `GroupRenamed`, `GroupDeleted`.
+
+**Caller exclusion**: Clients send an `X-SignalR-Connection-Id` header on mutations. The server uses `GroupExcept` to avoid echoing the event back to the originator.
+
+Authentication uses a `?access_token=` query string parameter (standard SignalR convention for WebSocket transport).
+
 ### Common status codes
 
 | Status             | Meaning                                                                                                                           |
@@ -270,7 +296,8 @@ dotnet test
 
 **HTTP integration tests** boot the full ASP.NET Core app via `WebApplicationFactory` and make real HTTP requests, covering route registration and middleware.
 
-- `ApiFactory` replaces the SQL Server connection with the same in-memory SQLite connection and swaps JWT Bearer authentication for a `TestAuthHandler` that always authenticates as a fixed user ID.
+- `ApiFactory` replaces the SQL Server connection with the same in-memory SQLite connection, swaps JWT Bearer authentication for a `TestAuthHandler` that always authenticates as a fixed user ID, and replaces `IChecklistNotifier` with `CapturingNotifier` for notification assertions.
+- `SignalRApiFactory` is similar but keeps the **real** `ChecklistNotifier` and SignalR hub, allowing end-to-end tests that connect a `HubConnection` client and verify notifications are broadcast through the actual pipeline.
 - The app runs in the `"Testing"` environment, which skips HTTPS redirection and database initialisation.
 
 ### Test coverage by file
@@ -284,22 +311,23 @@ dotnet test
 | `GetItemGroups.Http.Tests.cs`       | `GET /api/list` route registration                                                        |
 | `GetItemGroup.Tests.cs`             | Full group with all items + members, membership gate, auth                                |
 | `GetItemGroup.Http.Tests.cs`        | `GET /api/list/{id}` route registration                                                   |
-| `UpdateItemGroup.Tests.cs`          | Name update, validation, membership gate, auth                                            |
+| `UpdateItemGroup.Tests.cs`          | Name update, validation, membership gate, auth, notification assertion                    |
 | `UpdateItemGroup.Http.Tests.cs`     | `PUT /api/list/{id}` route registration                                                   |
-| `DeleteItemGroup.Tests.cs`          | Deletion, cascade behaviour, membership gate, auth                                        |
+| `DeleteItemGroup.Tests.cs`          | Deletion, cascade behaviour, membership gate, auth, notification assertion                |
 | `DeleteItemGroup.Http.Tests.cs`     | `DELETE /api/list/{id}` route registration                                                |
-| `CreateItem.Tests.cs`               | Create with all fields, validation, membership gate, auth                                 |
+| `CreateItem.Tests.cs`               | Create with all fields, validation, membership gate, auth, notification assertion         |
 | `CreateItem.Http.Tests.cs`          | `POST /api/list/{groupId}` route registration                                             |
-| `UpdateItem.Tests.cs`               | Full replace of all fields, validation, membership gate, auth                             |
+| `UpdateItem.Tests.cs`               | Full replace of all fields, validation, membership gate, auth, notification assertion     |
 | `UpdateItem.Http.Tests.cs`          | `PUT /api/list/{groupId}/{itemId}` route registration                                     |
-| `DeleteItem.Tests.cs`               | Deletion scoped by `ItemGroupId`, cross-group safety, auth                                |
+| `DeleteItem.Tests.cs`               | Deletion scoped by `ItemGroupId`, cross-group safety, auth, notification assertion        |
 | `DeleteItem.Http.Tests.cs`          | `DELETE /api/list/{groupId}/{itemId}` route registration                                  |
-| `AddMember.Tests.cs`                | Add new member, conflict on duplicate, membership gate, auth                              |
+| `AddMember.Tests.cs`                | Add new member, conflict on duplicate, membership gate, auth, notification assertion      |
 | `AddMember.Http.Tests.cs`           | `POST /api/list/{id}/member/{memberId}` route registration                                |
 | `GetMembers.Tests.cs`               | List member IDs, membership gate, auth                                                    |
 | `GetMembers.Http.Tests.cs`          | `GET /api/list/{id}/member` route registration                                            |
-| `RemoveMember.Tests.cs`             | Remove member (idempotent), last-member conflict, membership gate, auth                   |
+| `RemoveMember.Tests.cs`             | Remove member (idempotent), last-member conflict, membership gate, auth, notification     |
 | `RemoveMember.Http.Tests.cs`        | `DELETE /api/list/{id}/member/{memberId}` route registration                              |
+| `ChecklistHubTests.cs`              | Hub auth (JoinGroup/LeaveGroup), full SignalR pipeline for all 7 events, caller exclusion |
 | `AuditLog.Http.Tests.cs`            | Verifies an `AuditEntry` is captured for every operation (resource IDs, outcome, user ID) |
 | `ChannelAuditWriter.Tests.cs`       | Batching (50-entry immediate flush, 5 s window flush), failure recovery, shutdown drain   |
 

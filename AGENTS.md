@@ -32,13 +32,19 @@ Frontend features live in `Client/src/slices/`. Each slice follows an MVC patter
 - Separate internal `CreateData`/`LoadData` methods for testable data logic
 - Audit context: set `auditContext.SubResourceId` in handlers when a sub-resource is created
 - All Dapper queries use `CommandDefinition` with `CancellationToken`
+- SignalR notifications: inject `IChecklistNotifier` and call `NotifyXxx()` after mutations
+- Read `X-SignalR-Connection-Id` from `httpRequest.Headers` and pass as `excludeConnectionId`
+- Hub at `/hubs/checklist`: `ChecklistHub` validates membership in `JoinGroup`, uses SignalR groups by `groupId.ToString()`
 
 ### Tests
 
 - HTTP integration tests: class implements `IClassFixture<ApiFactory>`, uses `factory.CreateClient()`
+- SignalR end-to-end tests: class implements `IClassFixture<SignalRApiFactory>`, connects `HubConnection` via `factory.Server.CreateHandler()`
 - Unit tests for data logic: call internal static methods directly with SQLite connection
 - File naming: `*.Http.Tests.cs` (integration) vs `*.Tests.cs` (unit)
 - Test auth: `TestAuthHandler` provides a fixed `UserId`; insert matching `Members` row for authorization
+- Notification assertions: use `CapturingNotifier` in unit tests, assert on `Notifications` list (type + data + `ExcludeConnectionId`)
+- `ApiFactory` replaces `IChecklistNotifier` with `CapturingNotifier`; `SignalRApiFactory` keeps the real `ChecklistNotifier` + hub
 
 ### Frontend
 
