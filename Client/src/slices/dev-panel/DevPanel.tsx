@@ -95,9 +95,9 @@ function useDevPanelModel(): DevPanelModel {
       delayStore.setDelay(saved.delay);
       errorRateStore.setRate(saved.errorRate);
       computeOverheadStore.setOverhead(saved.overhead);
-      for (const key of Object.keys(saved.flags) as (keyof FeatureFlags)[]) {
-        setFlag(key, saved.flags[key]);
-      }
+      Object.entries(saved.flags).forEach(([key, value]) => {
+        setFlag(key as keyof FeatureFlags, value as FeatureFlags[keyof FeatureFlags]);
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -124,9 +124,9 @@ function useDevPanelModel(): DevPanelModel {
       delayStore.setDelay(p.delay);
       errorRateStore.setRate(p.errorRate);
       computeOverheadStore.setOverhead(p.overhead);
-      for (const key of Object.keys(p.flags) as (keyof FeatureFlags)[]) {
-        setFlag(key, p.flags[key]);
-      }
+      Object.entries(p.flags).forEach(([key, value]) => {
+        setFlag(key as keyof FeatureFlags, value as FeatureFlags[keyof FeatureFlags]);
+      });
     },
     [setFlag],
   );

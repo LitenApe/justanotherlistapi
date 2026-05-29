@@ -150,26 +150,28 @@ export function createApiClient(stores: ApiClientStores): ApiClient {
 
 // Default instance — wired up after authStore is created (see authStore.ts)
 // Temporarily uses placeholder getToken/clearToken; real wiring happens in the barrel export
-let _getToken: () => string | null = () => null;
-let _clearToken: () => void = () => {};
-let _getConnectionId: () => string | null = () => null;
+const wiring = {
+  getToken: (): string | null => null,
+  clearToken: (): void => {},
+  getConnectionId: (): string | null => null,
+};
 
 export function wireAuth(
   getToken: () => string | null,
   clearToken: () => void,
 ) {
-  _getToken = getToken;
-  _clearToken = clearToken;
+  wiring.getToken = getToken;
+  wiring.clearToken = clearToken;
 }
 
 export function wireSignalR(getConnectionId: () => string | null) {
-  _getConnectionId = getConnectionId;
+  wiring.getConnectionId = getConnectionId;
 }
 
 export const apiClient: ApiClient = createApiClient({
   delay: delayStore,
   errorRate: errorRateStore,
-  getToken: () => _getToken(),
-  clearToken: () => _clearToken(),
-  getConnectionId: () => _getConnectionId(),
+  getToken: () => wiring.getToken(),
+  clearToken: () => wiring.clearToken(),
+  getConnectionId: () => wiring.getConnectionId(),
 });

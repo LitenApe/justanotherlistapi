@@ -13,11 +13,10 @@ import { useTrackedTransition } from "@shared/hooks";
 const membersCache = new Map<string, Promise<string[]>>();
 
 function getMembersPromise(groupId: string): Promise<string[]> {
-  let promise = membersCache.get(groupId);
-  if (!promise) {
-    promise = fetchMembers(groupId);
-    membersCache.set(groupId, promise);
-  }
+  const existing = membersCache.get(groupId);
+  if (existing) return existing;
+  const promise = fetchMembers(groupId);
+  membersCache.set(groupId, promise);
   return promise;
 }
 
@@ -32,7 +31,7 @@ type MemberAction =
 function memberReducer(members: string[], action: MemberAction): string[] {
   switch (action.type) {
     case "add":
-      return [...members, action.memberId];
+      return members.concat(action.memberId);
     case "remove":
       return members.filter((id) => id !== action.memberId);
   }

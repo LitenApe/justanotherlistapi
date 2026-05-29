@@ -22,11 +22,10 @@ function notifyDetailListeners(id: string): void {
 }
 
 function subscribeDetail(id: string, listener: () => void): () => void {
-  let set = detailListeners.get(id);
-  if (!set) {
-    set = new Set();
-    detailListeners.set(id, set);
+  if (!detailListeners.has(id)) {
+    detailListeners.set(id, new Set());
   }
+  const set = detailListeners.get(id)!;
   set.add(listener);
   return () => {
     set.delete(listener);
@@ -39,11 +38,10 @@ function getDetailVersion(id: string): number {
 }
 
 function getDetailPromise(id: string): Promise<ItemGroup> {
-  let promise = detailCache.get(id);
-  if (!promise) {
-    promise = fetchChecklist(id);
-    detailCache.set(id, promise);
-  }
+  const existing = detailCache.get(id);
+  if (existing) return existing;
+  const promise = fetchChecklist(id);
+  detailCache.set(id, promise);
   return promise;
 }
 

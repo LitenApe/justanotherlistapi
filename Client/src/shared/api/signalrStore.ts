@@ -87,9 +87,11 @@ export function createSignalRStore(
 
   async function flushPendingGroups(): Promise<void> {
     if (connection?.state !== HubConnectionState.Connected) return;
-    for (const groupId of pendingGroups) {
-      await connection.invoke("JoinGroup", groupId);
-    }
+    await Promise.all(
+      Array.from(pendingGroups).map((groupId) =>
+        connection!.invoke("JoinGroup", groupId),
+      ),
+    );
   }
 
   function connect(token: string): void {
