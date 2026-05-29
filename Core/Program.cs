@@ -48,7 +48,16 @@ builder.Services.TryAddEnumerable(
 );
 
 // Real-time notifications
-builder.Services.AddSignalR();
+builder
+    .Services.AddSignalR()
+    .AddJsonProtocol(options =>
+    {
+        options.PayloadSerializerOptions.PropertyNamingPolicy = System
+            .Text
+            .Json
+            .JsonNamingPolicy
+            .CamelCase;
+    });
 builder.Services.AddSingleton<IChecklistNotifier, ChecklistNotifier>();
 
 // Authentication & Authorization
