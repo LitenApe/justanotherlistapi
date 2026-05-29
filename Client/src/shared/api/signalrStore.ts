@@ -2,6 +2,7 @@ import {
   type HubConnection,
   HubConnectionBuilder,
   HubConnectionState,
+  HttpTransportType,
   LogLevel,
 } from "@microsoft/signalr";
 
@@ -40,7 +41,11 @@ function defaultBuildConnection(
   accessTokenFactory: () => string,
 ): HubConnection {
   return new HubConnectionBuilder()
-    .withUrl(url, { accessTokenFactory })
+    .withUrl(url, {
+      accessTokenFactory,
+      skipNegotiation: true,
+      transport: HttpTransportType.WebSockets,
+    })
     .withAutomaticReconnect()
     .configureLogging(LogLevel.Warning)
     .build();
