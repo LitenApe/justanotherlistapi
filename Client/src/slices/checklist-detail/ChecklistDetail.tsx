@@ -66,6 +66,9 @@ export function ChecklistDetail() {
     <div style={{ position: "relative" }}>
       <RenderCount label="ChecklistDetail" />
       <div className={styles.header}>
+        <Link to={routes.home()} className={styles.backLink}>
+          ← All Checklists
+        </Link>
         <h2 className={styles.title}>{name ?? "\u00A0"}</h2>
         <Link to={routes.itemCreate(groupId)} className={styles.addBtn}>
           + New Item

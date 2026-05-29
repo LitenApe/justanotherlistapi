@@ -9,6 +9,17 @@
   border-bottom: 1px solid var(--border);
 }
 
+.backLink {
+  width: 100%;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.backLink:hover {
+  color: var(--accent);
+}
+
 .title {
   font-size: 2rem;
   font-weight: var(--weight-bold);

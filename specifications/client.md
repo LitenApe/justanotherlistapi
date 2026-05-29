@@ -3,15 +3,17 @@
 ## Table of Contents
 
 - [Overview](#overview)
+  - [User Flow](#user-flow)
 - [Architecture](#architecture)
   - [Vertical Slice Architecture](#vertical-slice-architecture)
-  - [Three-Layer HTTP Stack](#three-layer-http-stack)
+  - [Two-Layer HTTP Stack](#two-layer-http-stack)
   - [Factory Pattern](#factory-pattern)
   - [MVC Component Pattern](#mvc-component-pattern)
   - [Route Registry](#route-registry)
 - [Technology Stack](#technology-stack)
 - [Routing](#routing)
   - [Route Table](#route-table)
+  - [Page Structure](#page-structure)
   - [Navigation Patterns](#navigation-patterns)
   - [Protected Routes](#protected-routes)
 - [React 19 Concurrent Features](#react-19-concurrent-features)
@@ -26,6 +28,11 @@
   - [Mutations](#mutations)
   - [Data Freshness](#data-freshness)
   - [Optimistic Updates](#optimistic-updates)
+- [Real-Time Updates (SignalR)](#real-time-updates-signalr)
+  - [Connection Lifecycle](#connection-lifecycle)
+  - [Overview Page Real-Time](#overview-page-real-time)
+  - [Detail Page Real-Time](#detail-page-real-time)
+  - [Caller Exclusion](#caller-exclusion)
 - [Error Handling](#error-handling)
   - [Typed HTTP Errors](#typed-http-errors)
   - [Render Errors](#render-errors)
@@ -62,6 +69,16 @@ The application uses Vertical Slice Architecture to keep each UI feature self-co
 - Production-grade patterns: typed errors, factory DI, pure functions, co-located tests.
 - Dark mode only. Pleasing aesthetics via CSS custom properties.
 
+### User Flow
+
+1. User logs in → lands on the **Overview page** (`/`)
+2. Overview shows all checklists the user belongs to, each as an accordion panel
+3. Expanding a panel reveals the checklist's incomplete items — user can toggle items complete directly
+4. Items toggled complete become dimmed (strikethrough) but stay visible until next page load
+5. Other users' changes to visible items are reflected in real-time via SignalR
+6. Clicking a checklist name navigates to the **Detail page** (`/:groupId`) showing ALL items + members
+7. Detail page supports full CRUD: create, edit, delete items; manage members; rename/delete checklist
+
 ---
 
 ## Architecture
@@ -75,7 +92,7 @@ Infrastructure lives in `src/shared/` and is available to all slices.
 ```
 src/
   shared/       ← infrastructure (api, hooks, components, styles, types, routes)
-  slices/       ← feature slices (auth, checklists, items, members, dev-panel, etc.)
+  slices/       ← feature slices (auth, checklist-overview, checklist-detail, items, members, dev-panel)
   components/   ← app-shell only (Layout)
 ```
 
@@ -202,21 +219,41 @@ Models call `navigate(routes.checklist(groupId))` instead of `navigate(`/${group
 
 ### Route Table
 
-| Path                      | Component            | Purpose                              |
-| ------------------------- | -------------------- | ------------------------------------ |
-| `/login`                  | `Login` (React.lazy) | OAuth token exchange                 |
-| `/`                       | Empty state          | No group selected                    |
-| `/:groupId`               | `ChecklistDetail`    | Items list (inline toggle) + members |
-| `/:groupId/items/new`     | `ItemCreate`         | Create item form                     |
-| `/:groupId/items/:itemId` | `ItemEdit`           | Edit item form (name, description)   |
+| Path                      | Component            | Purpose                                                 |
+| ------------------------- | -------------------- | ------------------------------------------------------- |
+| `/login`                  | `Login` (React.lazy) | OAuth token exchange                                    |
+| `/`                       | `ChecklistOverview`  | All checklists with accordion of incomplete items       |
+| `/:groupId`               | `ChecklistDetail`    | Full item list (all items) + members for a single group |
+| `/:groupId/items/new`     | `ItemCreate`         | Create item form                                        |
+| `/:groupId/items/:itemId` | `ItemEdit`           | Edit item form (name, description)                      |
+
+### Page Structure
+
+**Overview page (`/`)** — the primary view after login:
+
+- Displays all checklists the user belongs to as a vertical list
+- Each checklist is an **accordion panel** that expands/collapses to reveal its incomplete items
+- Items can be toggled (checked off) directly from the overview without navigating away
+- Completed items remain visible (dimmed with strikethrough) until the next fresh GET fetch — what determines presence in the list is whether the item was included in the GET response, not its current `isComplete` state
+- Each checklist card has a link/button to navigate into the full detail view
+- Real-time updates via SignalR: if another user toggles or updates an item that is currently displayed, the change is reflected immediately
+
+**Detail page (`/:groupId`)** — the full view for a single checklist:
+
+- Displays ALL items (complete and incomplete) with full CRUD capabilities
+- Shows member list with add/remove functionality
+- Inline item toggle, edit link, delete action
+- Real-time updates for items, members, group rename, group delete
 
 ### Navigation Patterns
 
-- **Sidebar group selection:** Navigates to `routes.checklist(groupId)` with `{ state: { name } }` — always synchronous (no `startTransition`). The name is passed via React Router location state so the detail header can display it instantly before data loads.
-- **Item toggle (isComplete):** Inline checkbox action, no navigation. `useOptimistic` for instant feedback.
-- **Item edit:** "Edit" link navigates to `routes.itemEdit(groupId, itemId)`. Only for name/description changes.
+- **After login:** Navigate to `/` (overview page)
+- **Checklist drill-down:** From overview, navigate to `routes.checklist(groupId)` to see all items + members
+- **Item toggle on overview:** Inline checkbox action, no navigation. `useOptimistic` for instant feedback.
+- **Item edit:** "Edit" link navigates to `routes.itemEdit(groupId, itemId)`.
 - **Item create:** Button links to `routes.itemCreate(groupId)`.
 - **After create/edit:** `navigate(routes.checklist(groupId))` — route remount triggers fresh data fetch.
+- **Back to overview:** Navigate to `routes.home()` from detail view.
 
 ### Protected Routes
 
@@ -228,16 +265,14 @@ Models call `navigate(routes.checklist(groupId))` instead of `navigate(`/${group
 BrowserRouter (useTransitions={false})
   Routes
     Route path="/" element={<Layout />}
-      Route index → empty state
+      Route index → ChecklistOverview
       Route path="login" → Login (lazy)
       Route path=":groupId" → ChecklistDetail
       Route path=":groupId/items/new" → ItemCreate
       Route path=":groupId/items/:itemId" → ItemEdit
 ```
 
-`useTransitions={false}` on `BrowserRouter` disables React Router's internal `startTransition` wrapping of navigation state updates. This ensures `useParams()` and `useLocation()` update synchronously on navigation, enabling instant sidebar highlighting, instant header name display, and immediate Suspense fallback rendering.
-
-`useParams()` extracts IDs. Sidebar reads `useParams().groupId` for active highlight.
+`useTransitions={false}` on `BrowserRouter` disables React Router's internal `startTransition` wrapping of navigation state updates. This ensures `useParams()` and `useLocation()` update synchronously on navigation, enabling immediate Suspense fallback rendering.
 
 ---
 
@@ -255,7 +290,7 @@ Used for **data mutations** — wraps refetch and mutation operations to keep th
 
 **Used in:**
 
-- `checklists/hooks.ts` — wraps list refresh, create, and delete operations
+- `checklist-overview/hooks.ts` — wraps overview list refresh, create, and item toggle operations
 - `checklist-detail/hooks.ts` — wraps detail refresh after item mutations
 - `items/hooks.ts` — wraps optimistic item toggle (required for `useOptimistic` to work)
 
@@ -317,33 +352,44 @@ Plain module (`shared/api/authStore.ts`) — not a React context.
 
 ### Fetching
 
+**Overview page:**
+
+1. `ChecklistOverview` renders, suspending child calls `use(getOverviewPromise())`
+2. Fetches `GET /api/list` — returns all groups with incomplete items only
+3. `PendingBoundary` shows skeleton fallback during initial load
+4. Accordion panels render with checklist names; expanding reveals items
+
+**Detail page:**
+
 1. Navigation updates URL synchronously (`useTransitions={false}`)
-2. Route component reads new `groupId` from `useParams()`
+2. Route component reads `groupId` from `useParams()`
 3. Suspending child calls `use(getDetailPromise(groupId))` → suspends if not cached
 4. `PendingBoundary` shows skeleton fallback
-5. Promise resolves → component renders data
+5. Promise resolves → component renders ALL items (complete + incomplete) + members
 
 ### Mutations
 
-| Operation         | Location                        | Approach                                                             |
-| ----------------- | ------------------------------- | -------------------------------------------------------------------- |
-| Toggle isComplete | Inline on ItemRow               | `useOptimistic` → instant → PUT full replacement → rollback on error |
-| Create item       | `/:groupId/items/new` route     | `useActionState` → navigate back on success                          |
-| Edit item         | `/:groupId/items/:itemId` route | `useActionState` → PUT all fields → navigate back                    |
-| Delete item       | Inline on ItemRow               | Two-step confirmation → DELETE → refresh                             |
-| Create checklist  | Sidebar form                    | `useActionState` → navigate to new `/:groupId`                       |
-| Rename checklist  | Inline edit                     | `useActionState` → PUT → refresh sidebar                             |
-| Delete checklist  | Sidebar action                  | Two-step confirmation → DELETE → navigate to `/`                     |
-| Add member        | Members panel                   | Form → POST → refresh members                                        |
-| Remove member     | Members panel                   | Button → DELETE → handle 409 (last member)                           |
+| Operation                    | Location                        | Approach                                                             |
+| ---------------------------- | ------------------------------- | -------------------------------------------------------------------- |
+| Toggle isComplete (overview) | Inline on accordion ItemRow     | `useOptimistic` → instant → PUT full replacement → rollback on error |
+| Toggle isComplete (detail)   | Inline on detail ItemRow        | `useOptimistic` → instant → PUT full replacement → rollback on error |
+| Create item                  | `/:groupId/items/new` route     | `useActionState` → navigate back on success                          |
+| Edit item                    | `/:groupId/items/:itemId` route | `useActionState` → PUT all fields → navigate back                    |
+| Delete item                  | Inline on detail ItemRow        | Two-step confirmation → DELETE → refresh                             |
+| Create checklist             | Overview page form              | `useActionState` → refresh overview list                             |
+| Rename checklist             | Detail page header              | `useActionState` → PUT → refresh                                     |
+| Delete checklist             | Detail page action              | Two-step confirmation → DELETE → navigate to `/`                     |
+| Add member                   | Detail page members panel       | Form → POST → refresh members                                        |
+| Remove member                | Detail page members panel       | Button → DELETE → handle 409 (last member)                           |
 
 ### Data Freshness
 
-- **After item toggle/delete:** Synchronous cache mutation via `updateDetailItems()` — mutates the cached promise in-place with a React-tagged resolved promise. Parent component re-renders via `useSyncExternalStore` subscription. No refetch needed.
-- **After item create/edit:** Cache invalidation (`invalidateDetail(groupId)`) + navigate back to detail route (remount triggers fresh fetch).
-- **After checklist create:** Navigate to `/:newId`. List refreshes via `startTransition`.
-- **After checklist delete:** List refreshes via `startTransition`.
-- **Sidebar list:** Uses `use()` with module-level singleton promise — auto-fetches on first render, subsequent refreshes via `startTransition`.
+- **After item toggle on overview:** Synchronous cache mutation via `updateOverviewItems()` — mutates the cached promise in-place with a React-tagged resolved promise. Component re-renders via `useSyncExternalStore` subscription. No refetch needed. Completed items stay visible (dimmed/strikethrough) until next full fetch.
+- **After item toggle/delete on detail:** Synchronous cache mutation via `updateDetailItems()` — same pattern. Also triggers `invalidateOverview()` to refresh overview data on next visit.
+- **After item create/edit:** Cache invalidation (`invalidateDetail(groupId)`) + navigate back to detail route (remount triggers fresh fetch). Also invalidates overview cache.
+- **After checklist create:** Refresh overview list via `startTransition`.
+- **After checklist delete:** Refresh overview list via `startTransition`. Navigate to `/`.
+- **Overview list:** Uses `use()` with module-level singleton promise — auto-fetches on first render, subsequent refreshes via `startTransition`.
 
 ### Optimistic Updates
 
@@ -353,6 +399,48 @@ For item toggle (`isComplete`) and delete:
 2. API call fires (PUT with flipped `isComplete`, or DELETE)
 3. On success: `updateDetailItems()` mutates cache with the same transformation — when the transition commits, `useOptimistic` reveals the base state which now matches the optimistic state
 4. On error: automatic rollback (transition ends without cache mutation, base state unchanged)
+
+---
+
+## Real-Time Updates (SignalR)
+
+### Connection Lifecycle
+
+- SignalR auto-connects when auth token is set (`signalRStore`)
+- Hub URL: `/hubs/checklist`
+- Auto-reconnect with pending group flush (re-joins any previously joined groups)
+
+### Overview Page Real-Time
+
+The overview page joins **all groups** the user belongs to on mount. When another user modifies an item that appears in the overview (i.e., was included in the initial GET response), the change is reflected immediately:
+
+| Event          | Effect on Overview                                               |
+| -------------- | ---------------------------------------------------------------- |
+| `ItemUpdated`  | Update item in-place (toggle state, name, description)           |
+| `ItemCreated`  | Add item to the matching group's accordion (if group is visible) |
+| `ItemDeleted`  | Remove item from the matching group's accordion                  |
+| `GroupRenamed` | Update checklist name in the accordion header                    |
+| `GroupDeleted` | Remove checklist from overview entirely                          |
+
+On unmount (navigating away from overview): leave all groups.
+
+### Detail Page Real-Time
+
+The detail page joins a **single group** on mount:
+
+| Event           | Effect on Detail                  |
+| --------------- | --------------------------------- |
+| `ItemCreated`   | Add item to list                  |
+| `ItemUpdated`   | Update item in-place              |
+| `ItemDeleted`   | Remove item from list             |
+| `GroupRenamed`  | Update header name                |
+| `GroupDeleted`  | Navigate to `/` with notification |
+| `MemberAdded`   | Add member to members panel       |
+| `MemberRemoved` | Remove member from members panel  |
+
+### Caller Exclusion
+
+All mutations send `X-SignalR-Connection-Id` header. The backend excludes the calling connection from broadcasts — prevents the originator from receiving their own mutation back (which would conflict with optimistic state).
 
 ---
 
@@ -408,17 +496,15 @@ Each slice exports its public API from `index.ts`. No deep imports allowed.
 
 ### Layer 2: Prop Interfaces
 
-Typed interfaces define the contract between Layout and slice components:
+Typed interfaces define the contract between Layout/pages and slice components:
 
-| Slice             | Props                                                      |
-| ----------------- | ---------------------------------------------------------- |
-| `ChecklistList`   | `{ onCreated: (newId: string) => void }`                   |
-| `ChecklistSearch` | `{ items: ItemGroup[] }`                                   |
-| `ChecklistDetail` | Uses `useParams()` + `useLocation().state.name` internally |
-| `ItemList`        | `{ groupId: string; items: Item[] }`                       |
-| `ItemSearch`      | `{ items: Item[] }`                                        |
-| `Members`         | `{ groupId: string }`                                      |
-| `ChecklistForm`   | `{ onCreated: (newId: string) => void }`                   |
+| Slice               | Props                                                      |
+| ------------------- | ---------------------------------------------------------- |
+| `ChecklistOverview` | None (fetches own data)                                    |
+| `ChecklistDetail`   | Uses `useParams()` + `useLocation().state.name` internally |
+| `ItemList`          | `{ groupId: string; items: Item[] }`                       |
+| `ItemSearch`        | `{ items: Item[] }`                                        |
+| `Members`           | `{ groupId: string }`                                      |
 
 ### Layer 3: ESLint Enforcement
 
@@ -479,8 +565,9 @@ Fonts loaded via `<link>` in `index.html` from Google Fonts.
 - **Cards:** `border: 1px solid var(--border); border-radius: var(--radius-md)`.
 - **Buttons:** Primary (`--accent` bg), Ghost (transparent, `--accent` border), Danger (`--error` bg). All with `--radius-md` and focus ring.
 - **Inputs:** `--surface-2` background, `--border` border, `--accent` 2px focus border.
-- **Sidebar selected:** 3px left border `--accent` + `--surface-2` background.
-- **Completed items:** `line-through` + `color: var(--text-muted)`.
+- **Accordion panel:** Checklist name as header (clickable to expand/collapse). Chevron icon indicates state. Smooth height transition on expand/collapse.
+- **Completed items (overview):** `text-decoration: line-through` + `color: var(--text-muted)` + `opacity: 0.6`. Remain in the list until next fresh fetch; toggling marks them done visually but does not remove them.
+- **Completed items (detail):** `line-through` + `color: var(--text-muted)`.
 - **Optimistic items:** `opacity: 0.5`, `font-style: italic`, animated pulse dot (`--accent`).
 - **Rollback animation:** `@keyframes flash-error` — brief `--error` background → fade out.
 - **Delete:** Two-step inline confirmation (click → "Confirm delete" state, blur cancels).
@@ -490,13 +577,14 @@ Fonts loaded via `<link>` in `index.html` from Google Fonts.
 Suspense fallbacks use animated skeleton screens:
 
 - `@keyframes shimmer` — gradient sweep, 1.5s infinite
-- Sidebar skeleton: 3–4 pill shapes
+- Overview skeleton: 3–4 checklist card placeholders with collapsed accordion
 - Detail skeleton: title block + 5 item row placeholders
 
 ### Empty States
 
-- No checklists: Centered message + "Create your first checklist" prompt
-- No items: "No items yet" + inline create link visible
+- No checklists (overview): Centered message + "Create your first checklist" prompt
+- No incomplete items in accordion: "All done!" message or collapsed by default
+- No items (detail): "No items yet" + inline create link visible
 
 ### Accessibility
 
@@ -528,6 +616,7 @@ Client/
       api/
         client.ts
         authStore.ts
+        signalrStore.ts
         delay.ts
         computeOverhead.ts
         errorRate.ts
@@ -536,6 +625,7 @@ Client/
       hooks/
         useAuthToken.ts
         usePending.ts
+        useSignalRStatus.ts
         useRenderCount.ts
         useTrackedActionState.ts
         useTrackedTransition.ts
@@ -555,30 +645,18 @@ Client/
         api.ts
         Login.tsx
         Login.module.css
-      checklists/
+      checklist-overview/
         index.ts
         api.ts
         hooks.ts
-        ChecklistList.tsx
-        ChecklistList.module.css
-      checklist-search/
-        index.ts
-        hooks.ts
-        filter.ts
-        ChecklistSearch.tsx
-        ChecklistSearch.module.css
+        ChecklistOverview.tsx
+        ChecklistOverview.module.css
       checklist-detail/
         index.ts
         api.ts
         hooks.ts
         ChecklistDetail.tsx
         ChecklistDetail.module.css
-      item-search/
-        index.ts
-        hooks.ts
-        filter.ts
-        ItemSearch.tsx
-        ItemSearch.module.css
       items/
         index.ts
         api.ts
@@ -593,6 +671,7 @@ Client/
       members/
         index.ts
         api.ts
+        hooks.ts
         Members.tsx
         Members.module.css
       dev-panel/

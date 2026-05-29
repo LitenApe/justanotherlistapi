@@ -2,7 +2,7 @@ import { deleteItem, toggleItem } from "./api";
 import { useCallback, useOptimistic } from "react";
 
 import type { Item } from "@shared/types";
-import { invalidateChecklists } from "@slices/checklists";
+import { invalidateOverview } from "@slices/checklist-overview";
 import { updateDetailItems } from "@slices/checklist-detail";
 import { useTrackedTransition } from "@shared/hooks";
 
@@ -38,7 +38,7 @@ export function useItemActions(items: Item[], groupId: string) {
             i.id === item.id ? { ...i, isComplete: !item.isComplete } : i,
           ),
         );
-        invalidateChecklists();
+        invalidateOverview();
       });
     },
     [addOptimistic, startToggleTransition, groupId],
@@ -52,7 +52,7 @@ export function useItemActions(items: Item[], groupId: string) {
         updateDetailItems(groupId, (items) =>
           items.filter((i) => i.id !== item.id),
         );
-        invalidateChecklists();
+        invalidateOverview();
       });
     },
     [addOptimistic, startDeleteTransition, groupId],

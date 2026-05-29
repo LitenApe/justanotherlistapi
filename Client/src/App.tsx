@@ -3,12 +3,14 @@ import { DevPanel, FeaturesProvider } from "./slices/dev-panel";
 import {
   ErrorBoundary,
   PendingBorder,
+  PendingBoundary,
   ProtectedRoute,
 } from "@shared/components";
 import { ItemCreatePage, ItemEditPage } from "./slices/items";
 import { Suspense, lazy } from "react";
 
 import { ChecklistDetail } from "./slices/checklist-detail/ChecklistDetail";
+import { ChecklistOverview } from "./slices/checklist-overview";
 import { Layout } from "./components/Layout";
 
 const Login = lazy(() =>
@@ -33,7 +35,18 @@ export function App() {
               index
               element={
                 <ProtectedRoute>
-                  <p>Select a checklist to get started.</p>
+                  <ErrorBoundary
+                    fallback={(err, reset) => (
+                      <p>
+                        Error: {err.message}{" "}
+                        <button onClick={reset}>Retry</button>
+                      </p>
+                    )}
+                  >
+                    <PendingBoundary>
+                      <ChecklistOverview />
+                    </PendingBoundary>
+                  </ErrorBoundary>
                 </ProtectedRoute>
               }
             />

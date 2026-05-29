@@ -1,5 +1,5 @@
 import { createItem } from "./api";
-import { invalidateChecklists } from "@slices/checklists";
+import { invalidateOverview } from "@slices/checklist-overview";
 import { invalidateDetail } from "@slices/checklist-detail";
 import { routes } from "@shared/routes";
 import styles from "./ItemForm.module.css";
@@ -35,7 +35,7 @@ function useItemCreateModel(groupId: string): ItemCreateModel {
           name,
           ...(description && { description }),
         });
-        invalidateChecklists();
+        invalidateOverview();
         invalidateDetail(groupId);
         navigate(routes.checklist(groupId), { replace: true });
         return { error: null };

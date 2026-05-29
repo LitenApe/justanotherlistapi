@@ -9,7 +9,7 @@ import {
 
 import { activityLog } from "@shared/api";
 import { fetchChecklist } from "./api";
-import { invalidateChecklists } from "@slices/checklists";
+import { invalidateOverview } from "@slices/checklist-overview";
 import { signalRStore } from "@shared/api/signalrStore";
 import { useTrackedTransition } from "@shared/hooks";
 
@@ -125,7 +125,7 @@ function useRealtimeSync(groupId: string): void {
       logSignalREvent("ItemCreated");
       startTransition(() => {
         updateDetailItems(groupId, (items) => items.concat(item));
-        invalidateChecklists();
+        invalidateOverview();
       });
     };
 
@@ -135,7 +135,7 @@ function useRealtimeSync(groupId: string): void {
         updateDetailItems(groupId, (items) =>
           items.map((i) => (i.id === item.id ? item : i)),
         );
-        invalidateChecklists();
+        invalidateOverview();
       });
     };
 
@@ -145,7 +145,7 @@ function useRealtimeSync(groupId: string): void {
         updateDetailItems(groupId, (items) =>
           items.filter((i) => i.id !== itemId),
         );
-        invalidateChecklists();
+        invalidateOverview();
       });
     };
 
@@ -153,14 +153,14 @@ function useRealtimeSync(groupId: string): void {
       logSignalREvent("GroupRenamed");
       startTransition(() => {
         invalidateDetail(groupId);
-        invalidateChecklists();
+        invalidateOverview();
       });
     };
 
     const handleGroupDeleted = () => {
       logSignalREvent("GroupDeleted");
       startTransition(() => {
-        invalidateChecklists();
+        invalidateOverview();
       });
     };
 
