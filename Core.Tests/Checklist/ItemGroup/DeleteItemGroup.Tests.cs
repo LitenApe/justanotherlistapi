@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Core.Checklist;
 using Dapper;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.Sqlite;
 
@@ -15,6 +16,7 @@ public sealed class DeleteItemGroupTests
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        var notifier = new CapturingNotifier();
 
         await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
@@ -32,7 +34,7 @@ public sealed class DeleteItemGroupTests
                 itemGroupId,
                 claimsPrincipal,
                 db,
-                new CapturingNotifier(),
+                notifier,
                 TestHelpers.CreateHttpRequest(),
                 default
             );
@@ -46,6 +48,13 @@ public sealed class DeleteItemGroupTests
             new { Id = itemGroupId }
         );
         Assert.Null(deleted);
+
+        // Confirm notification
+        object notification = Assert.Single(notifier.Notifications);
+        CapturingNotifier.GroupDeletedNotification groupDeleted =
+            Assert.IsType<CapturingNotifier.GroupDeletedNotification>(notification);
+        Assert.Equal(itemGroupId, groupDeleted.GroupId);
+        Assert.Null(groupDeleted.ExcludeConnectionId);
     }
 
     [Fact]
@@ -209,5 +218,44 @@ public sealed class DeleteItemGroupTests
 
         // Assert
         Assert.IsType<NoContent>(result.Result);
+    }
+
+    [Fact]
+    public async Task Execute_PassesSignalRConnectionId_WhenHeaderIsPresent()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var itemGroupId = Guid.NewGuid();
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        var notifier = new CapturingNotifier();
+
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "ToDelete" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
+
+        HttpRequest httpRequest = TestHelpers.CreateHttpRequest();
+        httpRequest.Headers["X-SignalR-Connection-Id"] = "conn-dg-002";
+
+        // Act
+        await DeleteItemGroup.Execute(
+            itemGroupId,
+            claimsPrincipal,
+            db,
+            notifier,
+            httpRequest,
+            default
+        );
+
+        // Assert
+        object notification = Assert.Single(notifier.Notifications);
+        CapturingNotifier.GroupDeletedNotification groupDeleted =
+            Assert.IsType<CapturingNotifier.GroupDeletedNotification>(notification);
+        Assert.Equal("conn-dg-002", groupDeleted.ExcludeConnectionId);
     }
 }

@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Core.AuditLog;
 using Core.Checklist;
 using Dapper;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.Sqlite;
 
@@ -17,6 +18,7 @@ public sealed class AddMemberTests
         var itemGroupId = Guid.NewGuid();
         var newMemberId = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        var notifier = new CapturingNotifier();
 
         await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
@@ -36,7 +38,7 @@ public sealed class AddMemberTests
                 claimsPrincipal,
                 db,
                 new AuditContext(),
-                new CapturingNotifier(),
+                notifier,
                 TestHelpers.CreateHttpRequest()
             );
 
@@ -49,6 +51,14 @@ public sealed class AddMemberTests
             new { ItemGroupId = itemGroupId, MemberId = newMemberId }
         );
         Assert.NotNull(added);
+
+        // Confirm notification
+        object notification = Assert.Single(notifier.Notifications);
+        CapturingNotifier.MemberAddedNotification memberAdded =
+            Assert.IsType<CapturingNotifier.MemberAddedNotification>(notification);
+        Assert.Equal(itemGroupId, memberAdded.GroupId);
+        Assert.Equal(newMemberId, memberAdded.MemberId);
+        Assert.Null(memberAdded.ExcludeConnectionId);
     }
 
     [Fact]
@@ -146,5 +156,46 @@ public sealed class AddMemberTests
 
         // Assert
         Assert.IsType<Conflict>(result.Result);
+    }
+
+    [Fact]
+    public async Task Execute_PassesSignalRConnectionId_WhenHeaderIsPresent()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var itemGroupId = Guid.NewGuid();
+        var newMemberId = Guid.NewGuid();
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        var notifier = new CapturingNotifier();
+
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
+
+        HttpRequest httpRequest = TestHelpers.CreateHttpRequest();
+        httpRequest.Headers["X-SignalR-Connection-Id"] = "conn-am-003";
+
+        // Act
+        await AddMember.Execute(
+            itemGroupId,
+            newMemberId,
+            claimsPrincipal,
+            db,
+            new AuditContext(),
+            notifier,
+            httpRequest
+        );
+
+        // Assert
+        object notification = Assert.Single(notifier.Notifications);
+        CapturingNotifier.MemberAddedNotification memberAdded =
+            Assert.IsType<CapturingNotifier.MemberAddedNotification>(notification);
+        Assert.Equal("conn-am-003", memberAdded.ExcludeConnectionId);
     }
 }

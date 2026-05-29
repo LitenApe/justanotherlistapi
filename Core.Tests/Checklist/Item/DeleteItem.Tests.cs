@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Core.Checklist;
 using Dapper;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.Sqlite;
 
@@ -16,6 +17,7 @@ public sealed class DeleteItemTests
         var itemGroupId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        var notifier = new CapturingNotifier();
 
         await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
@@ -45,7 +47,7 @@ public sealed class DeleteItemTests
                 itemId,
                 claimsPrincipal,
                 db,
-                new CapturingNotifier(),
+                notifier,
                 TestHelpers.CreateHttpRequest(),
                 default
             );
@@ -59,6 +61,14 @@ public sealed class DeleteItemTests
             new { Id = itemId, ItemGroupId = itemGroupId }
         );
         Assert.Null(deleted);
+
+        // Confirm notification
+        object notification = Assert.Single(notifier.Notifications);
+        CapturingNotifier.ItemDeletedNotification itemDeleted =
+            Assert.IsType<CapturingNotifier.ItemDeletedNotification>(notification);
+        Assert.Equal(itemGroupId, itemDeleted.GroupId);
+        Assert.Equal(itemId, itemDeleted.ItemId);
+        Assert.Null(itemDeleted.ExcludeConnectionId);
     }
 
     [Fact]
@@ -227,5 +237,57 @@ public sealed class DeleteItemTests
             new { Id = itemId, ItemGroupId = itemGroupId }
         );
         Assert.Null(deleted);
+    }
+
+    [Fact]
+    public async Task Execute_PassesSignalRConnectionId_WhenHeaderIsPresent()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var itemGroupId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        var notifier = new CapturingNotifier();
+
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Items (Id, Name, Description, IsComplete, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @ItemGroupId)",
+            new
+            {
+                Id = itemId,
+                Name = "Item",
+                Description = "Desc",
+                IsComplete = false,
+                ItemGroupId = itemGroupId,
+            }
+        );
+
+        HttpRequest httpRequest = TestHelpers.CreateHttpRequest();
+        httpRequest.Headers["X-SignalR-Connection-Id"] = "conn-del-456";
+
+        // Act
+        await DeleteItem.Execute(
+            itemGroupId,
+            itemId,
+            claimsPrincipal,
+            db,
+            notifier,
+            httpRequest,
+            default
+        );
+
+        // Assert
+        object notification = Assert.Single(notifier.Notifications);
+        CapturingNotifier.ItemDeletedNotification itemDeleted =
+            Assert.IsType<CapturingNotifier.ItemDeletedNotification>(notification);
+        Assert.Equal("conn-del-456", itemDeleted.ExcludeConnectionId);
     }
 }

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Core.Checklist;
 using Dapper;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.Sqlite;
 
@@ -20,6 +21,7 @@ public sealed class UpdateItemTests
         string newDescription = "Updated Description";
         bool newIsComplete = true;
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        var notifier = new CapturingNotifier();
 
         await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
@@ -57,7 +59,7 @@ public sealed class UpdateItemTests
                 request,
                 claimsPrincipal,
                 db,
-                new CapturingNotifier(),
+                notifier,
                 TestHelpers.CreateHttpRequest()
             );
 
@@ -73,6 +75,15 @@ public sealed class UpdateItemTests
         Assert.Equal(newName, updated.Name);
         Assert.Equal(newDescription, updated.Description);
         Assert.Equal(newIsComplete, updated.IsComplete);
+
+        // Confirm notification
+        object notification = Assert.Single(notifier.Notifications);
+        CapturingNotifier.ItemUpdatedNotification itemUpdated =
+            Assert.IsType<CapturingNotifier.ItemUpdatedNotification>(notification);
+        Assert.Equal(itemGroupId, itemUpdated.GroupId);
+        Assert.Equal(itemId, itemUpdated.Item.Id);
+        Assert.Equal(newName, itemUpdated.Item.Name);
+        Assert.Null(itemUpdated.ExcludeConnectionId);
     }
 
     [Theory]
@@ -271,5 +282,64 @@ public sealed class UpdateItemTests
             new { Id = itemId, ItemGroupId = itemGroupId }
         );
         Assert.Null(updated);
+    }
+
+    [Fact]
+    public async Task Execute_PassesSignalRConnectionId_WhenHeaderIsPresent()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var itemGroupId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        var notifier = new CapturingNotifier();
+
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Items (Id, Name, Description, IsComplete, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @ItemGroupId)",
+            new
+            {
+                Id = itemId,
+                Name = "Old",
+                Description = "Old",
+                IsComplete = false,
+                ItemGroupId = itemGroupId,
+            }
+        );
+
+        var request = new UpdateItem.Request
+        {
+            Name = "New",
+            Description = "New",
+            IsComplete = true,
+        };
+
+        HttpRequest httpRequest = TestHelpers.CreateHttpRequest();
+        httpRequest.Headers["X-SignalR-Connection-Id"] = "conn-xyz-789";
+
+        // Act
+        await UpdateItem.Execute(
+            itemGroupId,
+            itemId,
+            request,
+            claimsPrincipal,
+            db,
+            notifier,
+            httpRequest
+        );
+
+        // Assert
+        object notification = Assert.Single(notifier.Notifications);
+        CapturingNotifier.ItemUpdatedNotification itemUpdated =
+            Assert.IsType<CapturingNotifier.ItemUpdatedNotification>(notification);
+        Assert.Equal("conn-xyz-789", itemUpdated.ExcludeConnectionId);
     }
 }

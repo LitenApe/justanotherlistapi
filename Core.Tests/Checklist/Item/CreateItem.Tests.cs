@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Core.AuditLog;
 using Core.Checklist;
 using Dapper;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.Sqlite;
 
@@ -22,6 +23,7 @@ public sealed class CreateItemTests
             IsComplete = false,
         };
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        var notifier = new CapturingNotifier();
 
         await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
@@ -41,7 +43,7 @@ public sealed class CreateItemTests
                 claimsPrincipal,
                 db,
                 new AuditContext(),
-                new CapturingNotifier(),
+                notifier,
                 TestHelpers.CreateHttpRequest(),
                 default
             );
@@ -61,6 +63,14 @@ public sealed class CreateItemTests
             new { item.Id }
         );
         Assert.NotNull(dbItem);
+
+        // Confirm notification
+        object notification = Assert.Single(notifier.Notifications);
+        CapturingNotifier.ItemCreatedNotification itemCreated =
+            Assert.IsType<CapturingNotifier.ItemCreatedNotification>(notification);
+        Assert.Equal(itemGroupId, itemCreated.GroupId);
+        Assert.Equal(item.Id, itemCreated.Item.Id);
+        Assert.Null(itemCreated.ExcludeConnectionId);
     }
 
     [Theory]
@@ -179,5 +189,52 @@ public sealed class CreateItemTests
 
         // Assert
         Assert.IsType<ForbidHttpResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Execute_PassesSignalRConnectionId_WhenHeaderIsPresent()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var itemGroupId = Guid.NewGuid();
+        var request = new CreateItem.Request
+        {
+            Name = "Test Item",
+            Description = null,
+            IsComplete = false,
+        };
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        var notifier = new CapturingNotifier();
+
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
+
+        HttpRequest httpRequest = TestHelpers.CreateHttpRequest();
+        httpRequest.Headers["X-SignalR-Connection-Id"] = "conn-abc-123";
+
+        // Act
+        await CreateItem.Execute(
+            itemGroupId,
+            request,
+            claimsPrincipal,
+            db,
+            new AuditContext(),
+            notifier,
+            httpRequest,
+            default
+        );
+
+        // Assert
+        object notification = Assert.Single(notifier.Notifications);
+        CapturingNotifier.ItemCreatedNotification itemCreated =
+            Assert.IsType<CapturingNotifier.ItemCreatedNotification>(notification);
+        Assert.Equal("conn-abc-123", itemCreated.ExcludeConnectionId);
     }
 }

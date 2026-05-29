@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Core.Checklist;
 using Dapper;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.Sqlite;
 
@@ -17,6 +18,7 @@ public sealed class UpdateItemGroupTests
         string oldName = "Old Name";
         string newName = "New Name";
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        var notifier = new CapturingNotifier();
 
         await using SqliteConnection db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
@@ -37,7 +39,7 @@ public sealed class UpdateItemGroupTests
                 request,
                 claimsPrincipal,
                 db,
-                new CapturingNotifier(),
+                notifier,
                 TestHelpers.CreateHttpRequest()
             );
 
@@ -51,6 +53,14 @@ public sealed class UpdateItemGroupTests
         );
         Assert.NotNull(updated);
         Assert.Equal(newName, updated.Name);
+
+        // Confirm notification
+        object notification = Assert.Single(notifier.Notifications);
+        CapturingNotifier.GroupRenamedNotification groupRenamed =
+            Assert.IsType<CapturingNotifier.GroupRenamedNotification>(notification);
+        Assert.Equal(itemGroupId, groupRenamed.GroupId);
+        Assert.Equal(newName, groupRenamed.Name);
+        Assert.Null(groupRenamed.ExcludeConnectionId);
     }
 
     [Theory]
@@ -137,5 +147,46 @@ public sealed class UpdateItemGroupTests
 
         // Assert
         Assert.IsType<ForbidHttpResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Execute_PassesSignalRConnectionId_WhenHeaderIsPresent()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var itemGroupId = Guid.NewGuid();
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        var notifier = new CapturingNotifier();
+
+        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Old" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
+
+        var request = new UpdateItemGroup.Request { Name = "New" };
+
+        HttpRequest httpRequest = TestHelpers.CreateHttpRequest();
+        httpRequest.Headers["X-SignalR-Connection-Id"] = "conn-ug-001";
+
+        // Act
+        await UpdateItemGroup.Execute(
+            itemGroupId,
+            request,
+            claimsPrincipal,
+            db,
+            notifier,
+            httpRequest
+        );
+
+        // Assert
+        object notification = Assert.Single(notifier.Notifications);
+        CapturingNotifier.GroupRenamedNotification groupRenamed =
+            Assert.IsType<CapturingNotifier.GroupRenamedNotification>(notification);
+        Assert.Equal("conn-ug-001", groupRenamed.ExcludeConnectionId);
     }
 }
