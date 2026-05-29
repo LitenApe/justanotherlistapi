@@ -53,6 +53,7 @@ export function createSignalRStore(
   let state: ConnectionState = "disconnected";
   const listeners = new Set<() => void>();
   const reconnectCallbacks = new Set<() => void>();
+  const pendingGroups = new Set<string>();
 
   function notify(): void {
     listeners.forEach((l) => l());
@@ -79,6 +80,13 @@ export function createSignalRStore(
     }
   }
 
+  async function flushPendingGroups(): Promise<void> {
+    if (connection?.state !== HubConnectionState.Connected) return;
+    for (const groupId of pendingGroups) {
+      await connection.invoke("JoinGroup", groupId);
+    }
+  }
+
   function connect(token: string): void {
     if (connection) return;
 
@@ -91,11 +99,15 @@ export function createSignalRStore(
     connection.onreconnecting(() => updateState());
     connection.onreconnected(() => {
       updateState();
+      flushPendingGroups();
       reconnectCallbacks.forEach((cb) => cb());
     });
 
     connection.start().then(
-      () => updateState(),
+      () => {
+        updateState();
+        flushPendingGroups();
+      },
       () => updateState(),
     );
   }
@@ -110,12 +122,14 @@ export function createSignalRStore(
   }
 
   async function joinGroup(groupId: string): Promise<void> {
+    pendingGroups.add(groupId);
     if (connection?.state === HubConnectionState.Connected) {
       await connection.invoke("JoinGroup", groupId);
     }
   }
 
   async function leaveGroup(groupId: string): Promise<void> {
+    pendingGroups.delete(groupId);
     if (connection?.state === HubConnectionState.Connected) {
       await connection.invoke("LeaveGroup", groupId);
     }
