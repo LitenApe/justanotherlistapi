@@ -1,8 +1,8 @@
 import { defineConfig } from "vite";
-import path from "path";
+import path from "node:path";
 import react from "@vitejs/plugin-react-swc";
 
-export default defineConfig(({ mode }) => ({
+export default defineConfig({
   plugins: [react()],
   server: {
     port: parseInt(process.env.PORT ?? "5173"),
@@ -40,6 +40,4 @@ export default defineConfig(({ mode }) => ({
   build: {
     sourcemap: true,
   },
-  esbuild:
-    mode === "production" ? { drop: ["console", "debugger"] } : undefined,
-}));
+});
