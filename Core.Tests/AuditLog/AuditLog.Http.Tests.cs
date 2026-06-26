@@ -1,4 +1,3 @@
-using System.Data;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -8,7 +7,6 @@ using Core.AuditLog;
 using Dapper;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -223,44 +221,6 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
         AuditEntry entry = Assert.Single(writer.Entries);
         Assert.Equal("UpdateItemGroup", entry.Operation);
         Assert.Equal("BadRequest", entry.Outcome);
-        Assert.Equal(itemGroupId, entry.ResourceId);
-    }
-
-    [Fact]
-    public async Task GetItemGroup_CapturesNotFoundOutcome_WhenGroupDoesNotExist()
-    {
-        // Microsoft.Data.Sqlite 10.x enables FK constraints by default at the library level;
-        // they cannot be disabled via PRAGMA after the connection is open. We use a separate
-        // connection with Foreign Keys=False so we can insert an orphaned Members row (user is
-        // a member but the ItemGroups row is absent — the GetItemGroup 404 branch).
-        var itemGroupId = Guid.NewGuid();
-        await using var noFkConnection = new SqliteConnection(
-            "Data Source=:memory:;Foreign Keys=False"
-        );
-        await noFkConnection.OpenAsync();
-        await TestDatabase.CreateTablesAsync(noFkConnection);
-        await noFkConnection.ExecuteAsync(
-            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
-            new { MemberId = TestAuthHandler.UserId, ItemGroupId = itemGroupId }
-        );
-
-        var writer = new CapturingAuditWriter();
-        await using WebApplicationFactory<Program> webFactory = factory.WithWebHostBuilder(b =>
-            b.ConfigureServices(services =>
-            {
-                services.RemoveAll<IDbConnection>();
-                services.AddSingleton<IDbConnection>((IDbConnection)noFkConnection);
-                services.RemoveAll<IAuditWriter>();
-                services.AddSingleton<IAuditWriter>(writer);
-            })
-        );
-        HttpClient client = webFactory.CreateClient();
-
-        await client.GetAsync($"/api/list/{itemGroupId}");
-
-        AuditEntry entry = Assert.Single(writer.Entries);
-        Assert.Equal("GetItemGroup", entry.Operation);
-        Assert.Equal("NotFound", entry.Outcome);
         Assert.Equal(itemGroupId, entry.ResourceId);
     }
 

@@ -187,9 +187,8 @@ Returns a single item group including **all items** (complete and incomplete) an
 | `200 OK`           | `ItemGroup` with all items and all member IDs |
 | `401 Unauthorized` | Missing user ID claim                         |
 | `403 Forbidden`    | Authenticated user is not a member            |
-| `404 Not Found`    | Item group does not exist                     |
 
-**Note:** The 403 check runs before the existence check. A non-member probing for a non-existent group receives 403, not 404. This is intentional — it avoids leaking whether a group exists to non-members.
+**Note:** The 403 check runs before the existence check. A non-member probing for a non-existent group receives 403, not 404. This is intentional — it avoids leaking whether a group exists to non-members. Because membership is enforced by a foreign-key constraint on `Members.ItemGroupId`, a user who passes the membership check is guaranteed the group exists; the endpoint therefore never returns 404.
 
 **Response body example**
 

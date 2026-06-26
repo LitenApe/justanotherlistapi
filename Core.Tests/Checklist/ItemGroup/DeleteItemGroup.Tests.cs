@@ -3,7 +3,6 @@ using Core.Checklist;
 using Dapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.Data.Sqlite;
 
 namespace Core.Tests.Checklist.ItemGroupTests;
 
@@ -18,7 +17,7 @@ public sealed class DeleteItemGroupTests
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
         var notifier = new CapturingNotifier();
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "ToDelete" }
@@ -67,7 +66,7 @@ public sealed class DeleteItemGroupTests
         var itemId = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -122,7 +121,7 @@ public sealed class DeleteItemGroupTests
         var itemGroupId = Guid.NewGuid();
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
 
         // Act
         Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> result =
@@ -147,7 +146,7 @@ public sealed class DeleteItemGroupTests
         var itemGroupId = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "ToDelete" }
@@ -170,57 +169,6 @@ public sealed class DeleteItemGroupTests
     }
 
     [Fact]
-    public async Task Execute_NoError_WhenItemGroupDoesNotExist_ButUserIsMember()
-    {
-        // Arrange
-        var userId = Guid.NewGuid();
-        var itemGroupId = Guid.NewGuid();
-        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
-
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
-        // Insert a placeholder group to satisfy the FK, add member, then remove the group
-        var placeholderId = Guid.NewGuid();
-        await db.ExecuteAsync(
-            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
-            new { Id = itemGroupId, Name = "Placeholder" }
-        );
-        await db.ExecuteAsync(
-            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
-            new { MemberId = userId, ItemGroupId = itemGroupId }
-        );
-        await db.ExecuteAsync(
-            "DELETE FROM Members WHERE ItemGroupId = @ItemGroupId",
-            new { ItemGroupId = itemGroupId }
-        );
-        await db.ExecuteAsync("DELETE FROM ItemGroups WHERE Id = @Id", new { Id = itemGroupId });
-
-        // Re-add only the member row, pointing to a group that no longer exists — not possible with FK.
-        // Instead, seed a separate group to satisfy FK, then confirm IsMember still resolves correctly.
-        // The scenario: member row exists for itemGroupId, but ItemGroup row does not.
-        // SQLite enforces FK by default only when PRAGMA foreign_keys=ON. We can insert the orphan row.
-        await db.ExecuteAsync("PRAGMA foreign_keys = OFF");
-        await db.ExecuteAsync(
-            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
-            new { MemberId = userId, ItemGroupId = itemGroupId }
-        );
-        await db.ExecuteAsync("PRAGMA foreign_keys = ON");
-
-        // Act
-        Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await DeleteItemGroup.Execute(
-                itemGroupId,
-                claimsPrincipal,
-                db,
-                new CapturingNotifier(),
-                TestHelpers.CreateHttpRequest(),
-                default
-            );
-
-        // Assert
-        Assert.IsType<NoContent>(result.Result);
-    }
-
-    [Fact]
     public async Task Execute_PassesSignalRConnectionId_WhenHeaderIsPresent()
     {
         // Arrange
@@ -229,7 +177,7 @@ public sealed class DeleteItemGroupTests
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
         var notifier = new CapturingNotifier();
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "ToDelete" }

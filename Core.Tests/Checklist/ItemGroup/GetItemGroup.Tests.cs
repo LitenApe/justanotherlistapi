@@ -2,7 +2,6 @@ using System.Security.Claims;
 using Core.Checklist;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.Data.Sqlite;
 
 namespace Core.Tests.Checklist.ItemGroupTests;
 
@@ -16,7 +15,7 @@ public sealed class GetItemGroupTests
         var itemGroupId = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "My Group" }
@@ -27,7 +26,7 @@ public sealed class GetItemGroupTests
         );
 
         // Act
-        Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult> result =
+        Results<Ok<ItemGroup>, UnauthorizedHttpResult, ForbidHttpResult> result =
             await GetItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
@@ -48,7 +47,7 @@ public sealed class GetItemGroupTests
         var member2Id = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -83,7 +82,7 @@ public sealed class GetItemGroupTests
         );
 
         // Act
-        Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult> result =
+        Results<Ok<ItemGroup>, UnauthorizedHttpResult, ForbidHttpResult> result =
             await GetItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
@@ -111,10 +110,10 @@ public sealed class GetItemGroupTests
         var itemGroupId = Guid.NewGuid();
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
 
         // Act
-        Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult> result =
+        Results<Ok<ItemGroup>, UnauthorizedHttpResult, ForbidHttpResult> result =
             await GetItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
@@ -129,7 +128,7 @@ public sealed class GetItemGroupTests
         var itemGroupId = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "My Group" }
@@ -137,35 +136,10 @@ public sealed class GetItemGroupTests
         // No member for this user
 
         // Act
-        Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult> result =
+        Results<Ok<ItemGroup>, UnauthorizedHttpResult, ForbidHttpResult> result =
             await GetItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
 
         // Assert
         Assert.IsType<ForbidHttpResult>(result.Result);
-    }
-
-    [Fact]
-    public async Task Execute_ReturnsNotFound_WhenItemGroupDoesNotExist()
-    {
-        // Arrange
-        var userId = Guid.NewGuid();
-        var itemGroupId = Guid.NewGuid();
-        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
-
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
-        // Insert member pointing to non-existent group (disable FK for this edge case)
-        await db.ExecuteAsync("PRAGMA foreign_keys = OFF");
-        await db.ExecuteAsync(
-            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
-            new { MemberId = userId, ItemGroupId = itemGroupId }
-        );
-        await db.ExecuteAsync("PRAGMA foreign_keys = ON");
-
-        // Act
-        Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await GetItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
-
-        // Assert
-        Assert.IsType<NotFound>(result.Result);
     }
 }

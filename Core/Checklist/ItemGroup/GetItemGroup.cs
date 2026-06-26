@@ -20,7 +20,7 @@ public static class GetItemGroup
     }
 
     public static async Task<
-        Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult>
+        Results<Ok<ItemGroup>, UnauthorizedHttpResult, ForbidHttpResult>
     > Execute(
         Guid itemGroupId,
         ClaimsPrincipal claimsPrincipal,
@@ -29,20 +29,11 @@ public static class GetItemGroup
     )
     {
         return await db.ExecuteAsItemGroupMember<
-            Results<Ok<ItemGroup>, NotFound, UnauthorizedHttpResult, ForbidHttpResult>
+            Results<Ok<ItemGroup>, UnauthorizedHttpResult, ForbidHttpResult>
         >(
             itemGroupId,
             claimsPrincipal,
-            async _ =>
-            {
-                ItemGroup? itemGroup = await LoadData(itemGroupId, db, ct);
-                if (itemGroup is null)
-                {
-                    return TypedResults.NotFound();
-                }
-
-                return TypedResults.Ok(itemGroup);
-            },
+            async _ => TypedResults.Ok(await LoadData(itemGroupId, db, ct)),
             TypedResults.Unauthorized(),
             TypedResults.Forbid(),
             ct
