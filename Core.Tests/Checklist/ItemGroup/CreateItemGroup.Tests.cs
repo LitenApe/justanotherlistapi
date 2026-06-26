@@ -3,7 +3,6 @@ using Core.AuditLog;
 using Core.Checklist;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.Data.Sqlite;
 
 namespace Core.Tests.Checklist.ItemGroupTests;
 
@@ -17,7 +16,7 @@ public sealed class CreateItemGroupTests
         var userId = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
 
         // Act
         Results<Created<ItemGroup>, BadRequest, UnauthorizedHttpResult> result =
@@ -39,7 +38,7 @@ public sealed class CreateItemGroupTests
         var userId = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
 
         // Act
         Results<Created<ItemGroup>, BadRequest, UnauthorizedHttpResult> result =
@@ -68,7 +67,7 @@ public sealed class CreateItemGroupTests
         var userId = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
 
         // Act
         Results<Created<ItemGroup>, BadRequest, UnauthorizedHttpResult> result =
@@ -99,7 +98,7 @@ public sealed class CreateItemGroupTests
         var userId = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
 
         // Act
         Results<Created<ItemGroup>, BadRequest, UnauthorizedHttpResult> result =
@@ -118,7 +117,7 @@ public sealed class CreateItemGroupTests
             new System.Security.Claims.ClaimsIdentity()
         );
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
 
         // Act
         Results<Created<ItemGroup>, BadRequest, UnauthorizedHttpResult> result =

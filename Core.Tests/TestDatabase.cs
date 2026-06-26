@@ -1,77 +1,65 @@
-using System.Data;
+using Core.AuditLog;
+using Core.Checklist;
 using Dapper;
-using Microsoft.Data.Sqlite;
+using Microsoft.Data.SqlClient;
+using Testcontainers.MsSql;
 
 namespace Core.Tests;
 
 /// <summary>
-/// Creates an in-memory SQLite connection with the application schema set up,
-/// for use in unit tests as a substitute for a real SQL Server connection.
+/// Creates a SQL Server database (via Testcontainers) with the application schema applied,
+/// for use in unit and integration tests. One container is shared for the entire test run;
+/// each call to <see cref="CreateAsync"/> creates an isolated, uniquely-named database.
 /// </summary>
 internal static class TestDatabase
 {
-    static TestDatabase()
+    private static readonly SemaphoreSlim InitLock = new(1, 1);
+    private static MsSqlContainer? container;
+
+    private static async Task<string> GetContainerConnectionStringAsync()
     {
-        // Register a type handler so Dapper maps Guid ↔ TEXT correctly for SQLite.
-        // This is process-scoped to the test runner and does not affect production.
-        SqlMapper.AddTypeHandler(new GuidTypeHandler());
+        if (container is not null)
+        {
+            return container.GetConnectionString();
+        }
+
+        await InitLock.WaitAsync();
+        try
+        {
+            if (container is null)
+            {
+                container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
+                await container.StartAsync();
+            }
+        }
+        finally
+        {
+            InitLock.Release();
+        }
+
+        return container.GetConnectionString();
     }
 
-    public static async Task<SqliteConnection> CreateAsync()
+    public static async Task<SqlConnection> CreateAsync()
     {
-        var connection = new SqliteConnection("Data Source=:memory:");
+        string masterConnectionString = await GetContainerConnectionStringAsync();
+        string dbName = $"test_{Guid.NewGuid():N}";
+
+        await using (SqlConnection master = new SqlConnection(masterConnectionString))
+        {
+            await master.OpenAsync();
+            await master.ExecuteAsync($"CREATE DATABASE [{dbName}]");
+        }
+
+        string dbConnectionString = new SqlConnectionStringBuilder(masterConnectionString)
+        {
+            InitialCatalog = dbName,
+        }.ConnectionString;
+
+        SqlConnection connection = new SqlConnection(dbConnectionString);
         await connection.OpenAsync();
-        await CreateTablesAsync(connection);
+        await ChecklistSchemaInitializer.CreateSchemaAsync(connection);
+        await AuditLogSchemaInitializer.CreateSchemaAsync(connection);
         return connection;
     }
-
-    internal static async Task CreateTablesAsync(SqliteConnection connection)
-    {
-        await connection.ExecuteAsync(
-            """
-            CREATE TABLE ItemGroups (
-                Id   TEXT NOT NULL PRIMARY KEY,
-                Name TEXT NOT NULL
-            );
-
-            CREATE TABLE Items (
-                Id          TEXT    NOT NULL PRIMARY KEY,
-                Name        TEXT    NOT NULL,
-                Description TEXT    NULL,
-                IsComplete  INTEGER NOT NULL DEFAULT 0,
-                ItemGroupId TEXT    NOT NULL REFERENCES ItemGroups(Id) ON DELETE CASCADE
-            );
-
-            CREATE TABLE Members (
-                MemberId    TEXT NOT NULL,
-                ItemGroupId TEXT NOT NULL,
-                PRIMARY KEY (MemberId, ItemGroupId),
-                FOREIGN KEY (ItemGroupId) REFERENCES ItemGroups(Id) ON DELETE CASCADE
-            );
-
-            CREATE TABLE AuditLog (
-                Id            TEXT NOT NULL PRIMARY KEY,
-                Timestamp     TEXT NOT NULL,
-                TraceId       TEXT NULL,
-                UserId        TEXT NULL,
-                IpAddress     TEXT NULL,
-                ResourceType  TEXT NULL,
-                Operation     TEXT NOT NULL,
-                ResourceId    TEXT NULL,
-                SubResourceId TEXT NULL,
-                TargetUserId  TEXT NULL,
-                Outcome       TEXT NOT NULL,
-                FailureReason TEXT NULL
-            );
-            """
-        );
-    }
-}
-
-internal sealed class GuidTypeHandler : SqlMapper.TypeHandler<Guid>
-{
-    public override void SetValue(IDbDataParameter parameter, Guid value) =>
-        parameter.Value = value.ToString();
-
-    public override Guid Parse(object value) => Guid.Parse((string)value);
 }

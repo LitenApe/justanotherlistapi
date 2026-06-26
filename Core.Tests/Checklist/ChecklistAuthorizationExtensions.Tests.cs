@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using Core.Checklist;
 using Dapper;
-using Microsoft.Data.Sqlite;
 
 namespace Core.Tests.Checklist;
 
@@ -50,7 +49,7 @@ public sealed class ChecklistAuthorizationExtensionsTests
         var userId = Guid.NewGuid();
         ClaimsPrincipal principal = TestHelpers.CreatePrincipal(userId);
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -82,7 +81,7 @@ public sealed class ChecklistAuthorizationExtensionsTests
             new System.Security.Claims.ClaimsIdentity()
         );
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -109,7 +108,7 @@ public sealed class ChecklistAuthorizationExtensionsTests
         var userId = Guid.NewGuid();
         ClaimsPrincipal principal = TestHelpers.CreatePrincipal(userId);
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -139,7 +138,7 @@ public sealed class ChecklistAuthorizationExtensionsTests
         ClaimsPrincipal nonMemberPrincipal = TestHelpers.CreatePrincipal(Guid.NewGuid());
         int authorizedCalls = 0;
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }

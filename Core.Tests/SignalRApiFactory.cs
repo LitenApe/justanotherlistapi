@@ -3,7 +3,7 @@ using Core.AuditLog;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Data.Sqlite;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -12,9 +12,9 @@ namespace Core.Tests;
 
 public sealed class SignalRApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    private SqliteConnection connection = null!;
+    private SqlConnection connection = null!;
 
-    public SqliteConnection Connection => connection;
+    public SqlConnection Connection => connection;
 
     async Task IAsyncLifetime.InitializeAsync()
     {

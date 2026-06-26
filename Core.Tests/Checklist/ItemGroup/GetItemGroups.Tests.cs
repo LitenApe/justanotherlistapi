@@ -2,7 +2,6 @@ using System.Security.Claims;
 using Core.Checklist;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.Data.Sqlite;
 
 namespace Core.Tests.Checklist.ItemGroupTests;
 
@@ -18,7 +17,7 @@ public sealed class GetItemGroupsTests
         var group2Id = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = group1Id, Name = "Group 1" }
@@ -87,7 +86,7 @@ public sealed class GetItemGroupsTests
         var userId = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         // No groups or members for this user
 
         // Act
@@ -109,7 +108,7 @@ public sealed class GetItemGroupsTests
         // Arrange
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
 
         // Act
         Results<Ok<List<ItemGroup>>, UnauthorizedHttpResult> result = await GetItemGroups.Execute(
@@ -131,7 +130,7 @@ public sealed class GetItemGroupsTests
         var otherMemberId = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = groupId, Name = "Group" }

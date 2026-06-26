@@ -2,7 +2,6 @@ using System.Security.Claims;
 using Core.Checklist;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.Data.Sqlite;
 
 namespace Core.Tests.Checklist.MemberTests;
 
@@ -17,7 +16,7 @@ public sealed class GetMembersTests
         var itemGroupId = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -51,7 +50,7 @@ public sealed class GetMembersTests
         var itemGroupId = Guid.NewGuid();
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
 
         // Act
         Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult> result =
@@ -69,7 +68,7 @@ public sealed class GetMembersTests
         var itemGroupId = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -92,7 +91,7 @@ public sealed class GetMembersTests
         var itemGroupId = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }

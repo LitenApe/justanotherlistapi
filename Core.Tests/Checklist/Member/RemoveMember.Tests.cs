@@ -4,7 +4,6 @@ using Core.Checklist;
 using Dapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.Data.Sqlite;
 
 namespace Core.Tests.Checklist.MemberTests;
 
@@ -20,7 +19,7 @@ public sealed class RemoveMemberTests
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
         var notifier = new CapturingNotifier();
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -74,7 +73,7 @@ public sealed class RemoveMemberTests
         var memberIdToRemove = Guid.NewGuid();
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
 
         // Act
         Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult, Conflict> result =
@@ -102,7 +101,7 @@ public sealed class RemoveMemberTests
         var memberIdToRemove = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -134,7 +133,7 @@ public sealed class RemoveMemberTests
         var itemGroupId = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -170,7 +169,7 @@ public sealed class RemoveMemberTests
         var memberIdToRemove = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }
@@ -207,7 +206,7 @@ public sealed class RemoveMemberTests
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
         var notifier = new CapturingNotifier();
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Group" }

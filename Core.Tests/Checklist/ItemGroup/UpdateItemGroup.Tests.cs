@@ -3,7 +3,6 @@ using Core.Checklist;
 using Dapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.Data.Sqlite;
 
 namespace Core.Tests.Checklist.ItemGroupTests;
 
@@ -20,7 +19,7 @@ public sealed class UpdateItemGroupTests
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
         var notifier = new CapturingNotifier();
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = oldName }
@@ -73,7 +72,7 @@ public sealed class UpdateItemGroupTests
         var itemGroupId = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
 
         var request = new UpdateItemGroup.Request { Name = name };
 
@@ -100,7 +99,7 @@ public sealed class UpdateItemGroupTests
         var request = new UpdateItemGroup.Request { Name = "Any Name" };
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
 
         // Act
         Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> result =
@@ -125,7 +124,7 @@ public sealed class UpdateItemGroupTests
         var itemGroupId = Guid.NewGuid();
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         // Add ItemGroup but not Member
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
@@ -158,7 +157,7 @@ public sealed class UpdateItemGroupTests
         ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
         var notifier = new CapturingNotifier();
 
-        await using SqliteConnection db = await TestDatabase.CreateAsync();
+        await using var db = await TestDatabase.CreateAsync();
         await db.ExecuteAsync(
             "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
             new { Id = itemGroupId, Name = "Old" }
