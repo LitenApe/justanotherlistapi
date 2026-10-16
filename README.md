@@ -62,10 +62,10 @@ Core/                               - ASP.NET Core backend
     ClaimsPrincipalExtension.cs     - GetUserId(): reads sub / NameIdentifier / user_id claim → Guid?
   Utility/
     BearerSecuritySchemeTransformer.cs  - Adds Bearer + OAuth2 security schemes to OpenAPI doc
-Core.Tests/                         - xUnit tests (SQLite in-memory, no running server needed)
-  ApiFactory.cs                     - WebApplicationFactory<Program> with SQLite + TestAuthHandler + CapturingNotifier
+Core.Tests/                         - xUnit tests (SQL Server via Testcontainers, requires Docker)
+  ApiFactory.cs                     - WebApplicationFactory<Program> with test DB + TestAuthHandler + CapturingNotifier
   SignalRApiFactory.cs              - WebApplicationFactory that keeps real ChecklistNotifier + hub for e2e tests
-  TestDatabase.cs                   - Creates in-memory SQLite with matching schema + GuidTypeHandler
+  TestDatabase.cs                   - Starts shared SQL Server container; isolated DB per test
   TestHelpers.cs                    - CreatePrincipal(Guid): builds a ClaimsPrincipal for unit tests
   AuditLog/
     AuditLog.Http.Tests.cs          - HTTP integration tests verifying audit entries are captured per operation
@@ -85,7 +85,6 @@ specifications/                     - Design and architecture specifications
   checklist.md                      - Checklist feature: domain model, endpoints, DB schema
   audit-logs.md                     - Audit log feature: schema, implementation design
   authentication.md                 - Authentication: JWT setup, claim resolution
-  dev-tools.md                      - Dev tools: chaos controls, presets, activity log
 ```
 
 ## Specifications
@@ -97,7 +96,6 @@ Design and architecture documents for planned and implemented features live in t
 | [checklist.md](specifications/checklist.md)           | Checklist feature — domain model, authorization model, database schema, all API endpoints with request/response shapes, and structural conventions |
 | [audit-logs.md](specifications/audit-logs.md)         | Audit Log feature — database schema, per-operation audit data, implementation design, and future extensibility                                     |
 | [authentication.md](specifications/authentication.md) | Authentication feature — JWT Bearer setup, token validation behavior, user identity claim resolution, and how users authenticate against the API   |
-| [dev-tools.md](specifications/dev-tools.md)           | Dev tools — DevPanel chaos controls, scenario presets, activity log, seed endpoint, and pending infrastructure                                     |
 
 ## Requirements
 
@@ -270,7 +268,7 @@ Authentication uses a `?access_token=` query string parameter (standard SignalR 
 
 ## Tests
 
-Tests use xUnit with an in-memory SQLite database — no running SQL Server or OAuth server needed.
+Tests use xUnit against a real SQL Server started by [Testcontainers](https://dotnet.testcontainers.org/) — Docker must be running, but no manually started SQL Server or OAuth server is needed.
 
 ```bash
 dotnet test
@@ -280,15 +278,15 @@ dotnet test
 
 `Core.Tests` contains two kinds of tests:
 
-**Unit tests** call handler `Execute()` methods directly against an in-memory SQLite connection.
+**Unit tests** call handler `Execute()` methods directly against a SQL Server test database.
 
 - `Core.Tests` references `Core` internals via `InternalsVisibleTo`, so individual handler `Execute()` methods are called directly — no HTTP server is spun up.
-- `TestDatabase` creates an in-memory SQLite connection and runs the same schema (with SQLite-compatible types: `TEXT` instead of `UNIQUEIDENTIFIER`, `INTEGER` instead of `BIT`). A `GuidTypeHandler` is registered with Dapper so `Guid` ↔ `TEXT` mapping works transparently.
+- `TestDatabase` lazily starts one `mcr.microsoft.com/mssql/server:2022-latest` container per test run, creates a uniquely named database for each `CreateAsync()` call, and applies the production schema via `ChecklistSchemaInitializer` and `AuditLogSchemaInitializer`.
 - `TestHelpers.CreatePrincipal(Guid)` builds a `ClaimsPrincipal` with a `ClaimTypes.NameIdentifier` claim for the given user ID.
 
 **HTTP integration tests** boot the full ASP.NET Core app via `WebApplicationFactory` and make real HTTP requests, covering route registration and middleware.
 
-- `ApiFactory` replaces the SQL Server connection with the same in-memory SQLite connection, swaps JWT Bearer authentication for a `TestAuthHandler` that always authenticates as a fixed user ID, and replaces `IChecklistNotifier` with `CapturingNotifier` for notification assertions.
+- `ApiFactory` replaces the SQL Server connection with a `TestDatabase` connection, swaps JWT Bearer authentication for a `TestAuthHandler` that always authenticates as a fixed user ID, and replaces `IChecklistNotifier` with `CapturingNotifier` for notification assertions.
 - `SignalRApiFactory` is similar but keeps the **real** `ChecklistNotifier` and SignalR hub, allowing end-to-end tests that connect a `HubConnection` client and verify notifications are broadcast through the actual pipeline.
 - The app runs in the `"Testing"` environment, which skips HTTPS redirection and database initialisation.
 

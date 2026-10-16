@@ -527,13 +527,6 @@ Checklist mutations are broadcast to group members in real time via SignalR.
 | `GroupRenamed`  | `(groupId, name)`     | UpdateItemGroup |
 | `GroupDeleted`  | `(groupId)`           | DeleteItemGroup |
 
-### Client Strategy
-
-- Prefer real-time when connected, REST as fallback
-- Each slice owns its own SignalR subscriptions (no centralized hook)
-- Incoming events are wrapped in `startTransition()` for concurrent rendering
-- On reconnection: rejoin group + invalidate cache
-
 ---
 
 ## Structural Conventions

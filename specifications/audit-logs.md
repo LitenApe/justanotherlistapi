@@ -109,7 +109,7 @@ Core.Tests/
     CapturingAuditWriter.cs     ← test double that records entries in-memory
     NoOpAuditWriter.cs          ← test double that discards all entries
   ApiFactory.cs                 ← replaces IAuditWriter with NoOpAuditWriter by default
-  TestDatabase.cs               ← SQLite schema including AuditLog table
+  TestDatabase.cs               ← per-test SQL Server DB with production schema
 ```
 
 ---
@@ -402,7 +402,7 @@ await ChecklistSchemaInitializer.CreateSchemaAsync(connection, ct);
 await AuditLogSchemaInitializer.CreateSchemaAsync(connection, ct);
 ```
 
-Schema initialization is skipped entirely in the `Testing` environment (controlled by `Program.cs`). Tests create their own SQLite in-memory schema via `TestDatabase.CreateTablesAsync`.
+Schema initialization is skipped entirely in the `Testing` environment (controlled by `Program.cs`). Tests create their own per-test SQL Server database via `TestDatabase.CreateAsync`, which applies the same schema initializers.
 
 ### Middleware Order
 
@@ -531,9 +531,7 @@ Then send a request with a malformed Bearer token. `OnAuthenticationFailed` fire
 
 ### `TestDatabase`
 
-`TestDatabase.CreateTablesAsync` creates the SQLite-compatible schema for integration tests. The `AuditLog` table uses `TEXT` columns in place of `UNIQUEIDENTIFIER` and `DATETIMEOFFSET`. A custom Dapper `GuidTypeHandler` maps `Guid` ↔ `TEXT` for all queries.
-
-`CreateTablesAsync` is `internal` so that tests can call it directly on a freshly opened connection with non-default settings (e.g. `Foreign Keys=False` for the `NotFound` outcome test that needs to insert an orphaned `Members` row).
+`TestDatabase.CreateAsync` starts (once per run) a SQL Server container via Testcontainers, creates a uniquely named database, and applies `ChecklistSchemaInitializer` and `AuditLogSchemaInitializer` — the same DDL used in production.
 
 ---
 
