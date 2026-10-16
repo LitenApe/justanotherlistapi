@@ -36,7 +36,8 @@ public sealed class UpdateItemHttpTests(ApiFactory factory) : IClassFixture<ApiF
 
         HttpResponseMessage response = await client.PutAsJsonAsync(
             $"/api/list/{itemGroupId}/{itemId}",
-            new { Name = "Updated Item", IsComplete = true }
+            new { Name = "Updated Item", IsComplete = true },
+            TestContext.Current.CancellationToken
         );
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);

@@ -64,7 +64,7 @@ public sealed class GetItemGroupsTests
         Results<Ok<List<ItemGroup>>, UnauthorizedHttpResult> result = await GetItemGroups.Execute(
             claimsPrincipal,
             db,
-            default
+            TestContext.Current.CancellationToken
         );
 
         // Assert
@@ -93,7 +93,7 @@ public sealed class GetItemGroupsTests
         Results<Ok<List<ItemGroup>>, UnauthorizedHttpResult> result = await GetItemGroups.Execute(
             claimsPrincipal,
             db,
-            default
+            TestContext.Current.CancellationToken
         );
 
         // Assert
@@ -114,7 +114,7 @@ public sealed class GetItemGroupsTests
         Results<Ok<List<ItemGroup>>, UnauthorizedHttpResult> result = await GetItemGroups.Execute(
             claimsPrincipal,
             db,
-            default
+            TestContext.Current.CancellationToken
         );
 
         // Assert
@@ -148,7 +148,7 @@ public sealed class GetItemGroupsTests
         Results<Ok<List<ItemGroup>>, UnauthorizedHttpResult> result = await GetItemGroups.Execute(
             claimsPrincipal,
             db,
-            default
+            TestContext.Current.CancellationToken
         );
 
         // Assert — the list endpoint intentionally does not load members

@@ -4,11 +4,12 @@ IDistributedApplicationBuilder builder = DistributedApplication.CreateBuilder(ar
 
 IResourceBuilder<SqlServerServerResource> sql = builder
     .AddSqlServer("SqlServer")
+    .WithImageTag("2025-latest")
     .WithLifetime(ContainerLifetime.Persistent);
 IResourceBuilder<SqlServerDatabaseResource> db = sql.AddDatabase("database");
 
 IResourceBuilder<ContainerResource> oauth = builder
-    .AddContainer("oauth", "ghcr.io/navikt/mock-oauth2-server", "2.1.10")
+    .AddContainer("oauth", "ghcr.io/navikt/mock-oauth2-server", "6.1.1")
     .WithHttpEndpoint(port: 8080, targetPort: 8080, name: "http")
     .WithHttpHealthCheck("/default/.well-known/openid-configuration")
     .WithLifetime(ContainerLifetime.Persistent);

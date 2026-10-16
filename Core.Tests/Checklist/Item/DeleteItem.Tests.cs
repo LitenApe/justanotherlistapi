@@ -48,7 +48,7 @@ public sealed class DeleteItemTests
                 db,
                 notifier,
                 TestHelpers.CreateHttpRequest(),
-                default
+                TestContext.Current.CancellationToken
             );
 
         // Assert
@@ -114,7 +114,7 @@ public sealed class DeleteItemTests
                 db,
                 new CapturingNotifier(),
                 TestHelpers.CreateHttpRequest(),
-                default
+                TestContext.Current.CancellationToken
             );
 
         // Assert
@@ -147,7 +147,7 @@ public sealed class DeleteItemTests
                 db,
                 new CapturingNotifier(),
                 TestHelpers.CreateHttpRequest(),
-                default
+                TestContext.Current.CancellationToken
             );
 
         // Assert
@@ -189,7 +189,7 @@ public sealed class DeleteItemTests
                 db,
                 new CapturingNotifier(),
                 TestHelpers.CreateHttpRequest(),
-                default
+                TestContext.Current.CancellationToken
             );
 
         // Assert
@@ -224,7 +224,7 @@ public sealed class DeleteItemTests
                 db,
                 new CapturingNotifier(),
                 TestHelpers.CreateHttpRequest(),
-                default
+                TestContext.Current.CancellationToken
             );
 
         // Assert
@@ -280,7 +280,7 @@ public sealed class DeleteItemTests
             db,
             notifier,
             httpRequest,
-            default
+            TestContext.Current.CancellationToken
         );
 
         // Assert

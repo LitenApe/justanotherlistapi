@@ -23,10 +23,14 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
         );
 
         await using HubConnection connection = CreateHubConnection();
-        await connection.StartAsync();
+        await connection.StartAsync(TestContext.Current.CancellationToken);
 
         // Act & Assert — should not throw
-        await connection.InvokeAsync("JoinGroup", itemGroupId);
+        await connection.InvokeAsync(
+            "JoinGroup",
+            itemGroupId,
+            TestContext.Current.CancellationToken
+        );
     }
 
     [Fact]
@@ -41,11 +45,11 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
         // No member row for TestAuthHandler.UserId
 
         await using HubConnection connection = CreateHubConnection();
-        await connection.StartAsync();
+        await connection.StartAsync(TestContext.Current.CancellationToken);
 
         // Act & Assert
         await Assert.ThrowsAsync<HubException>(() =>
-            connection.InvokeAsync("JoinGroup", itemGroupId)
+            connection.InvokeAsync("JoinGroup", itemGroupId, TestContext.Current.CancellationToken)
         );
     }
 
@@ -64,11 +68,19 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
         );
 
         await using HubConnection connection = CreateHubConnection();
-        await connection.StartAsync();
-        await connection.InvokeAsync("JoinGroup", itemGroupId);
+        await connection.StartAsync(TestContext.Current.CancellationToken);
+        await connection.InvokeAsync(
+            "JoinGroup",
+            itemGroupId,
+            TestContext.Current.CancellationToken
+        );
 
         // Act & Assert — should not throw
-        await connection.InvokeAsync("LeaveGroup", itemGroupId);
+        await connection.InvokeAsync(
+            "LeaveGroup",
+            itemGroupId,
+            TestContext.Current.CancellationToken
+        );
     }
 
     [Fact]
@@ -86,8 +98,12 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
         );
 
         await using HubConnection connection = CreateHubConnection();
-        await connection.StartAsync();
-        await connection.InvokeAsync("JoinGroup", itemGroupId);
+        await connection.StartAsync(TestContext.Current.CancellationToken);
+        await connection.InvokeAsync(
+            "JoinGroup",
+            itemGroupId,
+            TestContext.Current.CancellationToken
+        );
 
         var tcs = new TaskCompletionSource<(Guid GroupId, Item Item)>();
         connection.On<Guid, Item>(
@@ -99,12 +115,16 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
         using HttpClient client = factory.CreateClient();
         HttpResponseMessage response = await client.PostAsJsonAsync(
             $"/api/list/{itemGroupId}",
-            new { Name = "Broadcast Item" }
+            new { Name = "Broadcast Item" },
+            TestContext.Current.CancellationToken
         );
         response.EnsureSuccessStatusCode();
 
         // Assert — notification received within timeout
-        Task completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        Task completed = await Task.WhenAny(
+            tcs.Task,
+            Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken)
+        );
         Assert.Equal(tcs.Task, completed);
 
         (Guid receivedGroupId, Item receivedItem) = await tcs.Task;
@@ -139,8 +159,12 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
         );
 
         await using HubConnection connection = CreateHubConnection();
-        await connection.StartAsync();
-        await connection.InvokeAsync("JoinGroup", itemGroupId);
+        await connection.StartAsync(TestContext.Current.CancellationToken);
+        await connection.InvokeAsync(
+            "JoinGroup",
+            itemGroupId,
+            TestContext.Current.CancellationToken
+        );
 
         var tcs = new TaskCompletionSource<(Guid GroupId, Item Item)>();
         connection.On<Guid, Item>(
@@ -157,12 +181,16 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
                 Name = "Updated",
                 Description = "Updated Desc",
                 IsComplete = true,
-            }
+            },
+            TestContext.Current.CancellationToken
         );
         response.EnsureSuccessStatusCode();
 
         // Assert
-        Task completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        Task completed = await Task.WhenAny(
+            tcs.Task,
+            Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken)
+        );
         Assert.Equal(tcs.Task, completed);
 
         (Guid receivedGroupId, Item receivedItem) = await tcs.Task;
@@ -198,8 +226,12 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
         );
 
         await using HubConnection connection = CreateHubConnection();
-        await connection.StartAsync();
-        await connection.InvokeAsync("JoinGroup", itemGroupId);
+        await connection.StartAsync(TestContext.Current.CancellationToken);
+        await connection.InvokeAsync(
+            "JoinGroup",
+            itemGroupId,
+            TestContext.Current.CancellationToken
+        );
 
         var tcs = new TaskCompletionSource<(Guid GroupId, Guid ItemId)>();
         connection.On<Guid, Guid>(
@@ -210,12 +242,16 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
         // Act
         using HttpClient client = factory.CreateClient();
         HttpResponseMessage response = await client.DeleteAsync(
-            $"/api/list/{itemGroupId}/{itemId}"
+            $"/api/list/{itemGroupId}/{itemId}",
+            TestContext.Current.CancellationToken
         );
         response.EnsureSuccessStatusCode();
 
         // Assert
-        Task completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        Task completed = await Task.WhenAny(
+            tcs.Task,
+            Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken)
+        );
         Assert.Equal(tcs.Task, completed);
 
         (Guid receivedGroupId, Guid receivedItemId) = await tcs.Task;
@@ -238,8 +274,12 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
         );
 
         await using HubConnection connection = CreateHubConnection();
-        await connection.StartAsync();
-        await connection.InvokeAsync("JoinGroup", itemGroupId);
+        await connection.StartAsync(TestContext.Current.CancellationToken);
+        await connection.InvokeAsync(
+            "JoinGroup",
+            itemGroupId,
+            TestContext.Current.CancellationToken
+        );
 
         var tcs = new TaskCompletionSource<(Guid GroupId, string Name)>();
         connection.On<Guid, string>(
@@ -251,12 +291,16 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
         using HttpClient client = factory.CreateClient();
         HttpResponseMessage response = await client.PutAsJsonAsync(
             $"/api/list/{itemGroupId}",
-            new { Name = "New Name" }
+            new { Name = "New Name" },
+            TestContext.Current.CancellationToken
         );
         response.EnsureSuccessStatusCode();
 
         // Assert
-        Task completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        Task completed = await Task.WhenAny(
+            tcs.Task,
+            Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken)
+        );
         Assert.Equal(tcs.Task, completed);
 
         (Guid receivedGroupId, string receivedName) = await tcs.Task;
@@ -279,19 +323,29 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
         );
 
         await using HubConnection connection = CreateHubConnection();
-        await connection.StartAsync();
-        await connection.InvokeAsync("JoinGroup", itemGroupId);
+        await connection.StartAsync(TestContext.Current.CancellationToken);
+        await connection.InvokeAsync(
+            "JoinGroup",
+            itemGroupId,
+            TestContext.Current.CancellationToken
+        );
 
         var tcs = new TaskCompletionSource<Guid>();
         connection.On<Guid>("GroupDeleted", groupId => tcs.TrySetResult(groupId));
 
         // Act
         using HttpClient client = factory.CreateClient();
-        HttpResponseMessage response = await client.DeleteAsync($"/api/list/{itemGroupId}");
+        HttpResponseMessage response = await client.DeleteAsync(
+            $"/api/list/{itemGroupId}",
+            TestContext.Current.CancellationToken
+        );
         response.EnsureSuccessStatusCode();
 
         // Assert
-        Task completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        Task completed = await Task.WhenAny(
+            tcs.Task,
+            Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken)
+        );
         Assert.Equal(tcs.Task, completed);
 
         Guid receivedGroupId = await tcs.Task;
@@ -314,8 +368,12 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
         );
 
         await using HubConnection connection = CreateHubConnection();
-        await connection.StartAsync();
-        await connection.InvokeAsync("JoinGroup", itemGroupId);
+        await connection.StartAsync(TestContext.Current.CancellationToken);
+        await connection.InvokeAsync(
+            "JoinGroup",
+            itemGroupId,
+            TestContext.Current.CancellationToken
+        );
 
         var tcs = new TaskCompletionSource<(Guid GroupId, Guid MemberId)>();
         connection.On<Guid, Guid>(
@@ -327,12 +385,16 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
         using HttpClient client = factory.CreateClient();
         HttpResponseMessage response = await client.PostAsync(
             $"/api/list/{itemGroupId}/member/{newMemberId}",
-            null
+            null,
+            TestContext.Current.CancellationToken
         );
         response.EnsureSuccessStatusCode();
 
         // Assert
-        Task completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        Task completed = await Task.WhenAny(
+            tcs.Task,
+            Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken)
+        );
         Assert.Equal(tcs.Task, completed);
 
         (Guid receivedGroupId, Guid receivedMemberId) = await tcs.Task;
@@ -360,8 +422,12 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
         );
 
         await using HubConnection connection = CreateHubConnection();
-        await connection.StartAsync();
-        await connection.InvokeAsync("JoinGroup", itemGroupId);
+        await connection.StartAsync(TestContext.Current.CancellationToken);
+        await connection.InvokeAsync(
+            "JoinGroup",
+            itemGroupId,
+            TestContext.Current.CancellationToken
+        );
 
         var tcs = new TaskCompletionSource<(Guid GroupId, Guid MemberId)>();
         connection.On<Guid, Guid>(
@@ -372,12 +438,16 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
         // Act
         using HttpClient client = factory.CreateClient();
         HttpResponseMessage response = await client.DeleteAsync(
-            $"/api/list/{itemGroupId}/member/{memberToRemove}"
+            $"/api/list/{itemGroupId}/member/{memberToRemove}",
+            TestContext.Current.CancellationToken
         );
         response.EnsureSuccessStatusCode();
 
         // Assert
-        Task completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        Task completed = await Task.WhenAny(
+            tcs.Task,
+            Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken)
+        );
         Assert.Equal(tcs.Task, completed);
 
         (Guid receivedGroupId, Guid receivedMemberId) = await tcs.Task;
@@ -400,8 +470,12 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
         );
 
         await using HubConnection connection = CreateHubConnection();
-        await connection.StartAsync();
-        await connection.InvokeAsync("JoinGroup", itemGroupId);
+        await connection.StartAsync(TestContext.Current.CancellationToken);
+        await connection.InvokeAsync(
+            "JoinGroup",
+            itemGroupId,
+            TestContext.Current.CancellationToken
+        );
 
         string? hubConnectionId = connection.ConnectionId;
         Assert.NotNull(hubConnectionId);
@@ -414,11 +488,14 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
         using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/list/{itemGroupId}");
         request.Content = JsonContent.Create(new { Name = "Excluded Item" });
         request.Headers.Add("X-SignalR-Connection-Id", hubConnectionId);
-        HttpResponseMessage response = await client.SendAsync(request);
+        HttpResponseMessage response = await client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken
+        );
         response.EnsureSuccessStatusCode();
 
         // Assert — the sender should NOT receive the notification
-        await Task.Delay(TimeSpan.FromMilliseconds(200));
+        await Task.Delay(TimeSpan.FromMilliseconds(200), TestContext.Current.CancellationToken);
         Assert.False(received);
     }
 

@@ -12,7 +12,11 @@ public sealed class ChecklistConnectionExtensionsTests
     {
         await using var db = await TestDatabase.CreateAsync();
 
-        bool result = await db.IsMember(Guid.NewGuid(), null);
+        bool result = await db.IsMember(
+            Guid.NewGuid(),
+            null,
+            TestContext.Current.CancellationToken
+        );
 
         Assert.False(result);
     }
@@ -35,7 +39,7 @@ public sealed class ChecklistConnectionExtensionsTests
         );
 
         // Act
-        bool result = await db.IsMember(itemGroupId, userId);
+        bool result = await db.IsMember(itemGroupId, userId, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result);
@@ -55,7 +59,7 @@ public sealed class ChecklistConnectionExtensionsTests
         );
 
         // Act
-        bool result = await db.IsMember(itemGroupId, userId);
+        bool result = await db.IsMember(itemGroupId, userId, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.False(result);
@@ -81,7 +85,11 @@ public sealed class ChecklistConnectionExtensionsTests
         );
 
         // Act
-        bool result = await db.IsLastMember(itemGroupId, memberId);
+        bool result = await db.IsLastMember(
+            itemGroupId,
+            memberId,
+            TestContext.Current.CancellationToken
+        );
 
         // Assert
         Assert.True(result);
@@ -109,7 +117,11 @@ public sealed class ChecklistConnectionExtensionsTests
         );
 
         // Act
-        bool result = await db.IsLastMember(itemGroupId, memberId);
+        bool result = await db.IsLastMember(
+            itemGroupId,
+            memberId,
+            TestContext.Current.CancellationToken
+        );
 
         // Assert
         Assert.False(result);
@@ -132,7 +144,11 @@ public sealed class ChecklistConnectionExtensionsTests
         );
 
         // Act
-        bool result = await db.IsLastMember(itemGroupId, Guid.NewGuid());
+        bool result = await db.IsLastMember(
+            itemGroupId,
+            Guid.NewGuid(),
+            TestContext.Current.CancellationToken
+        );
 
         // Assert
         Assert.False(result);
@@ -151,7 +167,11 @@ public sealed class ChecklistConnectionExtensionsTests
         );
 
         // Act
-        bool result = await db.IsLastMember(itemGroupId, Guid.NewGuid());
+        bool result = await db.IsLastMember(
+            itemGroupId,
+            Guid.NewGuid(),
+            TestContext.Current.CancellationToken
+        );
 
         // Assert
         Assert.False(result);

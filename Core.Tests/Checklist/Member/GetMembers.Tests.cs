@@ -32,7 +32,12 @@ public sealed class GetMembersTests
 
         // Act
         Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await GetMembers.Execute(itemGroupId, claimsPrincipal, db, default);
+            await GetMembers.Execute(
+                itemGroupId,
+                claimsPrincipal,
+                db,
+                TestContext.Current.CancellationToken
+            );
 
         // Assert
         Ok<List<Guid>> ok = Assert.IsType<Ok<List<Guid>>>(result.Result);
@@ -54,7 +59,12 @@ public sealed class GetMembersTests
 
         // Act
         Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await GetMembers.Execute(itemGroupId, claimsPrincipal, db, default);
+            await GetMembers.Execute(
+                itemGroupId,
+                claimsPrincipal,
+                db,
+                TestContext.Current.CancellationToken
+            );
 
         // Assert
         Assert.IsType<UnauthorizedHttpResult>(result.Result);
@@ -77,7 +87,12 @@ public sealed class GetMembersTests
 
         // Act
         Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await GetMembers.Execute(itemGroupId, claimsPrincipal, db, default);
+            await GetMembers.Execute(
+                itemGroupId,
+                claimsPrincipal,
+                db,
+                TestContext.Current.CancellationToken
+            );
 
         // Assert
         Assert.IsType<ForbidHttpResult>(result.Result);
@@ -108,7 +123,12 @@ public sealed class GetMembersTests
 
         // Act
         Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await GetMembers.Execute(itemGroupId, claimsPrincipal, db, default);
+            await GetMembers.Execute(
+                itemGroupId,
+                claimsPrincipal,
+                db,
+                TestContext.Current.CancellationToken
+            );
 
         // Assert
         Assert.IsType<ForbidHttpResult>(result.Result);

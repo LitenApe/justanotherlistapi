@@ -17,10 +17,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.x"
 
@@ -34,13 +34,13 @@ jobs:
         run: dotnet build --no-restore --configuration Release
 
       - name: Test
-        run: dotnet test --no-build --configuration Release --verbosity normal --logger trx --results-directory TestResults --collect:"XPlat Code Coverage" --settings coverage.runsettings
+        run: dotnet test --no-build --configuration Release --results-directory TestResults --report-trx --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml --coverage-settings coverage.config
 
       - name: Copy coverage report
         run: cp $(find TestResults -name "coverage.cobertura.xml" | head -1) coverage.cobertura.xml
 
       - name: Publish test results
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v3
         if: always()
         with:
           name: Test Results
@@ -62,7 +62,7 @@ jobs:
           awk -v rate="$branch_rate" -v threshold="$BRANCH_COVERAGE_THRESHOLD" 'BEGIN { if (rate + 0 < threshold + 0) { print "Branch coverage " rate " is below " threshold; exit 1 } }'
 
       - name: Add coverage comment to PR
-        uses: marocchino/sticky-pull-request-comment@v2
+        uses: marocchino/sticky-pull-request-comment@v3
         if: github.event_name == 'pull_request'
         with:
           recreate: true

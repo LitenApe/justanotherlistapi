@@ -20,7 +20,13 @@ public sealed class CreateItemGroupTests
 
         // Act
         Results<Created<ItemGroup>, BadRequest, UnauthorizedHttpResult> result =
-            await CreateItemGroup.Execute(request, claimsPrincipal, db, new AuditContext());
+            await CreateItemGroup.Execute(
+                request,
+                claimsPrincipal,
+                db,
+                new AuditContext(),
+                TestContext.Current.CancellationToken
+            );
 
         // Assert
         Created<ItemGroup> createdResult = Assert.IsType<Created<ItemGroup>>(result.Result);
@@ -42,7 +48,13 @@ public sealed class CreateItemGroupTests
 
         // Act
         Results<Created<ItemGroup>, BadRequest, UnauthorizedHttpResult> result =
-            await CreateItemGroup.Execute(request, claimsPrincipal, db, new AuditContext());
+            await CreateItemGroup.Execute(
+                request,
+                claimsPrincipal,
+                db,
+                new AuditContext(),
+                TestContext.Current.CancellationToken
+            );
 
         // Assert
         Created<ItemGroup> createdResult = Assert.IsType<Created<ItemGroup>>(result.Result);
@@ -71,7 +83,13 @@ public sealed class CreateItemGroupTests
 
         // Act
         Results<Created<ItemGroup>, BadRequest, UnauthorizedHttpResult> result =
-            await CreateItemGroup.Execute(request, claimsPrincipal, db, new AuditContext());
+            await CreateItemGroup.Execute(
+                request,
+                claimsPrincipal,
+                db,
+                new AuditContext(),
+                TestContext.Current.CancellationToken
+            );
 
         // Assert
         Created<ItemGroup> createdResult = Assert.IsType<Created<ItemGroup>>(result.Result);
@@ -102,7 +120,13 @@ public sealed class CreateItemGroupTests
 
         // Act
         Results<Created<ItemGroup>, BadRequest, UnauthorizedHttpResult> result =
-            await CreateItemGroup.Execute(request, claimsPrincipal, db, new AuditContext());
+            await CreateItemGroup.Execute(
+                request,
+                claimsPrincipal,
+                db,
+                new AuditContext(),
+                TestContext.Current.CancellationToken
+            );
 
         // Assert
         Assert.IsType<BadRequest>(result.Result);
@@ -121,7 +145,13 @@ public sealed class CreateItemGroupTests
 
         // Act
         Results<Created<ItemGroup>, BadRequest, UnauthorizedHttpResult> result =
-            await CreateItemGroup.Execute(request, claimsPrincipal, db, new AuditContext());
+            await CreateItemGroup.Execute(
+                request,
+                claimsPrincipal,
+                db,
+                new AuditContext(),
+                TestContext.Current.CancellationToken
+            );
 
         // Assert
         Assert.IsType<UnauthorizedHttpResult>(result.Result);

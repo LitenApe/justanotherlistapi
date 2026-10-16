@@ -16,12 +16,10 @@ public sealed class SignalRApiFactory : WebApplicationFactory<Program>, IAsyncLi
 
     public SqlConnection Connection => connection;
 
-    async Task IAsyncLifetime.InitializeAsync()
+    async ValueTask IAsyncLifetime.InitializeAsync()
     {
         connection = await TestDatabase.CreateAsync();
     }
-
-    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

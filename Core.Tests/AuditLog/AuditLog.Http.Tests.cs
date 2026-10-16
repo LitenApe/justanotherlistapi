@@ -31,7 +31,8 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
 
         HttpResponseMessage response = await client.PostAsJsonAsync(
             "/api/list",
-            new { Name = "My Group" }
+            new { Name = "My Group" },
+            TestContext.Current.CancellationToken
         );
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -68,7 +69,8 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
 
         HttpResponseMessage response = await client.PostAsJsonAsync(
             $"/api/list/{itemGroupId}",
-            new { Name = "My Item" }
+            new { Name = "My Item" },
+            TestContext.Current.CancellationToken
         );
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -103,7 +105,7 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
         );
         HttpClient client = webFactory.CreateClient();
 
-        await client.DeleteAsync($"/api/list/{itemGroupId}");
+        await client.DeleteAsync($"/api/list/{itemGroupId}", TestContext.Current.CancellationToken);
 
         AuditEntry entry = Assert.Single(writer.Entries);
         Assert.Equal("DeleteItemGroup", entry.Operation);
@@ -134,7 +136,11 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
         );
         HttpClient client = webFactory.CreateClient();
 
-        await client.PutAsJsonAsync($"/api/list/{itemGroupId}", new { Name = "New Name" });
+        await client.PutAsJsonAsync(
+            $"/api/list/{itemGroupId}",
+            new { Name = "New Name" },
+            TestContext.Current.CancellationToken
+        );
 
         AuditEntry entry = Assert.Single(writer.Entries);
         Assert.Equal("UpdateItemGroup", entry.Operation);
@@ -165,7 +171,11 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
         );
         HttpClient client = webFactory.CreateClient();
 
-        await client.PostAsync($"/api/list/{itemGroupId}/member/{newMemberId}", null);
+        await client.PostAsync(
+            $"/api/list/{itemGroupId}/member/{newMemberId}",
+            null,
+            TestContext.Current.CancellationToken
+        );
 
         AuditEntry entry = Assert.Single(writer.Entries);
         Assert.Equal("AddMember", entry.Operation);
@@ -193,7 +203,7 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
         );
         HttpClient client = webFactory.CreateClient();
 
-        await client.GetAsync($"/api/list/{itemGroupId}");
+        await client.GetAsync($"/api/list/{itemGroupId}", TestContext.Current.CancellationToken);
 
         AuditEntry entry = Assert.Single(writer.Entries);
         Assert.Equal("GetItemGroup", entry.Operation);
@@ -216,7 +226,11 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
         );
         HttpClient client = webFactory.CreateClient();
 
-        await client.PutAsJsonAsync($"/api/list/{itemGroupId}", new { Name = "" });
+        await client.PutAsJsonAsync(
+            $"/api/list/{itemGroupId}",
+            new { Name = "" },
+            TestContext.Current.CancellationToken
+        );
 
         AuditEntry entry = Assert.Single(writer.Entries);
         Assert.Equal("UpdateItemGroup", entry.Operation);
@@ -256,7 +270,11 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
         );
         HttpClient client = webFactory.CreateClient();
 
-        await client.PostAsync($"/api/list/{itemGroupId}/member/{existingMemberId}", null);
+        await client.PostAsync(
+            $"/api/list/{itemGroupId}/member/{existingMemberId}",
+            null,
+            TestContext.Current.CancellationToken
+        );
 
         AuditEntry entry = Assert.Single(writer.Entries);
         Assert.Equal("AddMember", entry.Operation);
@@ -283,7 +301,11 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
         );
         HttpClient client = webFactory.CreateClient();
 
-        await client.PostAsJsonAsync("/api/list", new { Name = "A Group" });
+        await client.PostAsJsonAsync(
+            "/api/list",
+            new { Name = "A Group" },
+            TestContext.Current.CancellationToken
+        );
 
         AuditEntry entry = Assert.Single(writer.Entries);
         Assert.Equal("CreateItemGroup", entry.Operation);
@@ -316,7 +338,7 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
             "invalid.jwt.token"
         );
 
-        await client.GetAsync("/api/list");
+        await client.GetAsync("/api/list", TestContext.Current.CancellationToken);
 
         // RequireAuthorization() blocks the endpoint pipeline before the AuditEndpointFilter runs,
         // so the only entry is the one written directly by OnAuthenticationFailed in Program.cs.

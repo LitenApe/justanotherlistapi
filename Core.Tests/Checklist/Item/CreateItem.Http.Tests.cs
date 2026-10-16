@@ -23,7 +23,8 @@ public sealed class CreateItemHttpTests(ApiFactory factory) : IClassFixture<ApiF
 
         HttpResponseMessage response = await client.PostAsJsonAsync(
             $"/api/list/{itemGroupId}",
-            new { Name = "My Item" }
+            new { Name = "My Item" },
+            TestContext.Current.CancellationToken
         );
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);

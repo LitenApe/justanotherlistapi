@@ -81,6 +81,8 @@ Core.Tests/                         - xUnit tests (SQL Server via Testcontainers
 Directory.Build.props               - Solution-wide MSBuild settings and analyzer packages
 Directory.Build.targets             - CSharpier format check wired into every CLI build
 dotnet-tools.json                   - Pins CSharpier version for local tool restore
+global.json                         - Opts `dotnet test` into Microsoft.Testing.Platform
+coverage.config                     - Code coverage settings used by CI
 specifications/                     - Design and architecture specifications
   checklist.md                      - Checklist feature: domain model, endpoints, DB schema
   audit-logs.md                     - Audit log feature: schema, implementation design
@@ -124,8 +126,8 @@ Docker is required because Aspire spins up SQL Server and the OAuth mock server 
 
    | Container          | Image                                         | Port          | Lifetime   |
    | ------------------ | --------------------------------------------- | ------------- | ---------- |
-   | SQL Server         | `mcr.microsoft.com/mssql/server` (via Aspire) | auto-assigned | Persistent |
-   | mock-oauth2-server | `ghcr.io/navikt/mock-oauth2-server:2.1.10`    | `8080`        | Persistent |
+   | SQL Server         | `mcr.microsoft.com/mssql/server:2025-latest`  | auto-assigned | Persistent |
+   | mock-oauth2-server | `ghcr.io/navikt/mock-oauth2-server:6.1.1`     | `8080`        | Persistent |
 
    Both containers are **persistent** — data and the OAuth server survive restarts. The backend waits for both to be healthy before starting. Database tables are created automatically on first boot.
 
@@ -281,7 +283,7 @@ dotnet test
 **Unit tests** call handler `Execute()` methods directly against a SQL Server test database.
 
 - `Core.Tests` references `Core` internals via `InternalsVisibleTo`, so individual handler `Execute()` methods are called directly — no HTTP server is spun up.
-- `TestDatabase` lazily starts one `mcr.microsoft.com/mssql/server:2022-latest` container per test run, creates a uniquely named database for each `CreateAsync()` call, and applies the production schema via `ChecklistSchemaInitializer` and `AuditLogSchemaInitializer`.
+- `TestDatabase` lazily starts one `mcr.microsoft.com/mssql/server:2025-latest` container per test run, creates a uniquely named database for each `CreateAsync()` call, and applies the production schema via `ChecklistSchemaInitializer` and `AuditLogSchemaInitializer`.
 - `TestHelpers.CreatePrincipal(Guid)` builds a `ClaimsPrincipal` with a `ClaimTypes.NameIdentifier` claim for the given user ID.
 
 **HTTP integration tests** boot the full ASP.NET Core app via `WebApplicationFactory` and make real HTTP requests, covering route registration and middleware.

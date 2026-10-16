@@ -59,7 +59,8 @@ public sealed class UpdateItemTests
                 claimsPrincipal,
                 db,
                 notifier,
-                TestHelpers.CreateHttpRequest()
+                TestHelpers.CreateHttpRequest(),
+                TestContext.Current.CancellationToken
             );
 
         // Assert
@@ -133,7 +134,8 @@ public sealed class UpdateItemTests
                 claimsPrincipal,
                 db,
                 new CapturingNotifier(),
-                TestHelpers.CreateHttpRequest()
+                TestHelpers.CreateHttpRequest(),
+                TestContext.Current.CancellationToken
             );
 
         // Assert
@@ -180,7 +182,8 @@ public sealed class UpdateItemTests
                 claimsPrincipal,
                 db,
                 new CapturingNotifier(),
-                TestHelpers.CreateHttpRequest()
+                TestHelpers.CreateHttpRequest(),
+                TestContext.Current.CancellationToken
             );
 
         // Assert
@@ -228,7 +231,8 @@ public sealed class UpdateItemTests
                 claimsPrincipal,
                 db,
                 new CapturingNotifier(),
-                TestHelpers.CreateHttpRequest()
+                TestHelpers.CreateHttpRequest(),
+                TestContext.Current.CancellationToken
             );
 
         // Assert
@@ -269,7 +273,8 @@ public sealed class UpdateItemTests
                 claimsPrincipal,
                 db,
                 new CapturingNotifier(),
-                TestHelpers.CreateHttpRequest()
+                TestHelpers.CreateHttpRequest(),
+                TestContext.Current.CancellationToken
             );
 
         // Assert
@@ -332,7 +337,8 @@ public sealed class UpdateItemTests
             claimsPrincipal,
             db,
             notifier,
-            httpRequest
+            httpRequest,
+            TestContext.Current.CancellationToken
         );
 
         // Assert

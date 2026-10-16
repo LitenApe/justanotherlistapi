@@ -20,7 +20,10 @@ public sealed class GetMembersHttpTests(ApiFactory factory) : IClassFixture<ApiF
 
         HttpClient client = factory.CreateClient();
 
-        HttpResponseMessage response = await client.GetAsync($"/api/list/{itemGroupId}/member");
+        HttpResponseMessage response = await client.GetAsync(
+            $"/api/list/{itemGroupId}/member",
+            TestContext.Current.CancellationToken
+        );
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }

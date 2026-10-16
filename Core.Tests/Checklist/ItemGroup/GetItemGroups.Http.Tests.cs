@@ -20,7 +20,10 @@ public sealed class GetItemGroupsHttpTests(ApiFactory factory) : IClassFixture<A
 
         HttpClient client = factory.CreateClient();
 
-        HttpResponseMessage response = await client.GetAsync("/api/list");
+        HttpResponseMessage response = await client.GetAsync(
+            "/api/list",
+            TestContext.Current.CancellationToken
+        );
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }

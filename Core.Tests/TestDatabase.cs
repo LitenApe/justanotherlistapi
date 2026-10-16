@@ -28,7 +28,7 @@ internal static class TestDatabase
         {
             if (container is null)
             {
-                container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
+                container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2025-latest").Build();
                 await container.StartAsync();
             }
         }

@@ -47,6 +47,7 @@ Backend features are organized as vertical slices under `Core/Checklist/`. Each 
 - **Central package management** via `Directory.Packages.props` — project `PackageReference` items must omit `Version`. Update versions only in `Directory.Packages.props`.
 - **Warnings as errors** — all compiler warnings (including Roslynator/Meziantou analyzers) fail the build.
 - **Nullable reference types** enabled everywhere; do not add `#nullable disable`.
+- Tests run on **xUnit v3 + Microsoft.Testing.Platform** (`global.json`). Pass `TestContext.Current.CancellationToken` to any call accepting a `CancellationToken` (analyzer xUnit1051 fails the build otherwise).
 - Tests need Docker running: `TestDatabase` starts one shared SQL Server container per run and creates an isolated database per test.
 
 ## Specifications

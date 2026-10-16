@@ -12,7 +12,8 @@ public sealed class CreateItemGroupHttpTests(ApiFactory factory) : IClassFixture
 
         HttpResponseMessage response = await client.PostAsJsonAsync(
             "/api/list",
-            new { Name = "My Group" }
+            new { Name = "My Group" },
+            TestContext.Current.CancellationToken
         );
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);

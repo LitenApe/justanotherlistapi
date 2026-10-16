@@ -23,7 +23,8 @@ public sealed class UpdateItemGroupHttpTests(ApiFactory factory) : IClassFixture
 
         HttpResponseMessage response = await client.PutAsJsonAsync(
             $"/api/list/{itemGroupId}",
-            new { Name = "Updated Group" }
+            new { Name = "Updated Group" },
+            TestContext.Current.CancellationToken
         );
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);

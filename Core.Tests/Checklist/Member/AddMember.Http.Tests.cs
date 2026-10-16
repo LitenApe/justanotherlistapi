@@ -23,7 +23,8 @@ public sealed class AddMemberHttpTests(ApiFactory factory) : IClassFixture<ApiFa
 
         HttpResponseMessage response = await client.PostAsync(
             $"/api/list/{itemGroupId}/member/{newMemberId}",
-            content: null
+            content: null,
+            TestContext.Current.CancellationToken
         );
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);

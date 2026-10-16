@@ -27,7 +27,12 @@ public sealed class GetItemGroupTests
 
         // Act
         Results<Ok<ItemGroup>, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await GetItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
+            await GetItemGroup.Execute(
+                itemGroupId,
+                claimsPrincipal,
+                db,
+                TestContext.Current.CancellationToken
+            );
 
         // Assert
         Ok<ItemGroup> ok = Assert.IsType<Ok<ItemGroup>>(result.Result);
@@ -83,7 +88,12 @@ public sealed class GetItemGroupTests
 
         // Act
         Results<Ok<ItemGroup>, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await GetItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
+            await GetItemGroup.Execute(
+                itemGroupId,
+                claimsPrincipal,
+                db,
+                TestContext.Current.CancellationToken
+            );
 
         // Assert
         Ok<ItemGroup> ok = Assert.IsType<Ok<ItemGroup>>(result.Result);
@@ -114,7 +124,12 @@ public sealed class GetItemGroupTests
 
         // Act
         Results<Ok<ItemGroup>, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await GetItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
+            await GetItemGroup.Execute(
+                itemGroupId,
+                claimsPrincipal,
+                db,
+                TestContext.Current.CancellationToken
+            );
 
         // Assert
         Assert.IsType<UnauthorizedHttpResult>(result.Result);
@@ -137,7 +152,12 @@ public sealed class GetItemGroupTests
 
         // Act
         Results<Ok<ItemGroup>, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await GetItemGroup.Execute(itemGroupId, claimsPrincipal, db, default);
+            await GetItemGroup.Execute(
+                itemGroupId,
+                claimsPrincipal,
+                db,
+                TestContext.Current.CancellationToken
+            );
 
         // Assert
         Assert.IsType<ForbidHttpResult>(result.Result);

@@ -38,7 +38,8 @@ public sealed class AddMemberTests
                 db,
                 new AuditContext(),
                 notifier,
-                TestHelpers.CreateHttpRequest()
+                TestHelpers.CreateHttpRequest(),
+                TestContext.Current.CancellationToken
             );
 
         // Assert
@@ -79,7 +80,8 @@ public sealed class AddMemberTests
                 db,
                 new AuditContext(),
                 new CapturingNotifier(),
-                TestHelpers.CreateHttpRequest()
+                TestHelpers.CreateHttpRequest(),
+                TestContext.Current.CancellationToken
             );
 
         // Assert
@@ -111,7 +113,8 @@ public sealed class AddMemberTests
                 db,
                 new AuditContext(),
                 new CapturingNotifier(),
-                TestHelpers.CreateHttpRequest()
+                TestHelpers.CreateHttpRequest(),
+                TestContext.Current.CancellationToken
             );
 
         // Assert
@@ -150,7 +153,8 @@ public sealed class AddMemberTests
                 db,
                 new AuditContext(),
                 new CapturingNotifier(),
-                TestHelpers.CreateHttpRequest()
+                TestHelpers.CreateHttpRequest(),
+                TestContext.Current.CancellationToken
             );
 
         // Assert
@@ -188,7 +192,8 @@ public sealed class AddMemberTests
             db,
             new AuditContext(),
             notifier,
-            httpRequest
+            httpRequest,
+            TestContext.Current.CancellationToken
         );
 
         // Assert

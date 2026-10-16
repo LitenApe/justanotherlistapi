@@ -65,7 +65,8 @@ public sealed class ChecklistAuthorizationExtensionsTests
             principal,
             onAuthorized: resolvedUserId => Task.FromResult(resolvedUserId),
             onUnauthorized: Guid.Empty,
-            onForbidden: Guid.Parse("11111111-1111-1111-1111-111111111111")
+            onForbidden: Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            TestContext.Current.CancellationToken
         );
 
         // Assert
@@ -93,7 +94,8 @@ public sealed class ChecklistAuthorizationExtensionsTests
             principal,
             onAuthorized: _ => Task.FromResult("authorized"),
             onUnauthorized: "unauthorized",
-            onForbidden: "forbidden"
+            onForbidden: "forbidden",
+            TestContext.Current.CancellationToken
         );
 
         // Assert
@@ -120,7 +122,8 @@ public sealed class ChecklistAuthorizationExtensionsTests
             principal,
             onAuthorized: _ => Task.FromResult("authorized"),
             onUnauthorized: "unauthorized",
-            onForbidden: "forbidden"
+            onForbidden: "forbidden",
+            TestContext.Current.CancellationToken
         );
 
         // Assert
@@ -154,7 +157,8 @@ public sealed class ChecklistAuthorizationExtensionsTests
                 return Task.FromResult(0);
             },
             onUnauthorized: -1,
-            onForbidden: -2
+            onForbidden: -2,
+            TestContext.Current.CancellationToken
         );
 
         _ = await db.ExecuteAsItemGroupMember(
@@ -166,7 +170,8 @@ public sealed class ChecklistAuthorizationExtensionsTests
                 return Task.FromResult(0);
             },
             onUnauthorized: -1,
-            onForbidden: -2
+            onForbidden: -2,
+            TestContext.Current.CancellationToken
         );
 
         // Assert
