@@ -156,4 +156,30 @@ public sealed class CreateItemGroupTests
         // Assert
         Assert.IsType<UnauthorizedHttpResult>(result.Result);
     }
+
+    [Fact]
+    public async Task Execute_ReturnsCreated_WhenConnectionIsClosed()
+    {
+        // Arrange — the app's scoped SqlConnection starts closed, unlike TestDatabase connections
+        var request = new CreateItemGroup.Request { Name = "Test Group" };
+        var userId = Guid.NewGuid();
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+
+        await using var db = await TestDatabase.CreateAsync();
+        await db.CloseAsync();
+
+        // Act
+        Results<Created<ItemGroup>, BadRequest, UnauthorizedHttpResult> result =
+            await CreateItemGroup.Execute(
+                request,
+                claimsPrincipal,
+                db,
+                new AuditContext(),
+                TestContext.Current.CancellationToken
+            );
+
+        // Assert
+        Created<ItemGroup> createdResult = Assert.IsType<Created<ItemGroup>>(result.Result);
+        Assert.NotNull(createdResult.Value);
+    }
 }

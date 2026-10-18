@@ -49,6 +49,7 @@ Backend features are organized as vertical slices under `Core/Checklist/`. Each 
 - **Nullable reference types** enabled everywhere; do not add `#nullable disable`.
 - Tests run on **xUnit v3 + Microsoft.Testing.Platform** (`global.json`). Pass `TestContext.Current.CancellationToken` to any call accepting a `CancellationToken` (analyzer xUnit1051 fails the build otherwise).
 - Tests need Docker running: `TestDatabase` starts one shared SQL Server container per run and creates an isolated database per test.
+- `TestDatabase` connections are already **open**, but the app's scoped `SqlConnection` starts **closed**. Dapper opens it per command, but `BeginTransaction` needs `db.Open()` first.
 
 ## Specifications
 

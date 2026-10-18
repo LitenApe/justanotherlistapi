@@ -58,6 +58,12 @@ public static class CreateItemGroup
     {
         var itemGroup = new ItemGroup { Id = Guid.NewGuid(), Name = request.Name };
 
+        // Dapper opens connections per command, but a transaction needs one that is already open.
+        if (db.State != ConnectionState.Open)
+        {
+            db.Open();
+        }
+
         using IDbTransaction tx = db.BeginTransaction();
 
         await db.ExecuteAsync(
