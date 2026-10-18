@@ -11,6 +11,7 @@
 - [Data Flow](#data-flow)
 - [Real-Time Updates](#real-time-updates)
 - [Accessibility](#accessibility)
+- [Themes](#themes)
 - [Responsive Design](#responsive-design)
 - [Testing](#testing)
 - [Known Limitations](#known-limitations)
@@ -65,7 +66,7 @@ Client/
       hub.ts                 - Single SignalR connection; per-list subscriptions with ref-counted groups
       hooks.ts               - useRealtimeConnection, useGroupEvents, useConnectionStatus
     components/
-      Layout.tsx             - Skip link, header, account popover, connection banner, focus on navigation
+      Layout.tsx             - Skip link, header, theme toggle, account popover, connection banner, focus on navigation
       Dialog.tsx             - Native <dialog> wrapper; ConfirmDialog.tsx builds on it
       Toasts.tsx             - Visible notifications + screen reader announcements (live regions)
       Icon.tsx, CopyButton.tsx, useDocumentTitle.ts
@@ -74,7 +75,8 @@ Client/
       ListPage.tsx           - Single list: items, filter/search, dialogs, focus management
       listReducer.ts         - Pure, idempotent state transitions shared by local and realtime changes
       ItemRow.tsx, EditItemDialog.tsx, RenameListDialog.tsx, MembersPanel.tsx
-    styles/global.css        - Design tokens (light + dark), base styles, buttons, forms, utilities
+    theme/theme.ts           - Light/dark theme store (dark default, saved in localStorage)
+    styles/global.css        - Design tokens per theme, base styles, buttons, forms, utilities
     test/                    - Test setup, fake API (fetch), fake SignalR connection, axe helper
 ```
 
@@ -201,8 +203,19 @@ Target: WCAG 2.2 AA. The conventions below are enforced by code review, `eslint-
 - Pointer targets are at least 24×24px; most are 44px tall.
 - State never relies on color alone: done items are struck through, the active filter shows a check mark, and invalid fields have a thicker border plus a text error.
 - Icons are decorative (`aria-hidden`) and always paired with visible or visually hidden text.
-- `prefers-reduced-motion` disables animations; `prefers-color-scheme` switches to the dark theme.
+- `prefers-reduced-motion` disables animations.
 - Units are `rem`, so text scales with browser settings, and layouts reflow without horizontal scrolling at 320px CSS width (WCAG 1.4.10).
+
+---
+
+## Themes
+
+The client has a dark theme (the default) and a light theme.
+
+- **Toggle:** a "Dark mode" toggle button in the header (`aria-pressed`, moon or sun icon). It's available on every page, including sign-in.
+- **Persistence:** the choice is saved in localStorage (`jal.theme`) per browser. The operating system's `prefers-color-scheme` is deliberately not used, so new visitors always start in dark mode.
+- **Tokens:** `global.css` defines the colors twice: under `:root, :root[data-theme="dark"]` and under `:root[data-theme="light"]`. Each block also sets `color-scheme`, so native controls and scrollbars match. Components only use the `--color-*` tokens.
+- **No flash:** `index.html` starts with `data-theme="dark"`. A small inline script in `<head>` switches to light before first paint when that is the saved choice. `theme/theme.ts` keeps `<html data-theme>`, `<meta name="color-scheme">` and `<meta name="theme-color">` (mobile browser UI) in sync afterwards. The storage key and colors are duplicated in both places, so change them together.
 
 ---
 
@@ -212,7 +225,7 @@ Mobile first, with a 16px page gutter growing to 24px from `40rem`.
 
 | Width   | Layout                                                                                  |
 | ------- | --------------------------------------------------------------------------------------- |
-| < 30rem | Dialog buttons stack full width                                                         |
+| < 30rem | Header buttons become icon-only; dialog buttons stack full width                        |
 | any     | List cards use `repeat(auto-fill, minmax(min(100%, 16rem), 1fr))`; forms wrap as needed |
 | ≥ 48rem | Overview header and "New list" form sit side by side                                    |
 | < 60rem | Members panel sits below the items; a "Members (n)" button in the header jumps to it    |

@@ -53,7 +53,7 @@ The client is organized by page (`lists/`, `list/`, `auth/`) with shared `api/`,
 - Never disable a button that may hold focus; use `aria-disabled` and guard the handler
 - When an element holding focus is removed, move focus somewhere meaningful (see `planFocusAfterRemoval` in `ListPage.tsx`)
 - Feedback through `useToast()`: `notify()` for visible messages (errors stay until dismissed), `announce()` for screen reader–only messages
-- New colors go into the tokens in `styles/global.css` with light and dark values meeting 4.5:1 (text) / 3:1 (UI)
+- New colors go into the tokens in `styles/global.css`, in both the dark (default) and `[data-theme="light"]` blocks, meeting 4.5:1 (text) / 3:1 (UI). Never hard-code colors in components
 - API calls go through `api/checklists.ts`; local changes and SignalR events dispatch the same idempotent reducer actions
 - Realtime: subscribe with `useGroupEvents(listIds, handlers)`; never create another `HubConnection`
 - Tests: `renderApp(path)` + `installFakeApi(lists)`; query by role/name; call `expectNoAxeViolations()` for new pages and dialog states; emit hub events with `latestConnection().emit(...)`
