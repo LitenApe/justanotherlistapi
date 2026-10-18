@@ -24,4 +24,14 @@ IResourceBuilder<ProjectResource> core = builder
         ReferenceExpression.Create($"{oauth.GetEndpoint("http")}/default")
     );
 
+// The Vite dev server proxies /api and /hubs to Core and /default to the mock OAuth server.
+// A fixed port keeps the origin stable, so browser storage survives restarts.
+builder
+    .AddViteApp("client", "../Client")
+    .WithEndpoint("http", endpoint => endpoint.Port = 5173)
+    .WithReference(core)
+    .WithReference(oauth.GetEndpoint("http"))
+    .WaitFor(core)
+    .WaitFor(oauth);
+
 builder.Build().Run();

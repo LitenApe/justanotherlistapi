@@ -1,6 +1,6 @@
 # JustAnotherList
 
-JustAnotherList is an open-source, minimalist app for organising life into shareable checklists. Create unlimited lists, invite collaborators, and track items — all through a clean REST API.
+JustAnotherList is an open-source, minimalist app for organising life into shareable checklists. Create unlimited lists, invite collaborators, and track items — through a clean REST API or the accessible, responsive web client.
 
 ## Contents
 
@@ -9,6 +9,7 @@ JustAnotherList is an open-source, minimalist app for organising life into share
 - [Specifications](#specifications)
 - [Requirements](#requirements)
 - [Quickstart (local development)](#quickstart-local-development)
+- [Using the web client](#using-the-web-client)
 - [Getting a token locally](#getting-a-token-locally)
 - [Running without Aspire](#running-without-aspire-alternative-setup)
 - [Configuration reference](#configuration-reference)
@@ -21,21 +22,32 @@ JustAnotherList is an open-source, minimalist app for organising life into share
 
 ## Tech stack
 
-| Layer             | Technology                                                      |
-| ----------------- | --------------------------------------------------------------- |
-| Runtime           | .NET 10                                                         |
-| Backend           | ASP.NET Core 10 (Minimal API)                                   |
-| Data access       | Dapper + SQL Server                                             |
-| Authentication    | JWT Bearer — delegated to an external OAuth 2.0 / OIDC provider |
-| API docs          | Scalar (OpenAPI)                                                |
-| Observability     | OpenTelemetry (traces + logs, OTLP export)                      |
-| Dev orchestration | .NET Aspire                                                     |
+| Layer             | Technology                                                       |
+| ----------------- | ---------------------------------------------------------------- |
+| Runtime           | .NET 10                                                          |
+| Backend           | ASP.NET Core 10 (Minimal API)                                    |
+| Data access       | Dapper + SQL Server                                              |
+| Authentication    | JWT Bearer — delegated to an external OAuth 2.0 / OIDC provider  |
+| API docs          | Scalar (OpenAPI)                                                 |
+| Observability     | OpenTelemetry (traces + logs, OTLP export)                       |
+| Dev orchestration | .NET Aspire                                                      |
+| Frontend          | React 19 + TypeScript, Vite, React Router, SignalR client        |
+| Frontend quality  | ESLint (typescript-eslint, jsx-a11y), Prettier, Vitest, axe-core |
 
 ## Project structure
 
 ```
 Aspire/                             - .NET Aspire AppHost — wires all services for local development
-  Program.cs                        - Registers SQL Server, mock OAuth container, and Core project
+  Program.cs                        - Registers SQL Server, mock OAuth container, Core project and Vite client
+Client/                             - React + TypeScript web client (see specifications/client.md)
+  src/api/                          - fetch wrapper and one function per API endpoint
+  src/auth/                         - Session store, dev sign-in against the mock OAuth server
+  src/realtime/                     - Single SignalR connection with per-list subscriptions
+  src/components/                   - Layout, dialogs, toasts/live regions, icons
+  src/lists/                        - "Your lists" overview page
+  src/list/                         - List page: items, filters, members, dialogs
+  src/styles/global.css             - Design tokens (light/dark, WCAG AA contrast) and base styles
+  src/test/                         - Fake API, fake SignalR connection, axe helper
 Core/                               - ASP.NET Core backend
   Program.cs                        - App composition root: DI, middleware, auth, OpenAPI, DB init
   DatabaseInitializer.cs            - Runs idempotent CREATE TABLE + CREATE INDEX at startup
@@ -87,6 +99,7 @@ specifications/                     - Design and architecture specifications
   checklist.md                      - Checklist feature: domain model, endpoints, DB schema
   audit-logs.md                     - Audit log feature: schema, implementation design
   authentication.md                 - Authentication: JWT setup, claim resolution
+  client.md                         - Web client: structure, sign-in, realtime, accessibility
 ```
 
 ## Specifications
@@ -98,11 +111,13 @@ Design and architecture documents for planned and implemented features live in t
 | [checklist.md](specifications/checklist.md)           | Checklist feature — domain model, authorization model, database schema, all API endpoints with request/response shapes, and structural conventions |
 | [audit-logs.md](specifications/audit-logs.md)         | Audit Log feature — database schema, per-operation audit data, implementation design, and future extensibility                                     |
 | [authentication.md](specifications/authentication.md) | Authentication feature — JWT Bearer setup, token validation behavior, user identity claim resolution, and how users authenticate against the API   |
+| [client.md](specifications/client.md)                 | Web client — structure, dev sign-in, data flow, real-time updates, accessibility (WCAG 2.2 AA) and responsive design conventions                   |
 
 ## Requirements
 
 - .NET SDK 10
 - Docker (or another OCI-compatible runtime)
+- Node.js 24 (for the web client; Aspire runs `npm install` and the Vite dev server)
 
 Docker is required because Aspire spins up SQL Server and the OAuth mock server as persistent containers at startup.
 
@@ -124,14 +139,26 @@ Docker is required because Aspire spins up SQL Server and the OAuth mock server 
 
    Aspire starts and health-checks the following containers before launching the backend:
 
-   | Container          | Image                                         | Port          | Lifetime   |
-   | ------------------ | --------------------------------------------- | ------------- | ---------- |
-   | SQL Server         | `mcr.microsoft.com/mssql/server:2025-latest`  | auto-assigned | Persistent |
-   | mock-oauth2-server | `ghcr.io/navikt/mock-oauth2-server:6.1.1`     | `8080`        | Persistent |
+   | Container          | Image                                        | Port          | Lifetime   |
+   | ------------------ | -------------------------------------------- | ------------- | ---------- |
+   | SQL Server         | `mcr.microsoft.com/mssql/server:2025-latest` | auto-assigned | Persistent |
+   | mock-oauth2-server | `ghcr.io/navikt/mock-oauth2-server:6.1.1`    | `8080`        | Persistent |
 
    Both containers are **persistent** — data and the OAuth server survive restarts. The backend waits for both to be healthy before starting. Database tables are created automatically on first boot.
 
-3. Open the Aspire dashboard URL printed in the console. From there you can navigate to the running `Core` service and open the Scalar UI at `/scalar/v1`.
+3. Open the web client at **http://localhost:5173** (see [Using the web client](#using-the-web-client)), or open the Aspire dashboard URL printed in the console to reach the `Core` service and its Scalar UI at `/scalar/v1`.
+
+## Using the web client
+
+The client signs in against the local mock OAuth server. Your **user ID** (a GUID) is your identity: the sign-in page prefills `00000000-0000-0000-0000-000000000001`, and **Generate a new user ID** creates another one.
+
+- Each browser tab keeps its own sign-in, so you can open a second tab with a different user ID to try sharing.
+- To share a list, ask the other person for their user ID (shown under **Account**) and paste it under **Add a member** on the list page.
+- Changes made by other members appear live.
+
+The client is built to WCAG 2.2 AA (keyboard and screen reader support, visible focus, sufficient contrast in light and dark mode) and works from 320px phone screens up to desktop. Details are in [specifications/client.md](specifications/client.md).
+
+To work on the client without Aspire, start Core and the OAuth server, then run `npm install` and `npm run dev` in `Client/`.
 
 ## Getting a token locally
 
@@ -276,6 +303,13 @@ Tests use xUnit against a real SQL Server started by [Testcontainers](https://do
 dotnet test
 ```
 
+Client tests use Vitest, Testing Library and axe-core in jsdom, against an in-memory fake of the API. Every page and dialog state is checked for accessibility violations.
+
+```bash
+cd Client
+npm run check   # typecheck + lint + format check + tests
+```
+
 ### How tests work
 
 `Core.Tests` contains two kinds of tests:
@@ -336,6 +370,8 @@ Formatting and linting are enforced automatically on every `dotnet build` run fr
 | [Meziantou.Analyzer](https://github.com/meziantou/Meziantou.Analyzer) | ~140 rules for async patterns, culture safety, string handling, and more |
 
 All warnings are treated as errors (`TreatWarningsAsErrors=true` in `Directory.Build.props`) — the build fails if any rule is violated. This includes `.editorconfig` naming rules such as `PascalCase` for types and `camelCase` for locals.
+
+The client has its own checks, run by `npm run check` in `Client/` and in CI: TypeScript strict mode, ESLint with `typescript-eslint` (strict, type-aware), `eslint-plugin-jsx-a11y` (strict) and `eslint-plugin-react-hooks`, and Prettier formatting.
 
 The CSharpier check is wired into `Directory.Build.targets` as a `BeforeTargets="Build"` target. It is automatically skipped for IDE incremental builds (`BuildingInsideVisualStudio=true`) and design-time builds (`DesignTimeBuild=true`).
 

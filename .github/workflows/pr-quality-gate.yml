@@ -67,3 +67,32 @@ jobs:
         with:
           recreate: true
           path: code-coverage-results.md
+
+  client:
+    name: Client checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: Client
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: Client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck, lint, format check and tests
+        run: npm run check
+
+      - name: Production build
+        run: npx vite build

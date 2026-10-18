@@ -1,0 +1,141 @@
+.page {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.intro {
+  display: grid;
+  gap: var(--space-4);
+}
+
+@media (min-width: 48rem) {
+  .intro {
+    grid-template-columns: 1fr minmax(20rem, 28rem);
+    align-items: end;
+  }
+}
+
+.createForm {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.filter {
+  display: grid;
+  gap: var(--space-1);
+  max-width: 24rem;
+  margin-bottom: var(--space-4);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: var(--space-3);
+}
+
+.listCard {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  transition: border-color 120ms ease;
+}
+
+.listCard:hover {
+  border-color: var(--color-border-strong);
+}
+
+/* The whole card is clickable through the title link, keeping a single tab stop. */
+.listCard:has(.cardLink:focus-visible) {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.cardTitle {
+  font-size: 1.0625rem;
+}
+
+.cardLink {
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.cardLink:hover {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+.cardLink:focus-visible {
+  outline: none;
+}
+
+.cardLink::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.cardBody {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.remaining {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.doneIcon {
+  color: var(--color-success);
+}
+
+.preview {
+  display: grid;
+  gap: var(--space-1);
+  font-size: 0.875rem;
+}
+
+.preview li {
+  overflow: hidden;
+  padding-left: var(--space-4);
+  text-indent: calc(-1 * var(--space-4));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview li:not(:global(.muted))::before {
+  content: "○";
+  display: inline-block;
+  width: var(--space-4);
+  text-indent: 0;
+  color: var(--color-text-muted);
+}
+
+.empty {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-5);
+  text-align: center;
+}
+
+.errorBody {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+}
+
+.skeletonCard {
+  height: 8.5rem;
+}
+
+@media (forced-colors: active) {
+  .listCard:has(.cardLink:focus-visible) {
+    outline-color: Highlight;
+  }
+}
