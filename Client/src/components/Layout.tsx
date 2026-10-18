@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation } from "react-router";
 import { sessionStore, type Session } from "../auth/session";
 import { useSession } from "../auth/useSession";
 import { useConnectionStatus, useRealtimeConnection } from "../realtime/hooks";
+import { themeStore, useTheme } from "../theme/theme";
 import { CopyButton } from "./CopyButton";
 import { Icon } from "./Icon";
 import styles from "./Layout.module.css";
@@ -34,7 +35,10 @@ export function Layout() {
             </span>
             JustAnotherList
           </Link>
-          {session && <AccountMenu session={session} />}
+          <div className={styles.headerActions}>
+            <ThemeToggle />
+            {session && <AccountMenu session={session} />}
+          </div>
         </div>
       </header>
       {session && <ConnectionBanner />}
@@ -63,6 +67,28 @@ function useFocusOnNavigation(mainRef: RefObject<HTMLElement | null>) {
 }
 
 /**
+ * A toggle button: the name stays "Dark mode" and aria-pressed carries the
+ * state, so screen readers announce "Dark mode, toggle button, pressed".
+ */
+function ThemeToggle() {
+  const dark = useTheme() === "dark";
+
+  return (
+    <button
+      type="button"
+      className={`button button-small ${styles.themeToggle} ${styles.compactButton}`}
+      aria-pressed={dark}
+      onClick={() => {
+        themeStore.setTheme(dark ? "light" : "dark");
+      }}
+    >
+      <Icon name={dark ? "moon" : "sun"} size={18} />
+      <span className={styles.compactLabel}>Dark mode</span>
+    </button>
+  );
+}
+
+/**
  * Uses the native popover API for light dismiss, Escape handling and focus
  * return. aria-expanded is set explicitly for older assistive technology.
  */
@@ -73,12 +99,12 @@ function AccountMenu({ session }: { session: Session }) {
     <div className={styles.account}>
       <button
         type="button"
-        className="button button-small"
+        className={`button button-small ${styles.compactButton}`}
         popoverTarget="account-panel"
         aria-expanded={open}
       >
         <Icon name="user" size={18} />
-        Account
+        <span className={styles.compactLabel}>Account</span>
       </button>
       <div
         id="account-panel"

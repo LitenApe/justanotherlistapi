@@ -14,6 +14,7 @@
 
 .headerInner {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
@@ -47,6 +48,35 @@
   border-radius: var(--radius-sm);
   background: var(--color-accent);
   color: var(--color-on-accent);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.themeToggle[aria-pressed="true"] {
+  border-color: var(--color-accent);
+}
+
+/* Header buttons go icon-only on narrow screens so the header stays one row;
+   their labels stay available to screen readers. */
+@media (max-width: 30rem) {
+  .compactButton {
+    min-width: var(--target-size);
+    padding-inline: var(--space-2);
+  }
+
+  .compactLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 
 .account {

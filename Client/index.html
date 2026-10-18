@@ -1,12 +1,26 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#1d2027" />
     <meta name="description" content="Shareable checklists for everything." />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>JustAnotherList</title>
+    <script>
+      // Apply a saved light theme before first paint so dark-mode users never see a flash
+      // and light-mode users don't see one either. Keep in sync with src/theme/theme.ts.
+      try {
+        if (localStorage.getItem("jal.theme") === "light") {
+          document.documentElement.dataset.theme = "light";
+          document.querySelector('meta[name="color-scheme"]').content = "light";
+          document.querySelector('meta[name="theme-color"]').content = "#ffffff";
+        }
+      } catch {
+        // Storage unavailable: stay on the default dark theme.
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

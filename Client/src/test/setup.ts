@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import { sessionStore } from "../auth/session";
+import { DEFAULT_THEME, themeStore } from "../theme/theme";
 
 // Run the real hub logic over an in-memory connection (see fakeConnection.ts).
 vi.mock("../realtime/hub", async (importOriginal) => {
@@ -31,6 +32,7 @@ if (typeof HTMLDialogElement.prototype.showModal !== "function") {
 afterEach(() => {
   cleanup();
   sessionStore.signOut("user");
+  themeStore.setTheme(DEFAULT_THEME);
   sessionStorage.clear();
   localStorage.clear();
   vi.unstubAllGlobals();

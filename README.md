@@ -46,7 +46,8 @@ Client/                             - React + TypeScript web client (see specifi
   src/components/                   - Layout, dialogs, toasts/live regions, icons
   src/lists/                        - "Your lists" overview page
   src/list/                         - List page: items, filters, members, dialogs
-  src/styles/global.css             - Design tokens (light/dark, WCAG AA contrast) and base styles
+  src/theme/                        - Light/dark theme (dark by default) with a header toggle
+  src/styles/global.css             - Design tokens per theme (WCAG AA contrast) and base styles
   src/test/                         - Fake API, fake SignalR connection, axe helper
 Core/                               - ASP.NET Core backend
   Program.cs                        - App composition root: DI, middleware, auth, OpenAPI, DB init
@@ -155,6 +156,7 @@ The client signs in against the local mock OAuth server. Your **user ID** (a GUI
 - Each browser tab keeps its own sign-in, so you can open a second tab with a different user ID to try sharing.
 - To share a list, ask the other person for their user ID (shown under **Account**) and paste it under **Add a member** on the list page.
 - Changes made by other members appear live.
+- Dark mode is the default; use the **Dark mode** toggle in the header to switch to light. Your choice is remembered in the browser.
 
 The client is built to WCAG 2.2 AA (keyboard and screen reader support, visible focus, sufficient contrast in light and dark mode) and works from 320px phone screens up to desktop. Details are in [specifications/client.md](specifications/client.md).
 
