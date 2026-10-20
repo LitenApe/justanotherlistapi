@@ -31,6 +31,7 @@ public static class CreateItem
         AuditContext auditContext,
         IChecklistNotifier notifier,
         HttpRequest httpRequest,
+        TimeProvider timeProvider,
         CancellationToken ct = default
     )
     {
@@ -46,7 +47,13 @@ public static class CreateItem
             claimsPrincipal,
             async _ =>
             {
-                Item data = await CreateData(itemGroupId, request, db, ct);
+                Item data = await CreateData(
+                    itemGroupId,
+                    request,
+                    timeProvider.GetUtcNow(),
+                    db,
+                    ct
+                );
                 auditContext.SubResourceId = data.Id;
                 string? connectionId = httpRequest.Headers["X-SignalR-Connection-Id"];
                 await notifier.NotifyItemCreated(itemGroupId, data, connectionId);
@@ -61,6 +68,7 @@ public static class CreateItem
     internal static async Task<Item> CreateData(
         Guid itemGroupId,
         Request request,
+        DateTimeOffset now,
         IDbConnection db,
         CancellationToken ct
     )
@@ -72,17 +80,19 @@ public static class CreateItem
             Name = request.Name,
             Description = request.Description,
             IsComplete = request.IsComplete,
+            CompletedAt = request.IsComplete ? now : null,
         };
 
         await db.ExecuteAsync(
             new CommandDefinition(
-                "INSERT INTO Items (Id, Name, Description, IsComplete, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @ItemGroupId)",
+                "INSERT INTO Items (Id, Name, Description, IsComplete, CompletedAt, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @CompletedAt, @ItemGroupId)",
                 new
                 {
                     item.Id,
                     item.Name,
                     item.Description,
                     item.IsComplete,
+                    item.CompletedAt,
                     item.ItemGroupId,
                 },
                 cancellationToken: ct

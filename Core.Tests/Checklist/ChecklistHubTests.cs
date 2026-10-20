@@ -309,6 +309,57 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
     }
 
     [Fact]
+    public async Task GroupSettingsChanged_IsBroadcastToGroupMembers()
+    {
+        // Arrange
+        var itemGroupId = Guid.NewGuid();
+        await factory.Connection.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Settings Test" }
+        );
+        await factory.Connection.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = TestAuthHandler.UserId, ItemGroupId = itemGroupId }
+        );
+
+        await using HubConnection connection = CreateHubConnection();
+        await connection.StartAsync(TestContext.Current.CancellationToken);
+        await connection.InvokeAsync(
+            "JoinGroup",
+            itemGroupId,
+            TestContext.Current.CancellationToken
+        );
+
+        var tcs = new TaskCompletionSource<(Guid GroupId, ItemGroupSettings Settings)>();
+        connection.On<Guid, ItemGroupSettings>(
+            "GroupSettingsChanged",
+            (groupId, settings) => tcs.TrySetResult((groupId, settings))
+        );
+
+        // Act
+        using HttpClient client = factory.CreateClient();
+        HttpResponseMessage response = await client.PutAsJsonAsync(
+            $"/api/list/{itemGroupId}/settings",
+            new { AutoDeleteAfterMinutes = 1440, HideCompletedAfterMinutes = 0 },
+            TestContext.Current.CancellationToken
+        );
+        response.EnsureSuccessStatusCode();
+
+        // Assert
+        Task completed = await Task.WhenAny(
+            tcs.Task,
+            Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken)
+        );
+        Assert.Equal(tcs.Task, completed);
+
+        (Guid receivedGroupId, ItemGroupSettings receivedSettings) = await tcs.Task;
+        Assert.Equal(itemGroupId, receivedGroupId);
+        Assert.Equal(1440, receivedSettings.AutoDeleteAfterMinutes);
+        Assert.Equal(0, receivedSettings.HideCompletedAfterMinutes);
+        Assert.NotNull(receivedSettings.AutoDeleteUpdatedAt);
+    }
+
+    [Fact]
     public async Task GroupDeleted_IsBroadcastToGroupMembers()
     {
         // Arrange

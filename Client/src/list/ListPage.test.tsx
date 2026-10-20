@@ -1,5 +1,5 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ItemGroup } from "../api/types";
 import { installFakeApi, makeItem, makeList, ME, OTHER } from "../test/fakeApi";
 import { latestConnection } from "../test/fakeConnection";
@@ -246,5 +246,190 @@ describe("ListPage", () => {
     renderApp("/lists/not-a-guid");
     expect(screen.getByRole("heading", { level: 1, name: "List not found" })).toBeInTheDocument();
     await expectNoAxeViolations();
+  });
+});
+
+const MINUTE = 60_000;
+const DAY = 24 * 60 * MINUTE;
+const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
+
+describe("ListPage settings", () => {
+  it("saves settings in a dialog and enforces the one-day auto-delete minimum", async () => {
+    const { api, user } = await openList(makeList("Groceries", ["Milk"]));
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    const dialog = screen.getByRole("dialog", { name: "List settings" });
+    expect(dialog).toHaveAccessibleDescription("These settings apply to everyone in this list.");
+    const hide = within(dialog).getByRole("checkbox", { name: "Hide done items" });
+    expect(hide).toHaveFocus();
+    expect(hide).not.toBeChecked();
+
+    await user.click(hide);
+    const hideAfter = within(dialog).getByRole("group", { name: "Hide after" });
+    const hideAmount = within(hideAfter).getByLabelText("Amount");
+    expect(hideAmount).toHaveValue("1");
+    expect(within(hideAfter).getByLabelText("Unit")).toHaveValue("days");
+    await user.clear(hideAmount);
+    await user.type(hideAmount, "2");
+    await user.selectOptions(within(hideAfter).getByLabelText("Unit"), "hours");
+
+    await user.click(
+      within(dialog).getByRole("checkbox", { name: "Delete the list when every item is done" }),
+    );
+    const deleteAfter = within(dialog).getByRole("group", { name: "Delete after" });
+    const deleteAmount = within(deleteAfter).getByLabelText("Amount");
+    await user.clear(deleteAmount);
+    await user.type(deleteAmount, "12");
+    await user.selectOptions(within(deleteAfter).getByLabelText("Unit"), "hours");
+    await expectNoAxeViolations(dialog);
+
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(deleteAmount).toHaveFocus();
+    expect(deleteAmount).toBeInvalid();
+    expect(deleteAmount).toHaveAccessibleDescription(/Choose at least 1 day/);
+    expect(api.callsTo("PUT", /\/settings$/)).toHaveLength(0);
+    await expectNoAxeViolations(dialog);
+
+    await user.selectOptions(within(deleteAfter).getByLabelText("Unit"), "days");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    expect(api.callsTo("PUT", /\/settings$/)[0]?.body).toEqual({
+      hideCompletedAfterMinutes: 120,
+      autoDeleteAfterMinutes: 12 * 24 * 60,
+    });
+    expect(
+      screen.getByText(
+        "Done items are hidden after 2 hours. The list is deleted 12 days after every item is done.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("hides done items after the chosen time but keeps them under Done", async () => {
+    const list = makeList("Groceries");
+    list.settings.hideCompletedAfterMinutes = 60;
+    list.items = [
+      makeItem({ name: "Milk", itemGroupId: list.id, isComplete: true, completedAt: ago(DAY) }),
+      makeItem({ name: "Eggs", itemGroupId: list.id, isComplete: true }),
+      makeItem({ name: "Bread", itemGroupId: list.id }),
+    ];
+    const { user } = await openList(list);
+
+    expect(screen.queryByRole("checkbox", { name: "Milk" })).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Eggs" })).toBeChecked();
+    expect(screen.getByText("2 of 3 done")).toBeInTheDocument();
+    expect(screen.getByText("Showing 2 of 3 items")).toBeInTheDocument();
+    expect(screen.getByText(/1 done item is hidden/)).toBeInTheDocument();
+    expect(screen.getByText("Done items are hidden after 1 hour.")).toBeInTheDocument();
+    await expectNoAxeViolations();
+
+    await user.click(screen.getByRole("button", { name: "Show done items" }));
+
+    const done = screen.getByRole("radio", { name: /^Done/ });
+    expect(done).toBeChecked();
+    expect(done).toHaveFocus();
+    expect(screen.getByRole("checkbox", { name: "Milk" })).toBeChecked();
+  });
+
+  it("hides an item as soon as it's checked when set to hide right away", async () => {
+    const list = makeList("Groceries", ["Milk", "Eggs"]);
+    list.settings.hideCompletedAfterMinutes = 0;
+    const { api, user } = await openList(list);
+
+    await user.click(screen.getByRole("checkbox", { name: "Milk" }));
+
+    expect(screen.queryByRole("checkbox", { name: "Milk" })).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Eggs" })).toHaveFocus();
+    expect(screen.getByText(/1 done item is hidden/)).toBeInTheDocument();
+    expect(api.callsTo("PUT", /\/api\/list\/.+\/.+/)[0]?.body).toEqual({
+      name: "Milk",
+      description: null,
+      isComplete: true,
+    });
+  });
+
+  it("hides a done item when its time comes and moves focus off it", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      const list = makeList("Groceries");
+      list.settings.hideCompletedAfterMinutes = 1;
+      list.items = [
+        makeItem({ name: "Milk", itemGroupId: list.id, isComplete: true }),
+        makeItem({ name: "Eggs", itemGroupId: list.id }),
+      ];
+      await openList(list);
+      // Let React run the effect that schedules the hide timer before moving the clock.
+      await act(() => Promise.resolve());
+      act(() => {
+        screen.getByRole("checkbox", { name: "Milk" }).focus();
+      });
+
+      act(() => {
+        vi.advanceTimersByTime(MINUTE);
+      });
+
+      expect(screen.queryByRole("checkbox", { name: "Milk" })).not.toBeInTheDocument();
+      expect(screen.getByRole("checkbox", { name: "Eggs" })).toHaveFocus();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("says when the list will be deleted once every item is done", async () => {
+    const list = makeList("Groceries");
+    list.settings = {
+      autoDeleteAfterMinutes: 24 * 60,
+      hideCompletedAfterMinutes: null,
+      autoDeleteUpdatedAt: ago(7 * DAY),
+    };
+    list.items = [
+      makeItem({ name: "Milk", itemGroupId: list.id, isComplete: true }),
+      makeItem({ name: "Eggs", itemGroupId: list.id }),
+    ];
+    const { user } = await openList(list);
+    expect(
+      screen.getByText("The list is deleted 1 day after every item is done."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/will be deleted on/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: "Eggs" }));
+
+    const notice = screen.getByText(/Every item is done, so this list will be deleted on/);
+    expect(notice.closest("[role=status]")).not.toBeNull();
+    await expectNoAxeViolations();
+
+    await user.click(screen.getByRole("checkbox", { name: "Eggs" }));
+    expect(screen.queryByText(/will be deleted on/)).not.toBeInTheDocument();
+  });
+
+  it("applies settings changed by other members and explains automatic deletion", async () => {
+    const list = makeList("Groceries");
+    list.items = [
+      makeItem({ name: "Milk", itemGroupId: list.id, isComplete: true, completedAt: ago(3 * DAY) }),
+    ];
+    await openList(list);
+
+    act(() => {
+      latestConnection().emit("GroupSettingsChanged", list.id, {
+        autoDeleteAfterMinutes: 24 * 60,
+        hideCompletedAfterMinutes: null,
+        autoDeleteUpdatedAt: ago(2 * DAY),
+      });
+    });
+
+    expect(screen.getByText("Another member changed the list settings.")).toBeInTheDocument();
+    expect(screen.getByText(/will be deleted on/)).toBeInTheDocument();
+
+    act(() => {
+      latestConnection().emit("GroupDeleted", list.id);
+    });
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Your lists" })).toBeVisible();
+    expect(
+      screen.getByText("“Groceries” was deleted automatically because every item was done."),
+    ).toBeInTheDocument();
   });
 });

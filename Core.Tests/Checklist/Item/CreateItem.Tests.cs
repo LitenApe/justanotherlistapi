@@ -44,6 +44,7 @@ public sealed class CreateItemTests
                 new AuditContext(),
                 notifier,
                 TestHelpers.CreateHttpRequest(),
+                TimeProvider.System,
                 TestContext.Current.CancellationToken
             );
 
@@ -70,6 +71,42 @@ public sealed class CreateItemTests
         Assert.Equal(itemGroupId, itemCreated.GroupId);
         Assert.Equal(item.Id, itemCreated.Item.Id);
         Assert.Null(itemCreated.ExcludeConnectionId);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task CreateData_SetsCompletedAt_OnlyForCompletedItems(bool isComplete)
+    {
+        // Arrange
+        var itemGroupId = Guid.NewGuid();
+        var now = new DateTimeOffset(2026, 10, 19, 12, 0, 0, TimeSpan.Zero);
+
+        await using var db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+
+        // Act
+        Item item = await CreateItem.CreateData(
+            itemGroupId,
+            new CreateItem.Request { Name = "Milk", IsComplete = isComplete },
+            now,
+            db,
+            TestContext.Current.CancellationToken
+        );
+
+        // Assert
+        DateTimeOffset? expected = isComplete ? now : null;
+        Assert.Equal(expected, item.CompletedAt);
+        Assert.Equal(
+            expected,
+            await db.ExecuteScalarAsync<DateTimeOffset?>(
+                "SELECT CompletedAt FROM Items WHERE Id = @Id",
+                new { item.Id }
+            )
+        );
     }
 
     [Theory]
@@ -108,6 +145,7 @@ public sealed class CreateItemTests
                 new AuditContext(),
                 new CapturingNotifier(),
                 TestHelpers.CreateHttpRequest(),
+                TimeProvider.System,
                 TestContext.Current.CancellationToken
             );
 
@@ -145,6 +183,7 @@ public sealed class CreateItemTests
                 new AuditContext(),
                 new CapturingNotifier(),
                 TestHelpers.CreateHttpRequest(),
+                TimeProvider.System,
                 TestContext.Current.CancellationToken
             );
 
@@ -183,6 +222,7 @@ public sealed class CreateItemTests
                 new AuditContext(),
                 new CapturingNotifier(),
                 TestHelpers.CreateHttpRequest(),
+                TimeProvider.System,
                 TestContext.Current.CancellationToken
             );
 
@@ -227,6 +267,7 @@ public sealed class CreateItemTests
             new AuditContext(),
             notifier,
             httpRequest,
+            TimeProvider.System,
             TestContext.Current.CancellationToken
         );
 

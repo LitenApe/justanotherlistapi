@@ -5,7 +5,7 @@ import {
   LogLevel,
   type HubConnection,
 } from "@microsoft/signalr";
-import type { Item } from "../api/types";
+import type { Item, ItemGroupSettings } from "../api/types";
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "reconnecting";
 
@@ -17,6 +17,7 @@ export interface GroupEventHandlers {
   memberAdded?: (groupId: string, memberId: string) => void;
   memberRemoved?: (groupId: string, memberId: string) => void;
   groupRenamed?: (groupId: string, name: string) => void;
+  groupSettingsChanged?: (groupId: string, settings: ItemGroupSettings) => void;
   groupDeleted?: (groupId: string) => void;
   /** Called after the connection recovers, when events may have been missed. */
   resync?: (groupId: string) => void;
@@ -134,6 +135,9 @@ export function createChecklistHub(build: typeof buildConnection = buildConnecti
     });
     conn.on("GroupRenamed", (groupId: string, name: string) => {
       emit(groupId, (h) => h.groupRenamed?.(groupId, name));
+    });
+    conn.on("GroupSettingsChanged", (groupId: string, settings: ItemGroupSettings) => {
+      emit(groupId, (h) => h.groupSettingsChanged?.(groupId, settings));
     });
     conn.on("GroupDeleted", (groupId: string) => {
       emit(groupId, (h) => h.groupDeleted?.(groupId));

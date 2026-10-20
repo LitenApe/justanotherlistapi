@@ -223,16 +223,20 @@ public static class DevSeedEndpoint
                 string itemName = faker.Random.Bool(0.4f)
                     ? $"{verb} {obj} {faker.PickRandom(qualifiers)}"
                     : $"{verb} {obj}";
+                bool isComplete = faker.Random.Bool(0.4f);
 
                 await db.ExecuteAsync(
                     new CommandDefinition(
-                        "INSERT INTO Items (Id, Name, Description, IsComplete, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @ItemGroupId)",
+                        "INSERT INTO Items (Id, Name, Description, IsComplete, CompletedAt, ItemGroupId) VALUES (@Id, @Name, @Description, @IsComplete, @CompletedAt, @ItemGroupId)",
                         new
                         {
                             Id = Guid.NewGuid(),
                             Name = itemName,
                             Description = faker.Random.Bool(0.6f) ? faker.Lorem.Sentence() : null,
-                            IsComplete = faker.Random.Bool(0.4f) ? 1 : 0,
+                            IsComplete = isComplete,
+                            CompletedAt = isComplete
+                                ? faker.Date.RecentOffset(30)
+                                : (DateTimeOffset?)null,
                             ItemGroupId = groupId,
                         },
                         transaction: tx,

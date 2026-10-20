@@ -1,5 +1,11 @@
 import { apiRequest } from "./http";
-import type { Item, ItemGroup, ItemInput } from "./types";
+import type {
+  Item,
+  ItemGroup,
+  ItemGroupSettings,
+  ItemGroupSettingsInput,
+  ItemInput,
+} from "./types";
 
 const listPath = (listId: string) => `/api/list/${encodeURIComponent(listId)}`;
 const itemPath = (listId: string, itemId: string) =>
@@ -20,6 +26,9 @@ export const checklistApi = {
     apiRequest<undefined>("PUT", listPath(listId), { body: { name } }),
 
   deleteList: (listId: string) => apiRequest<undefined>("DELETE", listPath(listId)),
+
+  updateSettings: (listId: string, input: ItemGroupSettingsInput) =>
+    apiRequest<ItemGroupSettings>("PUT", `${listPath(listId)}/settings`, { body: input }),
 
   createItem: (listId: string, input: ItemInput) =>
     apiRequest<Item>("POST", listPath(listId), { body: input }),

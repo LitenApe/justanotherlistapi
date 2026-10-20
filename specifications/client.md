@@ -10,6 +10,7 @@
 - [Authentication](#authentication)
 - [Data Flow](#data-flow)
 - [Real-Time Updates](#real-time-updates)
+- [List Settings](#list-settings)
 - [Accessibility](#accessibility)
 - [Themes](#themes)
 - [Responsive Design](#responsive-design)
@@ -56,7 +57,7 @@ Client/
     api/
       http.ts                - fetch wrapper: bearer token, X-SignalR-Connection-Id, ApiError, 401 → sign out
       checklists.ts          - One function per API endpoint
-      types.ts               - Item, ItemGroup, ItemInput
+      types.ts               - Item, ItemGroup, ItemGroupSettings, request inputs
     auth/
       session.ts             - Session store (sessionStorage, expiry timer, sign-out reason)
       signIn.ts              - Dev sign-in against the mock OAuth server
@@ -73,7 +74,9 @@ Client/
     lists/ListsPage.tsx      - Overview of all lists, create list, filter lists
     list/
       ListPage.tsx           - Single list: items, filter/search, dialogs, focus management
-      listReducer.ts         - Pure, idempotent state transitions shared by local and realtime changes
+      listReducer.ts         - Pure, idempotent state transitions shared by local and realtime changes,
+                               plus filtering, auto-hide and auto-delete time helpers
+      ListSettingsDialog.tsx - Auto-hide and auto-delete settings; duration.ts converts minutes ↔ amount + unit
       ItemRow.tsx, EditItemDialog.tsx, RenameListDialog.tsx, MembersPanel.tsx
     theme/theme.ts           - Light/dark theme store (dark default, saved in localStorage)
     styles/global.css        - Design tokens per theme, base styles, buttons, forms, utilities
@@ -108,12 +111,12 @@ Without Aspire, start Core and the OAuth server yourself and run `npm run dev` i
 
 ## Pages
 
-| Route            | Page       | Notes                                                                                                 |
-| ---------------- | ---------- | ----------------------------------------------------------------------------------------------------- |
-| `/sign-in`       | Sign in    | Enter or generate a user ID. Shows a notice when the previous session expired                         |
-| `/`              | Your lists | Cards sorted by name with open item count and a preview. Create a list. Filter appears above 6 lists  |
-| `/lists/:listId` | List       | Progress, add item, search, All / To do / Done filter, edit/delete items, rename/delete list, members |
-| `*`              | Not found  | Also shown for `/lists/<not-a-guid>`                                                                  |
+| Route            | Page       | Notes                                                                                                                             |
+| ---------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `/sign-in`       | Sign in    | Enter or generate a user ID. Shows a notice when the previous session expired                                                     |
+| `/`              | Your lists | Cards sorted by name with open item count and a preview. Create a list. Filter appears above 6 lists                              |
+| `/lists/:listId` | List       | Progress, add item, search, All / To do / Done filter, edit/delete items, rename/delete list, [settings](#list-settings), members |
+| `*`              | Not found  | Also shown for `/lists/<not-a-guid>`                                                                                              |
 
 The overview mirrors `GET /api/list`, which only returns incomplete items. The list page loads `GET /api/list/{id}` and shows every item. Destructive actions (deleting a list or item, removing a member, leaving) ask for confirmation in a dialog whose initial focus is **Cancel**.
 
@@ -139,6 +142,7 @@ For local development the client signs in against the mock OAuth server using th
 - `api/http.ts` adds `Authorization` and, for mutations, `X-SignalR-Connection-Id` so the server doesn't echo the change back to the sender.
 - Toggling an item is **optimistic**: the UI updates immediately and reverts with an error toast if the request fails. Edits, renames and deletes wait for the server before closing their dialog, so input is never lost.
 - `UpdateItem` is a full replacement, so the client always sends `name`, `description` and `isComplete` together, taken from the latest local state.
+- `completedAt` is set by the server and never sent. An optimistic toggle fills it in locally with the current time so auto-hide works straight away; other members receive the server's value through `ItemUpdated`.
 - The list page keeps state in `listReducer`. Local changes and realtime events dispatch the **same idempotent actions**, so receiving an event for a change already applied locally is harmless.
 - The API returns items in no particular order. The client keeps the order stable during a visit and puts new items at the top, next to the add form.
 
@@ -153,16 +157,39 @@ For local development the client signs in against the mock OAuth server using th
 - Reconnects automatically with exponential backoff (capped at 30s). After reconnecting it rejoins all groups and calls each subscriber's `resync`, which silently reloads data to catch missed events.
 - While reconnecting, a banner (`role="status"`) says that live updates are paused.
 
-| Event                   | Overview page                      | List page                                                    |
-| ----------------------- | ---------------------------------- | ------------------------------------------------------------ |
-| `ItemCreated`/`Updated` | Update open-item count and preview | Upsert the item                                              |
-| `ItemDeleted`           | Remove from preview                | Remove; close the edit dialog if it was open for that item   |
-| `GroupRenamed`          | Rename the card                    | Update heading and document title                            |
-| `GroupDeleted`          | Remove the card                    | Return to the overview with a message                        |
-| `MemberAdded`           | —                                  | Add to members                                               |
-| `MemberRemoved`         | Remove the card if it was you      | Remove; if it was you, return to the overview with a message |
+| Event                   | Overview page                      | List page                                                               |
+| ----------------------- | ---------------------------------- | ----------------------------------------------------------------------- |
+| `ItemCreated`/`Updated` | Update open-item count and preview | Upsert the item                                                         |
+| `ItemDeleted`           | Remove from preview                | Remove; close the edit dialog if it was open for that item              |
+| `GroupRenamed`          | Rename the card                    | Update heading and document title                                       |
+| `GroupSettingsChanged`  | —                                  | Apply the settings and show "Another member changed…"                   |
+| `GroupDeleted`          | Remove the card                    | Return to the overview; the message says whether auto-delete removed it |
+| `MemberAdded`           | —                                  | Add to members                                                          |
+| `MemberRemoved`         | Remove the card if it was you      | Remove; if it was you, return to the overview with a message            |
 
 The overview also refetches when the tab becomes visible again, to pick up lists that were shared with you while you were away.
+
+---
+
+## List Settings
+
+The **Settings** button on the list page opens `ListSettingsDialog`, which edits the two settings described in [checklist.md](checklist.md#list-settings). They apply to every member, and both are off by default.
+
+**Dialog**
+
+- Each setting is a checkbox with a hint (`aria-describedby`). Checking it reveals a "Hide after" / "Delete after" fieldset with an **Amount** text field (`inputmode="numeric"`) and a **Unit** select (minutes, hours, days). The fields are shown rather than disabled, so nothing focusable is ever disabled.
+- Turning a setting on starts from 1 day (hide) or 7 days (delete). Stored minutes come back in the largest unit that divides them evenly.
+- Validation mirrors the server: a whole number, hiding from 0 up to 365 days, deleting from 1 day up to 365 days. Errors appear under the fieldset, are linked to the amount field, and move focus to it.
+- Saving sends `PUT /api/list/{id}/settings` and applies the returned settings, including `autoDeleteUpdatedAt`.
+
+**On the list page**
+
+- A hint under the heading summarises what's on, for example "Done items are hidden after 1 hour. The list is deleted 7 days after every item is done."
+- **Auto-hide**: done items whose hide time has passed drop out of "All" (and its count). "Done" still lists them. A line under the result count says how many are hidden and offers **Show done items**, which switches to "Done" and moves focus to that radio, since the button itself disappears. Progress still counts hidden items.
+- The page doesn't tick every second: a single timer wakes it when the next done item reaches its hide time (capped at a day, since browsers fire longer timers at once). With "hide right away" the toggled item disappears immediately.
+- When a hidden item holds focus, focus moves to the nearest item that stays visible, the same as for filtering (`planFocusAfterRemoval`, which takes several IDs when items disappear together).
+- **Auto-delete**: when every item is done, a notice gives the date and time the list will be deleted, computed the same way as the server (`autoDeleteTime`). It sits in a persistent `role="status"` region, so checking the last item announces it. Unchecking an item removes it.
+- If the list is deleted while open and the deletion time has passed (allowing a minute for clock differences), the overview message says it was deleted automatically rather than by another member.
 
 ---
 
@@ -237,7 +264,8 @@ Mobile first, with a 16px page gutter growing to 24px from `40rem`.
 
 Tests live next to the code as `*.test.ts(x)` and run in jsdom.
 
-- **Unit:** `listReducer` (idempotency, ordering, filtering), the session store (persistence, expiry), and the hub (ref-counted groups, routing events, resync after reconnect).
+- **Unit:** `listReducer` (idempotency, ordering, filtering, auto-hide and auto-delete times), `duration`, the session store (persistence, expiry), and the hub (ref-counted groups, routing events, resync after reconnect).
+- **Timers:** tests of time-based behaviour use `vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ["setTimeout", "clearTimeout", "Date"] })`. After loading, `await act(() => Promise.resolve())` lets React run the effect that schedules a timer before the test advances the clock.
 - **Page:** each page renders the whole app at a URL (`renderApp`) against `installFakeApi()`, an in-memory implementation of the REST API installed as `fetch`. Realtime events are injected through `latestConnection().emit(...)`. The real hub logic runs over a fake connection, set up in `test/setup.ts`.
 - **Accessibility:** `expectNoAxeViolations()` runs axe-core on every page and dialog state under test. Color contrast is excluded because jsdom does not compute styles; the palette was checked separately.
 - Tests assert on roles, accessible names and descriptions, and focus, the way assistive technology sees the page.
@@ -251,3 +279,4 @@ Tests live next to the code as `*.test.ts(x)` and run in jsdom.
 - **Item order.** The API has no ordering column, so items reload in database order.
 - **Members are GUIDs.** There is no user directory, so members are shown and added by user ID.
 - **Overview payload.** `GET /api/list` returns every open item of every list, which can be large with seeded data.
+- **Clock differences.** Auto-hide compares the server's `completedAt` with the browser's clock, so a device whose clock is off hides items correspondingly early or late.

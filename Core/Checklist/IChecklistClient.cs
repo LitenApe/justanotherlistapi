@@ -8,5 +8,6 @@ public interface IChecklistClient
     Task MemberAdded(Guid groupId, Guid memberId);
     Task MemberRemoved(Guid groupId, Guid memberId);
     Task GroupRenamed(Guid groupId, string name);
+    Task GroupSettingsChanged(Guid groupId, ItemGroupSettings settings);
     Task GroupDeleted(Guid groupId);
 }

@@ -42,6 +42,15 @@ internal static class TestDatabase
 
     public static async Task<SqlConnection> CreateAsync()
     {
+        SqlConnection connection = await CreateEmptyAsync();
+        await ChecklistSchemaInitializer.CreateSchemaAsync(connection);
+        await AuditLogSchemaInitializer.CreateSchemaAsync(connection);
+        return connection;
+    }
+
+    /// <summary>Creates an isolated database without the application schema.</summary>
+    public static async Task<SqlConnection> CreateEmptyAsync()
+    {
         string masterConnectionString = await GetContainerConnectionStringAsync();
         string dbName = $"test_{Guid.NewGuid():N}";
 
@@ -58,8 +67,6 @@ internal static class TestDatabase
 
         SqlConnection connection = new SqlConnection(dbConnectionString);
         await connection.OpenAsync();
-        await ChecklistSchemaInitializer.CreateSchemaAsync(connection);
-        await AuditLogSchemaInitializer.CreateSchemaAsync(connection);
         return connection;
     }
 }

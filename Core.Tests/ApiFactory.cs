@@ -56,6 +56,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.RemoveAll<IChecklistNotifier>();
             services.AddSingleton<IChecklistNotifier, CapturingNotifier>();
 
+            services.RemoveChecklistCleanupService();
+
             services
                 .AddAuthentication("Test")
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", _ => { });

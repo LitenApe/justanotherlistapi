@@ -69,6 +69,7 @@ function forward(ref: { current: GroupEventHandlers }): GroupEventHandlers {
     memberAdded: (...args) => ref.current.memberAdded?.(...args),
     memberRemoved: (...args) => ref.current.memberRemoved?.(...args),
     groupRenamed: (...args) => ref.current.groupRenamed?.(...args),
+    groupSettingsChanged: (...args) => ref.current.groupSettingsChanged?.(...args),
     groupDeleted: (...args) => ref.current.groupDeleted?.(...args),
     resync: (...args) => ref.current.resync?.(...args),
   };

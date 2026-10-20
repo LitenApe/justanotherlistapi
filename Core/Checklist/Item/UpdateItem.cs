@@ -30,6 +30,7 @@ public static class UpdateItem
         IDbConnection db,
         IChecklistNotifier notifier,
         HttpRequest httpRequest,
+        TimeProvider timeProvider,
         CancellationToken ct = default
     )
     {
@@ -45,7 +46,14 @@ public static class UpdateItem
             claimsPrincipal,
             async _ =>
             {
-                await UpdateData(itemGroupId, itemId, request, db, ct);
+                DateTimeOffset? completedAt = await UpdateData(
+                    itemGroupId,
+                    itemId,
+                    request,
+                    timeProvider.GetUtcNow(),
+                    db,
+                    ct
+                );
                 var item = new Item
                 {
                     Id = itemId,
@@ -53,6 +61,7 @@ public static class UpdateItem
                     Name = request.Name,
                     Description = request.Description,
                     IsComplete = request.IsComplete,
+                    CompletedAt = completedAt,
                 };
                 string? connectionId = httpRequest.Headers["X-SignalR-Connection-Id"];
                 await notifier.NotifyItemUpdated(itemGroupId, item, connectionId);
@@ -64,17 +73,30 @@ public static class UpdateItem
         );
     }
 
-    internal static async Task UpdateData(
+    /// <summary>
+    /// Updates the item and returns its completion time. Re-saving a completed item keeps the
+    /// original time, so editing its name doesn't restart the auto-hide or auto-delete clock.
+    /// </summary>
+    internal static async Task<DateTimeOffset?> UpdateData(
         Guid itemGroupId,
         Guid itemId,
         Request request,
+        DateTimeOffset now,
         IDbConnection db,
         CancellationToken ct
     )
     {
-        await db.ExecuteAsync(
+        return await db.QuerySingleOrDefaultAsync<DateTimeOffset?>(
             new CommandDefinition(
-                "UPDATE Items SET Name = @Name, Description = @Description, IsComplete = @IsComplete WHERE Id = @Id AND ItemGroupId = @ItemGroupId",
+                """
+                UPDATE Items
+                SET Name = @Name,
+                    Description = @Description,
+                    IsComplete = @IsComplete,
+                    CompletedAt = CASE WHEN @IsComplete = 1 THEN COALESCE(CompletedAt, @Now) END
+                OUTPUT INSERTED.CompletedAt
+                WHERE Id = @Id AND ItemGroupId = @ItemGroupId
+                """,
                 new
                 {
                     Id = itemId,
@@ -82,6 +104,7 @@ public static class UpdateItem
                     request.Name,
                     request.Description,
                     request.IsComplete,
+                    Now = now,
                 },
                 cancellationToken: ct
             )
