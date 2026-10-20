@@ -8,5 +8,10 @@ public interface IChecklistNotifier
     Task NotifyMemberAdded(Guid groupId, Guid memberId, string? excludeConnectionId);
     Task NotifyMemberRemoved(Guid groupId, Guid memberId, string? excludeConnectionId);
     Task NotifyGroupRenamed(Guid groupId, string name, string? excludeConnectionId);
+    Task NotifyGroupSettingsChanged(
+        Guid groupId,
+        ItemGroupSettings settings,
+        string? excludeConnectionId
+    );
     Task NotifyGroupDeleted(Guid groupId, string? excludeConnectionId);
 }

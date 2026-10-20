@@ -175,6 +175,22 @@
   margin-top: calc(-1 * var(--space-4));
 }
 
+.hiddenNote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin-top: calc(-1 * var(--space-3));
+}
+
+.settingsSummary {
+  margin-top: calc(-1 * var(--space-2));
+}
+
+.autoDeleteStatus:empty {
+  margin-top: calc(-1 * var(--space-4));
+}
+
 .items {
   display: grid;
   border: 1px solid var(--color-border);
@@ -323,6 +339,65 @@
   display: grid;
   gap: var(--space-2);
   justify-items: start;
+}
+
+.setting {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.settingToggle {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+/* At least 24×24px (WCAG 2.5.8); the label beside it is clickable too. */
+.settingCheckbox {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.settingText {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.settingText label {
+  cursor: pointer;
+}
+
+/* Indented under the checkbox text it belongs to. */
+.duration {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0 0 0 calc(1.5rem + var(--space-3));
+  padding: 0;
+  border: 0;
+}
+
+.duration legend {
+  margin-bottom: var(--space-1);
+  padding: 0;
+}
+
+.durationFields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+}
+
+.durationAmount {
+  flex: 0 1 7rem;
+}
+
+.durationUnit {
+  flex: 1 1 9rem;
 }
 
 .skeleton {

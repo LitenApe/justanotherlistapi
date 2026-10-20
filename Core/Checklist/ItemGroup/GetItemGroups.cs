@@ -46,12 +46,12 @@ public static class GetItemGroups
         using SqlMapper.GridReader multi = await db.QueryMultipleAsync(
             new CommandDefinition(
                 """
-                SELECT ig.Id, ig.Name
+                SELECT ig.Id, ig.Name, ig.AutoDeleteAfterMinutes, ig.HideCompletedAfterMinutes, ig.AutoDeleteUpdatedAt
                 FROM ItemGroups ig
                 INNER JOIN Members m ON m.ItemGroupId = ig.Id
                 WHERE m.MemberId = @UserId;
 
-                SELECT i.Id, i.Name, i.Description, i.IsComplete, i.ItemGroupId
+                SELECT i.Id, i.Name, i.Description, i.IsComplete, i.CompletedAt, i.ItemGroupId
                 FROM Items i
                 INNER JOIN Members m ON m.ItemGroupId = i.ItemGroupId
                 WHERE m.MemberId = @UserId AND i.IsComplete = 0;
@@ -61,7 +61,9 @@ public static class GetItemGroups
             )
         );
 
-        var groups = (await multi.ReadAsync<ItemGroup>()).ToList();
+        var groups = (await multi.ReadAsync<ItemGroupRow>())
+            .Select(row => row.ToItemGroup())
+            .ToList();
         if (groups.Count == 0)
         {
             return groups;

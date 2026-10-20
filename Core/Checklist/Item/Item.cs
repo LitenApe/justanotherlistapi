@@ -16,6 +16,9 @@ public sealed record Item
     [Description("Indicates whether the item is complete")]
     public bool IsComplete { get; init; }
 
+    [Description("When the item was completed. Set by the server; null while the item is open")]
+    public DateTimeOffset? CompletedAt { get; init; }
+
     [Description("Identifier of the item group this item belongs to")]
     public required Guid ItemGroupId { get; init; }
 }

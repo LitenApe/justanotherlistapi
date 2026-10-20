@@ -45,6 +45,8 @@ public sealed class SignalRApiFactory : WebApplicationFactory<Program>, IAsyncLi
             // Keep real IChecklistNotifier (ChecklistNotifier) and SignalR hub
             // so we can test the full notification pipeline.
 
+            services.RemoveChecklistCleanupService();
+
             services
                 .AddAuthentication("Test")
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", _ => { });

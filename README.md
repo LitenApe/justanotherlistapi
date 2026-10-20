@@ -62,14 +62,15 @@ Core/                               - ASP.NET Core backend
   Checklist/
     ChecklistApiEndpointRouteBuilderExtension.cs  - Maps all routes under /api/list
     ChecklistAuthorizationExtensions.cs           - ExecuteAsItemGroupMember/ExecuteAsAuthenticatedUser helpers
+    ChecklistCleanupService.cs      - BackgroundService that runs AutoDeleteItemGroups once a minute
     ChecklistConnectionExtensions.cs              - IDbConnection.IsMember() and IsLastMember() shared helpers
     ChecklistHub.cs                 - SignalR hub at /hubs/checklist — JoinGroup (membership-gated) and LeaveGroup
     ChecklistNotifier.cs            - IChecklistNotifier impl: broadcasts via IHubContext with optional caller exclusion
     IChecklistClient.cs             - Typed client interface (ItemCreated, ItemUpdated, etc.)
     IChecklistNotifier.cs           - Abstraction for broadcasting notifications (testable)
     Item/                           - CreateItem, UpdateItem, DeleteItem handlers
-    ItemGroup/                      - GetItemGroups, GetItemGroup, CreateItemGroup,
-    |                                 UpdateItemGroup, DeleteItemGroup handlers
+    ItemGroup/                      - GetItemGroups, GetItemGroup, CreateItemGroup, UpdateItemGroup,
+    |                                 UpdateItemGroupSettings, DeleteItemGroup handlers, AutoDeleteItemGroups
     Member/                         - GetMembers, AddMember, RemoveMember handlers
   Extensions/
     ClaimsPrincipalExtension.cs     - GetUserId(): reads sub / NameIdentifier / user_id claim → Guid?
@@ -156,6 +157,7 @@ The client signs in against the local mock OAuth server. Your **user ID** (a GUI
 - Each browser tab keeps its own sign-in, so you can open a second tab with a different user ID to try sharing.
 - To share a list, ask the other person for their user ID (shown under **Account**) and paste it under **Add a member** on the list page.
 - Changes made by other members appear live.
+- **Settings** on the list page can hide done items after a while and delete the list once every item has been done for a while (at least a day). Both are off by default and apply to every member.
 - Dark mode is the default; use the **Dark mode** toggle in the header to switch to light. Your choice is remembered in the browser.
 
 The client is built to WCAG 2.2 AA (keyboard and screen reader support, visible focus, sufficient contrast in light and dark mode) and works from 320px phone screens up to desktop. Details are in [specifications/client.md](specifications/client.md).

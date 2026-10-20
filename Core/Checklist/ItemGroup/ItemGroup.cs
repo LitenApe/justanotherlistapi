@@ -15,4 +15,7 @@ public sealed record ItemGroup
 
     [Description("Members of the item group")]
     public IReadOnlyList<Guid> Members { get; init; } = [];
+
+    [Description("Auto-delete and auto-hide settings, shared by all members")]
+    public ItemGroupSettings Settings { get; init; } = new();
 }

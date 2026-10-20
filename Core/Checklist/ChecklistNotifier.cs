@@ -35,6 +35,15 @@ public sealed class ChecklistNotifier(IHubContext<ChecklistHub, IChecklistClient
         return GetClients(groupId, excludeConnectionId).GroupRenamed(groupId, name);
     }
 
+    public Task NotifyGroupSettingsChanged(
+        Guid groupId,
+        ItemGroupSettings settings,
+        string? excludeConnectionId
+    )
+    {
+        return GetClients(groupId, excludeConnectionId).GroupSettingsChanged(groupId, settings);
+    }
+
     public Task NotifyGroupDeleted(Guid groupId, string? excludeConnectionId)
     {
         return GetClients(groupId, excludeConnectionId).GroupDeleted(groupId);

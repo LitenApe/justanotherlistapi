@@ -14,6 +14,7 @@ internal sealed partial class AuditEndpointFilter(
         [nameof(GetItemGroup)] = "ItemGroup",
         [nameof(CreateItemGroup)] = "ItemGroup",
         [nameof(UpdateItemGroup)] = "ItemGroup",
+        [nameof(UpdateItemGroupSettings)] = "ItemGroup",
         [nameof(DeleteItemGroup)] = "ItemGroup",
         [nameof(CreateItem)] = "Item",
         [nameof(UpdateItem)] = "Item",

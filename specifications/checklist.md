@@ -5,6 +5,7 @@
 - [Overview](#overview)
 - [Domain Model](#domain-model)
   - [ItemGroup](#itemgroup)
+  - [ItemGroupSettings](#itemgroupsettings)
   - [Item](#item)
   - [Members](#members)
 - [Authorization Model](#authorization-model)
@@ -15,6 +16,7 @@
     - [GET /api/list/{itemGroupId} — GetItemGroup](#get-apilistitemgroupid--getitemgroup)
     - [POST /api/list — CreateItemGroup](#post-apilist--createitemgroup)
     - [PUT /api/list/{itemGroupId} — UpdateItemGroup](#put-apilistitemgroupid--updateitemgroup)
+    - [PUT /api/list/{itemGroupId}/settings — UpdateItemGroupSettings](#put-apilistitemgroupidsettings--updateitemgroupsettings)
     - [DELETE /api/list/{itemGroupId} — DeleteItemGroup](#delete-apilistitemgroupid--deleteitemgroup)
   - [Item Endpoints](#item-endpoints)
     - [POST /api/list/{itemGroupId} — CreateItem](#post-apilistitemgroupid--createitem)
@@ -26,6 +28,9 @@
     - [DELETE /api/list/{itemGroupId}/member/{memberId} — RemoveMember](#delete-apilistitemgroupidmembermemberid--removemember)
 - [Shared Patterns](#shared-patterns)
 - [Real-Time Notifications](#real-time-notifications)
+- [List Settings](#list-settings)
+  - [Auto-Hide](#auto-hide)
+  - [Auto-Delete](#auto-delete)
 - [Structural Conventions](#structural-conventions)
 
 ---
@@ -44,26 +49,38 @@ The feature is implemented as a vertical slice under `Core/Checklist/` using ASP
 
 Represents a shared list owned collectively by its members.
 
-| Property  | Type                  | Description                     |
-| --------- | --------------------- | ------------------------------- |
-| `Id`      | `Guid`                | Unique identifier               |
-| `Name`    | `string`              | Display name. Must not be blank |
-| `Items`   | `IReadOnlyList<Item>` | Items belonging to this group   |
-| `Members` | `IReadOnlyList<Guid>` | User IDs of all members         |
+| Property   | Type                  | Description                                  |
+| ---------- | --------------------- | -------------------------------------------- |
+| `Id`       | `Guid`                | Unique identifier                            |
+| `Name`     | `string`              | Display name. Must not be blank              |
+| `Items`    | `IReadOnlyList<Item>` | Items belonging to this group                |
+| `Members`  | `IReadOnlyList<Guid>` | User IDs of all members                      |
+| `Settings` | `ItemGroupSettings`   | Auto-hide and auto-delete, shared by members |
 
-`Items` and `Members` are populated contextually — see individual endpoint descriptions for what is included in each response.
+`Items` and `Members` are populated contextually — see individual endpoint descriptions for what is included in each response. `Settings` is always populated.
+
+### `ItemGroupSettings`
+
+Per-list settings that apply to every member. Both are off (`null`) by default. See [List Settings](#list-settings).
+
+| Property                    | Type              | Description                                                                                              |
+| --------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------- |
+| `AutoDeleteAfterMinutes`    | `int?`            | Delete the list this many minutes after every item is done. 1440 (1 day) to 525600 (365 days), or `null` |
+| `HideCompletedAfterMinutes` | `int?`            | Clients hide done items this many minutes after completion. 0 to 525600 (365 days), or `null`            |
+| `AutoDeleteUpdatedAt`       | `DateTimeOffset?` | Set by the server when `AutoDeleteAfterMinutes` changes. The auto-delete countdown never starts earlier  |
 
 ### `Item`
 
 Represents a task within an item group.
 
-| Property      | Type      | Description                          |
-| ------------- | --------- | ------------------------------------ |
-| `Id`          | `Guid`    | Unique identifier                    |
-| `Name`        | `string`  | Display name. Must not be blank      |
-| `Description` | `string?` | Optional longer description          |
-| `IsComplete`  | `bool`    | Completion flag. Defaults to `false` |
-| `ItemGroupId` | `Guid`    | The group this item belongs to       |
+| Property      | Type              | Description                                                                   |
+| ------------- | ----------------- | ----------------------------------------------------------------------------- |
+| `Id`          | `Guid`            | Unique identifier                                                             |
+| `Name`        | `string`          | Display name. Must not be blank                                               |
+| `Description` | `string?`         | Optional longer description                                                   |
+| `IsComplete`  | `bool`            | Completion flag. Defaults to `false`                                          |
+| `CompletedAt` | `DateTimeOffset?` | When the item was completed. Set by the server, `null` while the item is open |
+| `ItemGroupId` | `Guid`            | The group this item belongs to                                                |
 
 ### Members
 
@@ -90,8 +107,11 @@ Owned by `ChecklistSchemaInitializer`. Created idempotently at application start
 
 ```sql
 CREATE TABLE ItemGroups (
-    Id   UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-    Name NVARCHAR(MAX)    NOT NULL
+    Id                        UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    Name                      NVARCHAR(MAX)    NOT NULL,
+    AutoDeleteAfterMinutes    INT              NULL,
+    HideCompletedAfterMinutes INT              NULL,
+    AutoDeleteUpdatedAt       DATETIMEOFFSET   NULL
 );
 
 CREATE TABLE Items (
@@ -99,6 +119,7 @@ CREATE TABLE Items (
     Name        NVARCHAR(MAX)    NOT NULL,
     Description NVARCHAR(MAX)    NULL,
     IsComplete  BIT              NOT NULL DEFAULT 0,
+    CompletedAt DATETIMEOFFSET   NULL,
     ItemGroupId UNIQUEIDENTIFIER NOT NULL,
     FOREIGN KEY (ItemGroupId) REFERENCES ItemGroups(Id) ON DELETE CASCADE
 );
@@ -116,6 +137,10 @@ CREATE INDEX IX_Members_MemberId_ItemGroupId     ON Members(MemberId, ItemGroupI
 ```
 
 Deleting an `ItemGroup` cascades to both `Items` and `Members`.
+
+Databases created before list settings existed are upgraded in place: the initializer adds the settings columns and `Items.CompletedAt` when `COL_LENGTH` reports them missing. Items that were already complete get `CompletedAt` set to the upgrade time, so nothing is hidden or deleted the moment the upgrade runs. The backfill runs through `EXEC` because SQL Server compiles a batch before running it and would reject a column added in the same batch.
+
+The settings queries use `IS DISTINCT FROM` and `GREATEST`, which need SQL Server 2022 or later (or Azure SQL).
 
 ---
 
@@ -160,10 +185,16 @@ Items are then grouped in memory. If the first result set is empty the second re
         "name": "Milk",
         "description": null,
         "isComplete": false,
+        "completedAt": null,
         "itemGroupId": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
       }
     ],
-    "members": []
+    "members": [],
+    "settings": {
+      "autoDeleteAfterMinutes": null,
+      "hideCompletedAfterMinutes": null,
+      "autoDeleteUpdatedAt": null
+    }
   }
 ]
 ```
@@ -201,11 +232,17 @@ Returns a single item group including **all items** (complete and incomplete) an
       "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
       "name": "Milk",
       "description": null,
-      "isComplete": false,
+      "isComplete": true,
+      "completedAt": "2026-10-19T09:30:00+00:00",
       "itemGroupId": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
     }
   ],
-  "members": ["a1b2c3d4-e5f6-7890-abcd-ef1234567890"]
+  "members": ["a1b2c3d4-e5f6-7890-abcd-ef1234567890"],
+  "settings": {
+    "autoDeleteAfterMinutes": 1440,
+    "hideCompletedAfterMinutes": 60,
+    "autoDeleteUpdatedAt": "2026-10-18T14:00:00+00:00"
+  }
 }
 ```
 
@@ -237,14 +274,19 @@ Creates a new item group and automatically adds the authenticated user as its fi
 
 **Response body example**
 
-Returns the created `ItemGroup`. The caller is automatically added as the first and only member. `Items` is empty on creation.
+Returns the created `ItemGroup`. The caller is automatically added as the first and only member. `Items` is empty on creation and both settings are off.
 
 ```json
 {
   "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "name": "Shopping",
   "items": [],
-  "members": ["a1b2c3d4-e5f6-7890-abcd-ef1234567890"]
+  "members": ["a1b2c3d4-e5f6-7890-abcd-ef1234567890"],
+  "settings": {
+    "autoDeleteAfterMinutes": null,
+    "hideCompletedAfterMinutes": null,
+    "autoDeleteUpdatedAt": null
+  }
 }
 ```
 
@@ -282,6 +324,58 @@ Renames an existing item group.
 | `403 Forbidden`    | Authenticated user is not a member |
 
 **Note:** If `itemGroupId` does not exist, the UPDATE affects zero rows and still returns `204 No Content`. There is no 404 response for this endpoint.
+
+Settings are not part of this request; they have their own endpoint so that a rename can't switch them off.
+
+---
+
+#### `PUT /api/list/{itemGroupId}/settings` — UpdateItemGroupSettings
+
+Replaces both list settings. This is a full replacement: a `null` or omitted value turns that setting off. See [List Settings](#list-settings) for what each setting does.
+
+**Route parameters**
+
+| Parameter     | Type   | Description              |
+| ------------- | ------ | ------------------------ |
+| `itemGroupId` | `Guid` | The item group to update |
+
+**Request body**
+
+| Field                       | Type   | Validation                                     | Default |
+| --------------------------- | ------ | ---------------------------------------------- | ------- |
+| `AutoDeleteAfterMinutes`    | `int?` | `null`, or 1440 (1 day) to 525600 (365 days)   | `null`  |
+| `HideCompletedAfterMinutes` | `int?` | `null`, or 0 (right away) to 525600 (365 days) | `null`  |
+
+The one-day minimum for auto-delete leaves time to undo an accidental check before the list is gone.
+
+**Request body example**
+
+```json
+{ "autoDeleteAfterMinutes": 1440, "hideCompletedAfterMinutes": 60 }
+```
+
+**Responses**
+
+| Status             | Condition                          |
+| ------------------ | ---------------------------------- |
+| `200 OK`           | The saved `ItemGroupSettings`      |
+| `400 Bad Request`  | A value is outside its range       |
+| `401 Unauthorized` | Missing user ID claim              |
+| `403 Forbidden`    | Authenticated user is not a member |
+
+**Response body example**
+
+```json
+{
+  "autoDeleteAfterMinutes": 1440,
+  "hideCompletedAfterMinutes": 60,
+  "autoDeleteUpdatedAt": "2026-10-19T12:00:00+00:00"
+}
+```
+
+`AutoDeleteUpdatedAt` moves to the current time only when `AutoDeleteAfterMinutes` changes (including turning it on or off), which restarts the auto-delete countdown. Changing only `HideCompletedAfterMinutes` leaves it alone. The response returns 200 with the saved settings, unlike the other `PUT` endpoints, because the client needs `AutoDeleteUpdatedAt` to show when the list will be deleted.
+
+Validation runs before the authentication and membership checks, like the name validation on other endpoints. Members are notified with `GroupSettingsChanged`.
 
 ---
 
@@ -350,9 +444,12 @@ Creates a new item within the specified item group.
   "name": "Milk",
   "description": "2% fat",
   "isComplete": false,
+  "completedAt": null,
   "itemGroupId": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
 }
 ```
+
+An item created with `isComplete: true` gets `completedAt` set to the current time.
 
 ---
 
@@ -391,6 +488,14 @@ Updates the name, description, and/or completion status of an existing item. All
 | `403 Forbidden`    | Authenticated user is not a member |
 
 **Note:** The UPDATE is scoped to both `Id = @itemId AND ItemGroupId = @itemGroupId`. If either does not exist or they do not match, zero rows are affected and `204 No Content` is still returned. There is no 404 response.
+
+`CompletedAt` is maintained by the server and is not part of the request:
+
+- Completing an open item sets it to the current time.
+- Saving an item that is already complete (for example, to rename it) keeps the original time, so editing doesn't restart the auto-hide or auto-delete clock.
+- Reopening an item clears it.
+
+The `ItemUpdated` notification carries the stored value, read back with `OUTPUT INSERTED.CompletedAt`.
 
 ---
 
@@ -511,21 +616,66 @@ Checklist mutations are broadcast to group members in real time via SignalR.
 ### Architecture
 
 - **Hub**: `ChecklistHub` at `/hubs/checklist` — authenticated, validates group membership on `JoinGroup`/`LeaveGroup`
-- **Client interface**: `IChecklistClient` — typed server→client messages (`ItemCreated`, `ItemUpdated`, `ItemDeleted`, `MemberAdded`, `MemberRemoved`, `GroupRenamed`, `GroupDeleted`)
+- **Client interface**: `IChecklistClient` — typed server→client messages (`ItemCreated`, `ItemUpdated`, `ItemDeleted`, `MemberAdded`, `MemberRemoved`, `GroupRenamed`, `GroupSettingsChanged`, `GroupDeleted`)
 - **Notifier abstraction**: `IChecklistNotifier` — testable wrapper around `IHubContext<ChecklistHub, IChecklistClient>`
 - **Caller exclusion**: Mutations send an `X-SignalR-Connection-Id` header; the notifier uses `GroupExcept` to skip the caller
 
 ### Events
 
-| Event           | Payload               | Triggered by    |
-| --------------- | --------------------- | --------------- |
-| `ItemCreated`   | `(groupId, item)`     | CreateItem      |
-| `ItemUpdated`   | `(groupId, item)`     | UpdateItem      |
-| `ItemDeleted`   | `(groupId, itemId)`   | DeleteItem      |
-| `MemberAdded`   | `(groupId, memberId)` | AddMember       |
-| `MemberRemoved` | `(groupId, memberId)` | RemoveMember    |
-| `GroupRenamed`  | `(groupId, name)`     | UpdateItemGroup |
-| `GroupDeleted`  | `(groupId)`           | DeleteItemGroup |
+| Event                  | Payload               | Triggered by                                   |
+| ---------------------- | --------------------- | ---------------------------------------------- |
+| `ItemCreated`          | `(groupId, item)`     | CreateItem                                     |
+| `ItemUpdated`          | `(groupId, item)`     | UpdateItem                                     |
+| `ItemDeleted`          | `(groupId, itemId)`   | DeleteItem                                     |
+| `MemberAdded`          | `(groupId, memberId)` | AddMember                                      |
+| `MemberRemoved`        | `(groupId, memberId)` | RemoveMember                                   |
+| `GroupRenamed`         | `(groupId, name)`     | UpdateItemGroup                                |
+| `GroupSettingsChanged` | `(groupId, settings)` | UpdateItemGroupSettings                        |
+| `GroupDeleted`         | `(groupId)`           | DeleteItemGroup, or auto-delete (no exclusion) |
+
+---
+
+## List Settings
+
+Each list has two optional settings, stored on `ItemGroups` and shared by every member. Both are off by default and are changed with [UpdateItemGroupSettings](#put-apilistitemgroupidsettings--updateitemgroupsettings). Both count from `Items.CompletedAt`, which the server maintains (see [UpdateItem](#put-apilistitemgroupiditemid--updateitem)).
+
+### Auto-Hide
+
+`HideCompletedAfterMinutes` only changes what clients show; the server never filters items because of it, so hidden items can still be found and unchecked. A done item is hidden once `CompletedAt + HideCompletedAfterMinutes` has passed. `0` hides items as soon as they are checked. See [client.md](client.md#list-settings) for how the web client presents this.
+
+### Auto-Delete
+
+`ChecklistCleanupService`, a hosted `BackgroundService`, runs `AutoDeleteItemGroups` once a minute on its own `SqlConnection` (the request-scoped one isn't available outside a request). A single statement deletes every group that:
+
+- has `AutoDeleteAfterMinutes` set,
+- has at least one item, and no open items, and
+- whose countdown has run out: `GREATEST(MAX(Items.CompletedAt), AutoDeleteUpdatedAt) + AutoDeleteAfterMinutes <= now`.
+
+```sql
+DELETE ig
+OUTPUT DELETED.Id
+FROM ItemGroups ig
+CROSS APPLY (
+    SELECT COUNT(*) AS ItemCount,
+           COUNT(CASE WHEN i.IsComplete = 0 THEN 1 END) AS OpenCount,
+           MAX(i.CompletedAt) AS LastCompletedAt
+    FROM Items i WHERE i.ItemGroupId = ig.Id
+) stats
+WHERE ig.AutoDeleteAfterMinutes IS NOT NULL
+    AND stats.ItemCount > 0 AND stats.OpenCount = 0
+    AND GREATEST(stats.LastCompletedAt, ig.AutoDeleteUpdatedAt)
+        <= DATEADD(MINUTE, -ig.AutoDeleteAfterMinutes, @Now);
+```
+
+Consequences of this rule:
+
+- Unchecking an item or adding a new one cancels the countdown. Checking the last open item again starts it over.
+- An empty list never counts as done, so a new list is never deleted.
+- Including `AutoDeleteUpdatedAt` means turning the setting on, or changing the delay, starts the countdown from that moment. A list finished a month ago is not deleted the minute auto-delete is enabled.
+- Deleting the last open item makes the list done as of its most recent completion, which may already be past the delay. The list is then deleted on the next run.
+- `OUTPUT DELETED.Id` returns each deleted group exactly once, so several app instances can run the job without duplicate notifications.
+
+For each deleted group, `AutoDeleteItemGroups` enqueues an `AutoDeleteItemGroup` audit entry (see [audit-logs.md](audit-logs.md#checklist--itemgroup)) and sends `GroupDeleted` to all members. The current time comes from the injected `TimeProvider`, and tests call `AutoDeleteItemGroups` directly with a fixed time. The test factories remove `ChecklistCleanupService`, since it would connect with the app's connection string.
 
 ---
 
@@ -537,5 +687,6 @@ Each operation is a standalone `static` class following the same structure:
 - `Execute(...)` — the handler method bound by Minimal API. Contains validation, auth checks, and delegates to data methods. Handlers that participate in audit logging (`CreateItemGroup`, `CreateItem`, `AddMember`, `RemoveMember`) also accept an `AuditContext` parameter and populate the relevant ID fields before returning.
 - `CreateData` / `UpdateData` / `RemoveData` / `DeleteData` / `LoadData` — `internal static` data access methods, made internal for direct testing without the HTTP stack. Delete operations use `RemoveData` (member/group/item-group handlers) or `DeleteData` (`DeleteItem`).
 - `Request` record — nested inside the handler class where a request body is required
+- Handlers that need the current time (`CreateItem`, `UpdateItem`, `UpdateItemGroupSettings`) take a `TimeProvider` and pass `now` into their data methods, so tests control the clock
 
 All endpoints are registered in `ChecklistApiEndpointRouteBuilderExtension.MapChecklistApi()` on a single route group, which applies `.RequireAuthorization()` and `.AddEndpointFilter<AuditEndpointFilter>()` uniformly. The `AuditEndpointFilter` runs after every handler and enqueues an `AuditEntry` based on the HTTP outcome.

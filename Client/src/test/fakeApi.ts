@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import type { Item, ItemGroup } from "../api/types";
+import type { Item, ItemGroup, ItemGroupSettings, ItemGroupSettingsInput } from "../api/types";
 
 export const ME = "00000000-0000-0000-0000-000000000001";
 export const OTHER = "00000000-0000-0000-0000-000000000002";
@@ -11,11 +11,18 @@ interface Call {
   headers: Headers;
 }
 
+export const defaultSettings = (): ItemGroupSettings => ({
+  autoDeleteAfterMinutes: null,
+  hideCompletedAfterMinutes: null,
+  autoDeleteUpdatedAt: null,
+});
+
 export function makeItem(overrides: Partial<Item> & Pick<Item, "name" | "itemGroupId">): Item {
   return {
     id: crypto.randomUUID(),
     description: null,
     isComplete: false,
+    completedAt: overrides.isComplete ? new Date().toISOString() : null,
     ...overrides,
   };
 }
@@ -27,7 +34,14 @@ export function makeList(name: string, itemNames: string[] = [], members = [ME])
     name,
     members,
     items: itemNames.map((itemName) => makeItem({ name: itemName, itemGroupId: id })),
+    settings: defaultSettings(),
   };
+}
+
+/** Mirrors the server: completing sets the time, re-saving keeps it, reopening clears it. */
+function completedAt(existing: Item | undefined, isComplete: boolean): string | null {
+  if (!isComplete) return null;
+  return existing?.completedAt ?? new Date().toISOString();
 }
 
 const json = (status: number, body?: unknown) =>
@@ -69,7 +83,7 @@ export function installFakeApi(initialLists: ItemGroup[] = []) {
       }
       if (method === "POST") {
         const created = { id: crypto.randomUUID(), name: (body as { name: string }).name };
-        const newList = { ...created, items: [], members: [ME] };
+        const newList = { ...created, items: [], members: [ME], settings: defaultSettings() };
         lists.push(newList);
         return json(201, newList);
       }
@@ -101,19 +115,37 @@ export function installFakeApi(initialLists: ItemGroup[] = []) {
         return json(204);
       }
       if (method === "POST") {
-        const item = {
+        const input = body as Omit<Item, "id" | "itemGroupId" | "completedAt">;
+        const item: Item = {
           id: crypto.randomUUID(),
           itemGroupId: group.id,
-          ...(body as object),
-        } as Item;
+          ...input,
+          completedAt: completedAt(undefined, input.isComplete),
+        };
         group.items.push(item);
         return json(201, item);
       }
     }
 
+    if (second === "settings" && method === "PUT") {
+      const input = body as ItemGroupSettingsInput;
+      const autoDeleteChanged =
+        input.autoDeleteAfterMinutes !== group.settings.autoDeleteAfterMinutes;
+      group.settings = {
+        ...input,
+        autoDeleteUpdatedAt: autoDeleteChanged
+          ? new Date().toISOString()
+          : group.settings.autoDeleteUpdatedAt,
+      };
+      return json(200, group.settings);
+    }
+
     if (second) {
       if (method === "PUT") {
-        group.items = group.items.map((i) => (i.id === second ? { ...i, ...(body as object) } : i));
+        const input = body as Omit<Item, "id" | "itemGroupId" | "completedAt">;
+        group.items = group.items.map((i) =>
+          i.id === second ? { ...i, ...input, completedAt: completedAt(i, input.isComplete) } : i,
+        );
         return json(204);
       }
       if (method === "DELETE") {

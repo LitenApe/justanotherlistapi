@@ -203,7 +203,11 @@ Audit rows are stored indefinitely. Deletion is a manual administrative action o
 | `GetItemGroup` | `'ItemGroup'` | `itemGroupId` | NULL | NULL |
 | `CreateItemGroup` | `'ItemGroup'` | `itemGroupId` (set by handler after insert) | NULL | NULL |
 | `UpdateItemGroup` | `'ItemGroup'` | `itemGroupId` | NULL | NULL |
+| `UpdateItemGroupSettings` | `'ItemGroup'` | `itemGroupId` | NULL | NULL |
 | `DeleteItemGroup` | `'ItemGroup'` | `itemGroupId` | NULL | NULL |
+| `AutoDeleteItemGroup` | `'ItemGroup'` | `itemGroupId` | NULL | NULL |
+
+`AutoDeleteItemGroup` has no request behind it. `ChecklistCleanupService` deletes completed lists on a timer (see [checklist.md](checklist.md#auto-delete)), and `AutoDeleteItemGroups` enqueues one entry per deleted list itself, with `UserId`, `IpAddress` and `TraceId` set to NULL and `Outcome` set to `'Success'`.
 
 ### Checklist — Item
 

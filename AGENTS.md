@@ -35,6 +35,8 @@ The client is organized by page (`lists/`, `list/`, `auth/`) with shared `api/`,
 - SignalR notifications: inject `IChecklistNotifier` and call `NotifyXxx()` after mutations
 - Read `X-SignalR-Connection-Id` from `httpRequest.Headers` and pass as `excludeConnectionId`
 - Hub at `/hubs/checklist`: `ChecklistHub` validates membership in `JoinGroup`, uses SignalR groups by `groupId.ToString()`
+- Current time: take `TimeProvider` in `Execute` and pass `now` into data methods; don't use `SYSDATETIMEOFFSET()` or `DateTimeOffset.UtcNow`
+- Schema changes: add columns to the `CREATE TABLE` and an `IF COL_LENGTH(...) IS NULL ALTER TABLE ... ADD` block in `ChecklistSchemaInitializer` so existing databases upgrade
 
 ### Tests
 
@@ -45,6 +47,7 @@ The client is organized by page (`lists/`, `list/`, `auth/`) with shared `api/`,
 - Test auth: `TestAuthHandler` provides a fixed `UserId`; insert matching `Members` row for authorization
 - Notification assertions: use `CapturingNotifier` in unit tests, assert on `Notifications` list (type + data + `ExcludeConnectionId`)
 - `ApiFactory` replaces `IChecklistNotifier` with `CapturingNotifier`; `SignalRApiFactory` keeps the real `ChecklistNotifier` + hub
+- Both factories remove `ChecklistCleanupService` (`services.RemoveChecklistCleanupService()`); test auto-delete by calling `AutoDeleteItemGroups` with a fixed `now`
 
 ### Client
 
@@ -66,6 +69,7 @@ The client is organized by page (`lists/`, `list/`, `auth/`) with shared `api/`,
 - **Nullable reference types** enabled everywhere; do not add `#nullable disable`.
 - Tests run on **xUnit v3 + Microsoft.Testing.Platform** (`global.json`). Pass `TestContext.Current.CancellationToken` to any call accepting a `CancellationToken` (analyzer xUnit1051 fails the build otherwise).
 - Tests need Docker running: `TestDatabase` starts one shared SQL Server container per run and creates an isolated database per test.
+- SQL Server 2022 or later is required: list settings use `IS DISTINCT FROM` and `GREATEST`.
 - `TestDatabase` connections are already **open**, but the app's scoped `SqlConnection` starts **closed**. Dapper opens it per command, but `BeginTransaction` needs `db.Open()` first.
 - Client: `eslint-plugin-jsx-a11y` doesn't declare ESLint 10 support yet; `package.json` `overrides` allows it. TypeScript stays on 6.0.x until typescript-eslint supports newer versions.
 - Client: `global.css` must be imported before components in `main.tsx` so CSS Modules can override it.

@@ -60,6 +60,10 @@ builder
     });
 builder.Services.AddSingleton<IChecklistNotifier, ChecklistNotifier>();
 
+// List settings
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddHostedService<ChecklistCleanupService>();
+
 // Authentication & Authorization
 builder
     .Services.AddAuthentication()
