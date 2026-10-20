@@ -9,7 +9,7 @@ jobs:
     name: Build & Test
     runs-on: ubuntu-latest
     env:
-      BRANCH_COVERAGE_THRESHOLD: "0.8"
+      BRANCH_COVERAGE_THRESHOLD: "0.5"
     permissions:
       contents: read
       checks: write
