@@ -28,12 +28,15 @@ export class FakeBackend {
   signInServerDown = false;
 
   private readonly hubClients = new Set<HubClient>();
+  /** Negotiated connections waiting for their WebSocket, by connection token. */
+  private readonly negotiations = new Map<string, { connectionId: string; userId: string }>();
   private readonly failures: { method: string; pattern: RegExp; status: number }[] = [];
   private readonly holds: { method: string; pattern: RegExp; released: Promise<undefined> }[] = [];
 
   async install(page: Page): Promise<void> {
     await page.route("**/default/token", (route) => this.token(route));
     await page.route("**/api/**", (route) => this.api(route));
+    await page.route(/\/hubs\/checklist\/negotiate(\?|$)/, (route) => this.negotiate(route));
     await page.routeWebSocket(/\/hubs\/checklist/, (socket) => {
       this.connect(socket);
     });
@@ -78,6 +81,13 @@ export class FakeBackend {
 
   hubConnectionCount(): number {
     return this.hubClients.size;
+  }
+
+  /** The IDs the server gave the user's live SignalR connections. */
+  connectionIds(userId: string): string[] {
+    return [...this.hubClients]
+      .filter((client) => client.userId === userId)
+      .map((client) => client.connectionId);
   }
 
   /** Drops every SignalR connection, like a server restart or network blip. */
@@ -361,10 +371,43 @@ export class FakeBackend {
 
   // ─── SignalR hub (JSON protocol over WebSockets) ───────────────────────────
 
-  private connect(socket: WebSocketRoute) {
-    const token = new URL(socket.url()).searchParams.get("access_token");
-    const userId = this.authenticate(`Bearer ${token ?? ""}`);
+  /**
+   * Negotiate (version 1), like the real hub: the response carries the public
+   * connection ID, which the client sends as X-SignalR-Connection-Id, and a
+   * separate token, which only the WebSocket URL carries (`?id=`).
+   */
+  private async negotiate(route: Route): Promise<void> {
+    const request = route.request();
+    if (request.method() !== "POST") {
+      await route.fulfill({ status: 405 });
+      return;
+    }
+    const userId = this.authenticate(request.headers().authorization);
     if (!userId) {
+      await route.fulfill({ status: 401 });
+      return;
+    }
+    const connectionId = crypto.randomUUID();
+    const connectionToken = crypto.randomUUID();
+    this.negotiations.set(connectionToken, { connectionId, userId });
+    await route.fulfill({
+      json: {
+        negotiateVersion: 1,
+        connectionId,
+        connectionToken,
+        availableTransports: [{ transport: "WebSockets", transferFormats: ["Text", "Binary"] }],
+      },
+    });
+  }
+
+  private connect(socket: WebSocketRoute) {
+    const url = new URL(socket.url());
+    const connectionToken = url.searchParams.get("id") ?? "";
+    const negotiation = this.negotiations.get(connectionToken);
+    this.negotiations.delete(connectionToken);
+    const userId = this.authenticate(`Bearer ${url.searchParams.get("access_token") ?? ""}`);
+    // The real server rejects an unknown token, and a user other than the one who negotiated.
+    if (!negotiation || !userId || negotiation.userId !== userId) {
       void socket.close({ code: 1008, reason: "Unauthorized" });
       return;
     }
@@ -372,7 +415,7 @@ export class FakeBackend {
     const client: HubClient = {
       socket,
       userId,
-      connectionId: crypto.randomUUID(),
+      connectionId: negotiation.connectionId,
       groups: new Set(),
       handshakeDone: false,
     };
@@ -451,7 +494,7 @@ export interface ApiCall {
 interface HubClient {
   socket: WebSocketRoute;
   userId: string;
-  /** Server-side connection ID. The app never learns it, because it skips negotiation. */
+  /** From negotiate; the app sends it with its changes so they aren't echoed back. */
   connectionId: string;
   groups: Set<string>;
   handshakeDone: boolean;

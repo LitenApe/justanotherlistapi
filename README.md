@@ -287,9 +287,9 @@ A SignalR hub at `/hubs/checklist` pushes mutations to connected group members i
 
 **Client events** pushed by the server: `ItemCreated`, `ItemUpdated`, `ItemDeleted`, `MemberAdded`, `MemberRemoved`, `GroupRenamed`, `GroupDeleted`.
 
-**Caller exclusion**: Clients send an `X-SignalR-Connection-Id` header on mutations. The server uses `GroupExcept` to avoid echoing the event back to the originator.
+**Caller exclusion**: Clients send an `X-SignalR-Connection-Id` header on mutations, with the connection ID from the hub's negotiate response. The server uses `GroupExcept` to avoid echoing the event back to the originator.
 
-Authentication uses a `?access_token=` query string parameter (standard SignalR convention for WebSocket transport).
+The negotiate request authenticates with the usual `Authorization: Bearer` header; the WebSocket uses an `?access_token=` query string parameter (standard SignalR convention for WebSocket transport).
 
 ### Common status codes
 

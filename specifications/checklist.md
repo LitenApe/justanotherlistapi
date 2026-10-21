@@ -618,7 +618,7 @@ Checklist mutations are broadcast to group members in real time via SignalR.
 - **Hub**: `ChecklistHub` at `/hubs/checklist` — authenticated, validates group membership on `JoinGroup`/`LeaveGroup`
 - **Client interface**: `IChecklistClient` — typed server→client messages (`ItemCreated`, `ItemUpdated`, `ItemDeleted`, `MemberAdded`, `MemberRemoved`, `GroupRenamed`, `GroupSettingsChanged`, `GroupDeleted`)
 - **Notifier abstraction**: `IChecklistNotifier` — testable wrapper around `IHubContext<ChecklistHub, IChecklistClient>`
-- **Caller exclusion**: Mutations send an `X-SignalR-Connection-Id` header; the notifier uses `GroupExcept` to skip the caller
+- **Caller exclusion**: Mutations send an `X-SignalR-Connection-Id` header; the notifier uses `GroupExcept` to skip the caller. Clients learn their connection ID from the negotiate response (and a new one on every reconnect), so they must not skip negotiation
 
 ### Events
 

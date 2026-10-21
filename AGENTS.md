@@ -87,7 +87,7 @@ The client is organized by page (`lists/`, `list/`, `auth/`) with shared `api/`,
 - Client: integration tests run against `react-router build`. Locally Playwright reuses a server already on port 4173, so stop stray servers if results look stale.
 - Client: axe-core uses `setTimeout`, so it hangs while a test fakes timers. Fake only the timers you need, and run axe with real ones.
 - Client: Playwright treats `aria-disabled` as disabled and won't click it; use `click({ force: true })` to test that such clicks are ignored.
-- Client: tests in `realtime.spec.ts` marked `test.fail()` document the SignalR echo issue (no connection ID). Remove `test.fail()` once it's fixed.
+- Client: don't set `skipNegotiation` on the SignalR connection. The connection ID comes only from negotiate; without it the client can't send `X-SignalR-Connection-Id` and the server echoes your own changes back.
 
 ## Specifications
 

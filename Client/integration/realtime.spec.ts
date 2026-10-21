@@ -118,26 +118,44 @@ test.describe("live updates", () => {
 });
 
 /*
- * Known issue: the app connects to SignalR with skipNegotiation, so it never
- * learns its connection ID and can't send X-SignalR-Connection-Id. The server
- * then echoes your own changes back as if another member made them. These
- * tests describe the intended behaviour and are expected to fail until that is
- * fixed; Playwright reports it as soon as one of them starts passing.
+ * The app sends its SignalR connection ID (from negotiate) as
+ * X-SignalR-Connection-Id, so the server leaves the sender out of the
+ * broadcast and your own changes don't come back as another member's.
  */
-test.describe("your own changes (known issue: echoed back)", () => {
-  test("carry the realtime connection ID", async ({ page, backend, app }) => {
-    test.fail(true, "The client never learns its SignalR connection ID.");
+test.describe("your own changes", () => {
+  const itemUpdates = /^\/api\/list\/[^/]+\/[^/]+$/;
+
+  test("carry the connection ID the server gave this tab", async ({ page, backend, app }) => {
     const list = makeList("Groceries", ["Milk"]);
     await app.openList(list);
 
     await page.getByRole("checkbox", { name: "Milk" }).check();
 
-    await expect.poll(() => backend.calls.at(-1)?.method).toBe("PUT");
-    expect(backend.calls.at(-1)?.headers["x-signalr-connection-id"]).toBeTruthy();
+    await expect.poll(() => backend.callsTo("PUT", itemUpdates).length).toBe(1);
+    const sent = backend.callsTo("PUT", itemUpdates)[0]?.headers["x-signalr-connection-id"];
+    expect(backend.connectionIds(ME)).toEqual([sent]);
+  });
+
+  test("carry the new connection ID after reconnecting", async ({ page, backend, app }) => {
+    const list = makeList("Groceries", ["Milk"]);
+    await app.openList(list);
+    const before = backend.connectionIds(ME);
+
+    await backend.dropHubConnections();
+    await expect(page.getByText(/Live updates paused/)).toBeHidden({ timeout: 10_000 });
+    await app.subscribed(list.id);
+    const after = backend.connectionIds(ME);
+    expect(after).toHaveLength(1);
+    expect(after).not.toEqual(before);
+
+    await page.getByRole("checkbox", { name: "Milk" }).check();
+
+    await expect.poll(() => backend.callsTo("PUT", itemUpdates).length).toBe(1);
+    const sent = backend.callsTo("PUT", itemUpdates)[0]?.headers["x-signalr-connection-id"];
+    expect([sent]).toEqual(after);
   });
 
   test("aren't announced as another member's settings change", async ({ page, app }) => {
-    test.fail(true, "The server echoes GroupSettingsChanged back to the sender.");
     await app.openList(makeList("Groceries"));
 
     await page.getByRole("button", { name: "Settings" }).click();
@@ -149,7 +167,6 @@ test.describe("your own changes (known issue: echoed back)", () => {
   });
 
   test("don't report leaving a list as being removed", async ({ page, app }) => {
-    test.fail(true, "The server echoes MemberRemoved back to the member who left.");
     await app.openList(makeList("Groceries", [], [ME, OTHER]));
 
     await page.getByRole("button", { name: "Leave list" }).click();
@@ -157,5 +174,15 @@ test.describe("your own changes (known issue: echoed back)", () => {
 
     await expect(page.getByText("You left “Groceries”.")).toBeVisible();
     await expect(page.getByText("You were removed from “Groceries”.")).toHaveCount(0);
+  });
+
+  test("don't report deleting a list as another member's doing", async ({ page, app }) => {
+    await app.openList(makeList("Groceries", ["Milk"], [ME, OTHER]));
+
+    await page.getByRole("button", { name: "Delete list" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Delete list" }).click();
+
+    await expect(page.getByText("Deleted “Groceries”.")).toBeVisible();
+    await expect(page.getByText("“Groceries” was deleted by another member.")).toHaveCount(0);
   });
 });

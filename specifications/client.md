@@ -200,7 +200,7 @@ For local development the client signs in against the mock OAuth server using th
 
 `realtime/hub.ts` owns one `HubConnection` while a user is signed in:
 
-- Connects with `skipNegotiation` over WebSockets, which keeps the Vite proxy from splitting negotiate and connect across connections.
+- Negotiates, then connects over WebSockets. The negotiate response is the only source of the connection ID that `api/http.ts` sends as `X-SignalR-Connection-Id`, so don't set `skipNegotiation`: the server would then echo your own changes back. Reconnecting negotiates again and the ID changes with it.
 - Pages subscribe per list with `useGroupEvents(listIds, handlers)`. The hub calls `JoinGroup` on the first subscription for a list and `LeaveGroup` after the last one.
 - Reconnects automatically with exponential backoff (capped at 30s). After reconnecting it rejoins all groups and calls each subscriber's `resync`, which revalidates the route's loader to catch missed events.
 - While reconnecting, a banner (`role="status"`) says that live updates are paused.
@@ -357,7 +357,7 @@ Only the network is replaced, by `FakeBackend` (`integration/support/fakeBackend
 
 - **REST API:** an in-memory implementation of [checklist.md](checklist.md), including membership checks (403), conflicts (409), `completedAt` and settings. It authenticates the bearer token on every request (401 when missing or expired).
 - **OAuth:** the token endpoint returns an unsigned JWT whose `sub` is the client ID, like the mock OAuth server.
-- **SignalR:** `page.routeWebSocket` speaks the hub's JSON protocol: handshake, `JoinGroup` (members only) and `LeaveGroup`, pings and server-pushed events. Like the real server, every change is broadcast to the list's group except the connection named in `X-SignalR-Connection-Id`.
+- **SignalR:** negotiate (version 1) returns a connection ID and a separate token, and the WebSocket must present that token (`?id=`). Over it, `page.routeWebSocket` speaks the hub's JSON protocol: handshake, `JoinGroup` (members only) and `LeaveGroup`, pings and server-pushed events. Like the real server, every change is broadcast to the list's group except the connection named in `X-SignalR-Connection-Id`; `backend.connectionIds(userId)` returns the IDs it handed out.
 - `backend.as(OTHER)` makes changes as another member through the same code paths, so the page receives real events. `deleteListAutomatically()` stands in for the cleanup service.
 - `failNext()` fails a request with a status; `holdNext()` holds one to look at loading states; `dropHubConnections()` simulates a lost connection. `backend.calls` records every request.
 
@@ -371,10 +371,6 @@ Fixtures (`integration/support/test.ts`):
 Time-based behaviour uses the real clock where waits are short: an item due to hide in a few seconds, or a 3-second token lifetime. `page.clock` is available when that isn't practical.
 
 Projects: `desktop` runs everything except `@mobile` tests; `mobile` (Pixel 7) runs only tests tagged `@mobile`. The accessibility spec covers both themes, keyboard use, 320px reflow and tap target sizes.
-
-### Known issue in the tests
-
-`realtime.spec.ts` has a "your own changes (known issue: echoed back)" group marked `test.fail()`. Because the client skips SignalR negotiation, it never learns its connection ID, never sends `X-SignalR-Connection-Id`, and the server echoes your own changes back. For example, saving settings shows "Another member changed the list settings.". These tests describe the intended behaviour. Playwright reports them as soon as they start passing; then remove the `test.fail()` lines.
 
 ---
 

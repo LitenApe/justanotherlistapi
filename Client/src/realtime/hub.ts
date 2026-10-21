@@ -37,8 +37,7 @@ function buildConnection(accessTokenFactory: () => string): HubConnection {
   return new HubConnectionBuilder()
     .withUrl(HUB_URL, {
       accessTokenFactory,
-      // Connect straight over WebSockets so the dev proxy doesn't split negotiate and connect.
-      skipNegotiation: true,
+      // Don't skip negotiation: its response is the only place the connection ID comes from.
       transport: HttpTransportType.WebSockets,
     })
     .withAutomaticReconnect({
