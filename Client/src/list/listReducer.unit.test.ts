@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Item, ItemGroupSettings } from "../api/types";
-import { makeItem, makeList, OTHER } from "../test/fakeApi";
+import { makeItem, makeList, OTHER } from "../test/builders";
 import {
   autoDeleteTime,
   filterItems,

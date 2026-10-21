@@ -1,4 +1,3 @@
-/// <reference types="vitest/config" />
 import { reactRouter } from "@react-router/dev/vite";
 import { defineConfig } from "vite";
 
@@ -11,8 +10,7 @@ const coreUrl =
 const oauthUrl = process.env.services__oauth__http__0 ?? "http://localhost:8080";
 
 export default defineConfig({
-  // The React Router plugin builds the app; Vitest renders route modules directly instead.
-  plugins: process.env.VITEST ? [] : [reactRouter()],
+  plugins: [reactRouter()],
   server: {
     port: Number(process.env.PORT ?? 5173),
     strictPort: true,
@@ -24,11 +22,5 @@ export default defineConfig({
   },
   build: {
     sourcemap: true,
-  },
-  test: {
-    environment: "jsdom",
-    globals: true,
-    setupFiles: ["./src/test/setup.ts"],
-    css: { modules: { classNameStrategy: "non-scoped" } },
   },
 });

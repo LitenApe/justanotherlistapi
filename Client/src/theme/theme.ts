@@ -10,15 +10,23 @@ export const THEME_COLORS: Record<Theme, string> = { dark: "#1d2027", light: "#f
 
 /**
  * Inline <head> script (see root.tsx): applies a saved light theme before first
- * paint, so there is no flash of the dark default.
+ * paint, so there is no flash of the dark default, and adds the theme-color tag
+ * mobile browsers use for their toolbar. React doesn't render that tag itself:
+ * a tag the script had already changed wouldn't match during hydration, and
+ * React would add a second one.
  */
-export const themeBootScript = `try {
-  if (localStorage.getItem(${JSON.stringify(STORAGE_KEY)}) === "light") {
-    document.documentElement.dataset.theme = "light";
-    document.querySelector('meta[name="color-scheme"]').content = "light";
-    document.querySelector('meta[name="theme-color"]').content = ${JSON.stringify(THEME_COLORS.light)};
-  }
-} catch (e) {}`;
+export const themeBootScript = `(function () {
+  var theme = ${JSON.stringify(DEFAULT_THEME)};
+  try {
+    if (localStorage.getItem(${JSON.stringify(STORAGE_KEY)}) === "light") theme = "light";
+  } catch (e) {}
+  var colors = ${JSON.stringify(THEME_COLORS)};
+  document.documentElement.dataset.theme = theme;
+  var meta = document.createElement("meta");
+  meta.name = "theme-color";
+  meta.content = colors[theme];
+  document.head.appendChild(meta);
+})();`;
 
 /** The viewer's light/dark choice, remembered per browser. Dark is the default. */
 export function createThemeStore(storage: Storage | undefined = safeLocalStorage()) {
@@ -38,10 +46,13 @@ export function createThemeStore(storage: Storage | undefined = safeLocalStorage
     // The build prerenders the app shell in Node, where there is no document.
     if (typeof document === "undefined") return;
     document.documentElement.dataset.theme = theme;
-    document.querySelector('meta[name="color-scheme"]')?.setAttribute("content", theme);
-    document
-      .querySelector('meta[name="theme-color"]')
-      ?.setAttribute("content", THEME_COLORS[theme]);
+    let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.name = "theme-color";
+      document.head.append(meta);
+    }
+    meta.content = THEME_COLORS[theme];
   }
 
   apply();

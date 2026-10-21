@@ -39,7 +39,7 @@ The client targets **WCAG 2.2 level AA** and works from 320px wide phones up to 
 | Styling     | Plain CSS: global design tokens + CSS Modules per component        |
 | State       | React state and reducers; no state management library              |
 | Lint/format | ESLint 10 (typescript-eslint strict, jsx-a11y strict, react-hooks) |
-| Tests       | Vitest 5, Testing Library, axe-core, jsdom                         |
+| Tests       | Vitest 5 (unit, browser mode), Playwright Test, axe-core           |
 
 There are no UI component or icon libraries. Interactive widgets use native elements (`<dialog>`, `popover`, `<fieldset>` radios, `<progress>`) so that keyboard handling and semantics come from the browser.
 
@@ -50,7 +50,10 @@ There are no UI component or icon libraries. Interactive widgets use native elem
 ```
 Client/
   react-router.config.ts     - Framework config: appDirectory "src", SPA mode (ssr: false)
-  vite.config.ts             - React Router plugin, dev proxy (/api, /hubs → Core; /default → mock OAuth), Vitest config
+  vite.config.ts             - React Router plugin, dev proxy (/api, /hubs → Core; /default → mock OAuth)
+  vitest.config.ts           - Unit (Node) and browser (Chromium) test projects
+  playwright.config.ts       - Integration tests against the production build
+  integration/               - Integration specs; support/ has the fake backend, fixtures and static server
   eslint.config.js           - Type-aware + accessibility lint rules
   src/
     root.tsx                 - HTML document (Layout), theme boot script, app shell, HydrateFallback, root ErrorBoundary
@@ -87,7 +90,7 @@ Client/
       ItemRow.tsx, EditItemDialog.tsx, RenameListDialog.tsx, MembersPanel.tsx
     theme/theme.ts           - Light/dark theme store (dark default, saved in localStorage)
     styles/global.css        - Design tokens per theme, base styles, buttons, forms, utilities
-    test/                    - Test setup, fake API (fetch), fake SignalR connection, axe helper
+    test/                    - Test data builders, browser test setup, axe helper
 ```
 
 ---
@@ -112,7 +115,7 @@ Without Aspire, start Core and the OAuth server yourself and run `npm run dev` i
 | `npm run build`     | Typecheck, then a static build into `build/client/` (serve it as an SPA) |
 | `npm run typecheck` | Generate route types (`react-router typegen`), then `tsc`                |
 | `npm run check`     | Typecheck + lint + format check + tests (CI)                             |
-| `npm test`          | Run tests once (`npm run test:watch` to watch)                           |
+| `npm test`          | Unit, browser and integration tests (see [Testing](#testing))            |
 | `npm run format`    | Format with Prettier                                                     |
 
 The first visit after dependencies change can fail with "504 Outdated Optimize Dep" while Vite re-bundles them; reload the page.
@@ -288,7 +291,7 @@ The client has a dark theme (the default) and a light theme.
 - **Toggle:** a "Dark mode" toggle button in the header (`aria-pressed`, moon or sun icon). It's available on every page, including sign-in.
 - **Persistence:** the choice is saved in localStorage (`jal.theme`) per browser. The operating system's `prefers-color-scheme` is deliberately not used, so new visitors always start in dark mode.
 - **Tokens:** `global.css` defines the colors twice: under `:root, :root[data-theme="dark"]` and under `:root[data-theme="light"]`. Each block also sets `color-scheme`, so native controls and scrollbars match. Components only use the `--color-*` tokens.
-- **No flash:** the document from `root.tsx` starts with `data-theme="dark"`. An inline script in `<head>` (`themeBootScript`, built in `theme/theme.ts` from the same storage key and colors) switches to light before first paint when that is the saved choice. `<html>` and the two theme `<meta>` tags use `suppressHydrationWarning`, since the script may change them before React hydrates. `themeStore` keeps `<html data-theme>`, `<meta name="color-scheme">` and `<meta name="theme-color">` (mobile browser UI) in sync afterwards.
+- **No flash:** the document from `root.tsx` starts with `data-theme="dark"`. An inline script in `<head>` (`themeBootScript`, built in `theme/theme.ts` from the same storage key and colors) switches to light before first paint when that is the saved choice, and adds `<meta name="theme-color">` (mobile browser UI). `<html>` uses `suppressHydrationWarning`. React doesn't render the `theme-color` tag itself: one the script had changed wouldn't match during hydration, and React would add a second tag. `themeStore` keeps `data-theme` and that tag in sync afterwards. `color-scheme` comes from each theme's CSS.
 
 ---
 
@@ -308,16 +311,70 @@ Mobile first, with a 16px page gutter growing to 24px from `40rem`.
 
 ## Testing
 
-Tests live next to the code as `*.test.ts(x)` and run in jsdom.
+Tests come in three kinds. Each kind has its own tool, file naming and rule about what may be faked. The fewer fakes, the closer the test is to what users get.
 
-- **Unit:** `listReducer` (idempotency, ordering, filtering, auto-hide and auto-delete times), `duration`, the session store (persistence, expiry), and the hub (ref-counted groups, routing events, resync after reconnect).
-- **Timers:** tests of time-based behaviour use `vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ["setTimeout", "clearTimeout", "Date"] })`. After loading, `await act(() => Promise.resolve())` lets React run the effect that schedules a timer before the test advances the clock.
-- **Page:** `renderApp(path)` renders the app at a URL with `createRoutesStub`. The stub routes are built from `routes.ts` and the real route modules, so tests run the actual middleware, loaders, actions and error boundaries. The API is `installFakeApi()`, an in-memory implementation of the REST API installed as `fetch`. Pages appear after their loaders, so use `findBy…` for the first query.
-- **Realtime:** the real hub logic runs over a fake connection (set up in `test/setup.ts`). Call `await subscribedTo(listId)` before emitting events, since pages subscribe in an effect after rendering; it returns the connection to `emit(...)` on.
-- The React Router Vite plugin is left out under Vitest (`process.env.VITEST`), since tests render route modules directly.
-- **Accessibility:** `expectNoAxeViolations()` runs axe-core on every page and dialog state under test. Color contrast is excluded because jsdom does not compute styles; the palette was checked separately.
-- Tests assert on roles, accessible names and descriptions, and focus, the way assistive technology sees the page.
-- jsdom lacks `HTMLDialogElement.showModal()`, so `test/setup.ts` polyfills it.
+| Kind        | Runs in                                         | Files                         | May fake                                      |
+| ----------- | ----------------------------------------------- | ----------------------------- | --------------------------------------------- |
+| Unit        | Vitest, Node (no DOM)                           | `src/**/*.unit.test.ts`       | Nothing                                       |
+| Browser     | Vitest browser mode, real Chromium (Playwright) | `src/**/*.browser.test.ts(x)` | Callbacks passed as props, timers when needed |
+| Integration | Playwright Test against the production build    | `integration/*.spec.ts`       | The network (REST, OAuth, SignalR) and timers |
+
+```bash
+npm run test:unit         # Vitest "unit" project
+npm run test:browser      # Vitest "browser" project
+npm run test:integration  # builds the SPA, serves it, runs Playwright
+npm test                  # all three
+```
+
+The browser and integration tests need Playwright's Chromium, installed once with `npx playwright install chromium`. Nothing uses `vi.mock`, jsdom or polyfills.
+
+### Unit tests
+
+Pure functions with no browser APIs: the list reducer and its auto-hide/auto-delete maths, durations, GUID helpers, redirect safety (`safeRedirect`), form parsing and the loader error mapping (`loadRouteData`). They run in Node, so anything that reaches for `window` or `document` fails instead of passing by accident.
+
+### Browser tests
+
+Components and browser-API modules rendered on their own in a real browser (`vitest-browser-react`), driven with real input through Playwright (`page`, `userEvent` from `vitest/browser`):
+
+- `Dialog`/`ConfirmDialog`: native `showModal()`, `:modal`, Escape, focus return and inert background.
+- Toasts: live regions, auto-dismiss, pausing on hover.
+- `CopyButton`: the real clipboard (permission granted in `vitest.config.ts`).
+- Theme store and boot script: real `localStorage`, computed colours.
+- Session store: real `sessionStorage`.
+- `EditItemDialog`, `ListSettingsDialog`, `MembersPanel`: validation, focus and accessible errors.
+
+`src/test/browserSetup.ts` loads `global.css`, so layout and colours are real. `expectNoAxeViolations()` (`src/test/axe.ts`) runs the WCAG 2.2 A/AA rules, **colour contrast included**, after waiting for running animations to finish.
+
+- Only fake the timers a test is about (`vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })`). axe-core itself uses `setTimeout`, so run axe with real timers.
+- Playwright won't click `aria-disabled` buttons. Use `click({ force: true })` when the point is that a click is ignored.
+- Give test harness markup the app's classes (`button`, `input`, `label`), or scope axe to the component, so unstyled harness elements don't fail contrast.
+
+### Integration tests
+
+The production SPA (`react-router build`) is served the way a static host serves it (`integration/support/serveSpa.mjs`: files, else `index.html`; `/api`, `/hubs` and `/default` return 404 so unfaked requests fail loudly). Everything in the browser is the real app: entry point, routing, middleware, loaders, session handling, the SignalR client and the CSS.
+
+Only the network is replaced, by `FakeBackend` (`integration/support/fakeBackend.ts`), installed through Playwright's routing for every test:
+
+- **REST API:** an in-memory implementation of [checklist.md](checklist.md), including membership checks (403), conflicts (409), `completedAt` and settings. It authenticates the bearer token on every request (401 when missing or expired).
+- **OAuth:** the token endpoint returns an unsigned JWT whose `sub` is the client ID, like the mock OAuth server.
+- **SignalR:** `page.routeWebSocket` speaks the hub's JSON protocol: handshake, `JoinGroup` (members only) and `LeaveGroup`, pings and server-pushed events. Like the real server, every change is broadcast to the list's group except the connection named in `X-SignalR-Connection-Id`.
+- `backend.as(OTHER)` makes changes as another member through the same code paths, so the page receives real events. `deleteListAutomatically()` stands in for the cleanup service.
+- `failNext()` fails a request with a status; `holdNext()` holds one to look at loading states; `dropHubConnections()` simulates a lost connection. `backend.calls` records every request.
+
+Fixtures (`integration/support/test.ts`):
+
+- `app.signIn()` goes through the real sign-in page.
+- `app.openList(list)` seeds, signs in, opens the list and waits until the page has joined its SignalR group. Wait the same way (`app.subscribed(id)`) before another member changes something, or the event is (correctly) missed.
+- Any uncaught error in the page fails the test.
+- `expectAccessible(page, selector?)` runs every axe rule, colour contrast and best practices included.
+
+Time-based behaviour uses the real clock where waits are short: an item due to hide in a few seconds, or a 3-second token lifetime. `page.clock` is available when that isn't practical.
+
+Projects: `desktop` runs everything except `@mobile` tests; `mobile` (Pixel 7) runs only tests tagged `@mobile`. The accessibility spec covers both themes, keyboard use, 320px reflow and tap target sizes.
+
+### Known issue in the tests
+
+`realtime.spec.ts` has a "your own changes (known issue: echoed back)" group marked `test.fail()`. Because the client skips SignalR negotiation, it never learns its connection ID, never sends `X-SignalR-Connection-Id`, and the server echoes your own changes back. For example, saving settings shows "Another member changed the list settings.". These tests describe the intended behaviour. Playwright reports them as soon as they start passing; then remove the `test.fail()` lines.
 
 ---
 

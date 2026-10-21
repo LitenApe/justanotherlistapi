@@ -308,11 +308,12 @@ Tests use xUnit against a real SQL Server started by [Testcontainers](https://do
 dotnet test
 ```
 
-Client tests use Vitest, Testing Library and axe-core in jsdom, against an in-memory fake of the API. Every page and dialog state is checked for accessibility violations.
+Client tests come in three kinds: **unit** tests of pure logic (Vitest in Node), **browser** tests of components in real Chromium (Vitest browser mode), and **integration** tests of the production build in Playwright, with only the network (REST, OAuth and the SignalR WebSocket) faked. Pages, dialogs and both themes are checked with axe-core, colour contrast included. See [specifications/client.md](specifications/client.md#testing).
 
 ```bash
 cd Client
-npm run check   # typecheck + lint + format check + tests
+npx playwright install chromium   # once
+npm run check   # typecheck + lint + format check + all tests
 ```
 
 ### How tests work

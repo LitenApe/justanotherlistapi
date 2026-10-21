@@ -6,7 +6,7 @@ import type { Route } from "./+types/root";
 import { AppShell } from "./components/AppShell";
 import { DocumentTitle } from "./components/DocumentTitle";
 import { ToastProvider } from "./components/Toasts";
-import { DEFAULT_THEME, THEME_COLORS, themeBootScript } from "./theme/theme";
+import { DEFAULT_THEME, themeBootScript } from "./theme/theme";
 
 /** The HTML document. In SPA mode it is prerendered at build time with HydrateFallback inside. */
 export function Layout({ children }: { children: ReactNode }) {
@@ -16,8 +16,6 @@ export function Layout({ children }: { children: ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="color-scheme" content={DEFAULT_THEME} suppressHydrationWarning />
-        <meta name="theme-color" content={THEME_COLORS[DEFAULT_THEME]} suppressHydrationWarning />
         <meta name="description" content="Shareable checklists for everything." />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />

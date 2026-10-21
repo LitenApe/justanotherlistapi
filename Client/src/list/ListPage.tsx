@@ -189,35 +189,47 @@ function ListPage({ list }: { list: ItemGroup }) {
   const itemsHeadingRef = useRef<HTMLHeadingElement>(null);
 
   /** Pass several IDs when items disappear together, so focus skips all of them. */
-  const planFocusAfterRemoval = useCallback(
-    (removed: string | readonly string[], force = false) => {
+  /** Where focus should go if these items disappear; null if none of them holds focus. */
+  const focusTargetAfterRemoval = useCallback(
+    (removed: string | readonly string[], force = false): FocusIntent | null => {
       const ids = typeof removed === "string" ? [removed] : removed;
       const focusedId = ids.find(
         (id) =>
           force ||
           document.getElementById(checkboxId(id))?.closest("li")?.contains(document.activeElement),
       );
-      if (focusedId === undefined) return;
+      if (focusedId === undefined) return null;
       const visible = latest.current.visibleItems;
       const index = visible.findIndex((item) => item.id === focusedId);
-      if (index === -1) return;
+      if (index === -1) return null;
       const staying = (item: Item) => !ids.includes(item.id);
       const neighbour =
         visible.slice(index + 1).find(staying) ?? visible.slice(0, index).findLast(staying);
-      focusIntent.current = neighbour
-        ? { kind: "item", id: neighbour.id }
-        : { kind: "itemsHeading" };
+      return neighbour ? { kind: "item", id: neighbour.id } : { kind: "itemsHeading" };
     },
     [],
+  );
+
+  const planFocusAfterRemoval = useCallback(
+    (removed: string | readonly string[], force = false) => {
+      const target = focusTargetAfterRemoval(removed, force);
+      if (target) focusIntent.current = target;
+    },
+    [focusTargetAfterRemoval],
   );
 
   useEffect(() => {
     const intent = focusIntent.current;
     if (!intent) return;
+    // Everything behind a modal dialog is inert and can't take focus. Keep the
+    // plan until the render that closes the dialog (this effect runs after each).
+    if (document.querySelector("dialog:modal")) return;
     focusIntent.current = null;
-    if (intent.kind === "item") document.getElementById(checkboxId(intent.id))?.focus();
-    else if (intent.kind === "itemsHeading") itemsHeadingRef.current?.focus();
-    else document.getElementById("members-heading")?.focus();
+    // The planned neighbour may have gone too (another member deleted it).
+    const item = intent.kind === "item" ? document.getElementById(checkboxId(intent.id)) : null;
+    if (item) item.focus();
+    else if (intent.kind === "members") document.getElementById("members-heading")?.focus();
+    else itemsHeadingRef.current?.focus();
   });
 
   /** Whether the item shows under the current filter, search and auto-hide at time `at`. */
@@ -309,10 +321,13 @@ function ListPage({ list }: { list: ItemGroup }) {
   }
 
   async function deleteItem(item: Item) {
+    // Decided now: by the time the request returns, the item's own realtime
+    // event may already have removed it from the list.
+    const focusTarget = focusTargetAfterRemoval(item.id, true);
     setDialogPending(true);
     try {
       await checklistApi.deleteItem(listId, item.id);
-      planFocusAfterRemoval(item.id, true);
+      focusIntent.current = focusTarget;
       dispatch({ type: "itemRemoved", itemId: item.id });
       setDialog(null);
       announce(`Deleted “${item.name}”.`);

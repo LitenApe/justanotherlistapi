@@ -8,7 +8,8 @@
 | Test           | `dotnet test` (requires Docker; Testcontainers starts SQL Server)              |
 | Run full stack | `dotnet run --project Aspire` (SQL Server + mock OAuth + backend + client)     |
 | Format         | `dotnet csharpier .` (local tool; restore with `dotnet tool restore`)          |
-| Client check   | `cd Client && npm run check` (typecheck + ESLint + Prettier check + Vitest)    |
+| Client check   | `cd Client && npm run check` (typecheck + ESLint + Prettier + all tests)      |
+| Client tests   | `npm run test:unit` / `test:browser` / `test:integration` in `Client/`         |
 | Client format  | `cd Client && npm run format`                                                  |
 
 ## Architecture
@@ -62,7 +63,11 @@ The client is organized by page (`lists/`, `list/`, `auth/`) with shared `api/`,
 - New colors go into the tokens in `styles/global.css`, in both the dark (default) and `[data-theme="light"]` blocks, meeting 4.5:1 (text) / 3:1 (UI). Never hard-code colors in components
 - API calls go through `api/checklists.ts`; local changes and SignalR events dispatch the same idempotent reducer actions
 - Realtime: subscribe with `useGroupEvents(listIds, handlers)`; never create another `HubConnection`
-- Tests: `renderApp(path)` (a `createRoutesStub` built from `routes.ts`) + `installFakeApi(lists)`; first query with `findBy…` because pages render after loaders; query by role/name; call `expectNoAxeViolations()` for new pages and dialog states; `const hub = await subscribedTo(listId)` then `hub.emit(...)` for realtime events
+- Tests come in three kinds (details in specifications/client.md#testing); never use `vi.mock`, module mocks or jsdom:
+  - **Unit** `src/**/*.unit.test.ts`: pure logic in Node, nothing faked
+  - **Browser** `src/**/*.browser.test.tsx`: one component/module in real Chromium (`vitest-browser-react`, `page`/`userEvent` from `vitest/browser`); only prop callbacks and, if needed, timers are faked; `expectNoAxeViolations()` checks contrast too
+  - **Integration** `integration/*.spec.ts`: Playwright against the production build; only the network (`FakeBackend`: REST, OAuth, SignalR over `routeWebSocket`) and timers may be faked. Use `app.signIn()`/`app.openList()`, `backend.as(OTHER)` for other members, `app.subscribed(id)` before their changes, `expectAccessible(page)` for new pages and dialogs
+- Query by role and accessible name, and assert focus, the way assistive technology sees the page
 
 ## Pitfalls
 
@@ -78,7 +83,11 @@ The client is organized by page (`lists/`, `list/`, `auth/`) with shared `api/`,
 - Client: `global.css` must be the first import in `src/root.tsx` so CSS Modules can override it.
 - Client: route types are generated. `npm run typecheck` runs `react-router typegen` first; run it after adding or renaming a route module, or `./+types/...` imports won't resolve.
 - Client: React Router runs a navigation's loaders in parallel; put checks that must run first (like auth) in `clientMiddleware`.
-- Client: jsdom has no `HTMLDialogElement.showModal()`; `src/test/setup.ts` polyfills it.
+- Client: browser and integration tests need Playwright's Chromium: `npx playwright install chromium` once (CI uses `--with-deps`).
+- Client: integration tests run against `react-router build`. Locally Playwright reuses a server already on port 4173, so stop stray servers if results look stale.
+- Client: axe-core uses `setTimeout`, so it hangs while a test fakes timers. Fake only the timers you need, and run axe with real ones.
+- Client: Playwright treats `aria-disabled` as disabled and won't click it; use `click({ force: true })` to test that such clicks are ignored.
+- Client: tests in `realtime.spec.ts` marked `test.fail()` document the SignalR echo issue (no connection ID). Remove `test.fail()` once it's fixed.
 
 ## Specifications
 

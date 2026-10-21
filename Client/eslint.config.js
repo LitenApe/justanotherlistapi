@@ -6,7 +6,7 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default defineConfig(
-  { ignores: ["build", ".react-router", "coverage"] },
+  { ignores: ["build", ".react-router", "coverage", "test-results", "playwright-report"] },
   {
     files: ["**/*.{ts,tsx}"],
     extends: [
@@ -38,7 +38,12 @@ export default defineConfig(
     },
   },
   {
-    files: ["**/*.js"],
+    // Playwright fixtures call their callback `use`, which isn't React's use().
+    files: ["integration/**"],
+    rules: { "react-hooks/rules-of-hooks": "off" },
+  },
+  {
+    files: ["**/*.{js,mjs}"],
     extends: [js.configs.recommended],
     languageOptions: { globals: globals.node },
   },
