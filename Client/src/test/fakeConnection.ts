@@ -1,3 +1,4 @@
+import { waitFor } from "@testing-library/react";
 import { HubConnectionState, type HubConnection } from "@microsoft/signalr";
 
 type Handler = (...args: unknown[]) => void;
@@ -72,4 +73,21 @@ export function latestConnection(): FakeConnection {
   const connection = fakeConnections.at(-1);
   if (!connection) throw new Error("No hub connection has been started.");
   return connection;
+}
+
+/**
+ * Waits until the page has joined the list's group. Pages subscribe in an
+ * effect after rendering, so an event emitted before that would be missed.
+ */
+export async function subscribedTo(...groupIds: string[]): Promise<FakeConnection> {
+  return waitFor(() => {
+    const connection = latestConnection();
+    for (const groupId of groupIds) {
+      const joined = connection.invocations.some(
+        ({ method, args }) => method === "JoinGroup" && args[0] === groupId,
+      );
+      if (!joined) throw new Error(`The page hasn't subscribed to ${groupId} yet.`);
+    }
+    return connection;
+  });
 }

@@ -5,25 +5,19 @@ import {
   autoDeleteTime,
   filterItems,
   hideTime,
-  initialListState,
   isAutoHidden,
   listReducer,
+  listStateFrom,
   nextHideTime,
-  type ListState,
 } from "./listReducer";
 
-function ready(): Extract<ListState, { status: "ready" }> {
-  const state = listReducer(initialListState(null), {
-    type: "loaded",
-    list: makeList("Groceries", ["Milk", "Eggs"]),
-  });
-  if (state.status !== "ready") throw new Error("expected ready");
-  return state;
-}
+const ready = () => listStateFrom(makeList("Groceries", ["Milk", "Eggs"]));
 
 describe("listReducer", () => {
-  it("keeps the name passed from the overview while loading", () => {
-    expect(initialListState("Groceries")).toEqual({ status: "loading", name: "Groceries" });
+  it("replaces everything when the loader returns fresh data", () => {
+    const fresh = makeList("Weekly shop", ["Bread"]);
+    const next = listReducer(ready(), { type: "loaded", list: fresh });
+    expect(next).toEqual(listStateFrom(fresh));
   });
 
   it("adds new items to the top and is idempotent", () => {
@@ -32,11 +26,7 @@ describe("listReducer", () => {
     const once = listReducer(state, { type: "itemUpserted", item });
     const twice = listReducer(once, { type: "itemUpserted", item });
 
-    expect(once.status === "ready" && once.items.map((i) => i.name)).toEqual([
-      "Bread",
-      "Milk",
-      "Eggs",
-    ]);
+    expect(once.items.map((i) => i.name)).toEqual(["Bread", "Milk", "Eggs"]);
     expect(twice).toEqual(once);
   });
 
@@ -46,7 +36,7 @@ describe("listReducer", () => {
     if (!eggs) throw new Error("missing item");
     const next = listReducer(state, { type: "itemUpserted", item: { ...eggs, isComplete: true } });
 
-    expect(next.status === "ready" && next.items.map((i) => [i.name, i.isComplete])).toEqual([
+    expect(next.items.map((i) => [i.name, i.isComplete])).toEqual([
       ["Milk", false],
       ["Eggs", true],
     ]);
@@ -61,17 +51,11 @@ describe("listReducer", () => {
     next = listReducer(next, { type: "memberAdded", memberId: OTHER });
     next = listReducer(next, { type: "memberAdded", memberId: OTHER });
 
-    expect(next.status === "ready" && next.items.map((i) => i.name)).toEqual(["Eggs"]);
-    expect(next.status === "ready" && next.members).toHaveLength(2);
+    expect(next.items.map((i) => i.name)).toEqual(["Eggs"]);
+    expect(next.members).toHaveLength(2);
 
     next = listReducer(next, { type: "memberRemoved", memberId: OTHER });
-    expect(next.status === "ready" && next.members).toHaveLength(1);
-  });
-
-  it("ignores item events until the list has loaded", () => {
-    const loading = initialListState(null);
-    const next = listReducer(loading, { type: "renamed", name: "Ignored" });
-    expect(next).toBe(loading);
+    expect(next.members).toHaveLength(1);
   });
 });
 
@@ -118,7 +102,7 @@ describe("settings", () => {
     const once = listReducer(ready(), { type: "settingsChanged", settings: changed });
     const twice = listReducer(once, { type: "settingsChanged", settings: changed });
 
-    expect(once.status === "ready" && once.settings).toEqual(changed);
+    expect(once.settings).toEqual(changed);
     expect(twice).toEqual(once);
   });
 

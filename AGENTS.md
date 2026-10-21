@@ -16,11 +16,11 @@
 - **Aspire/** — .NET Aspire AppHost; orchestrates SQL Server, mock OAuth container, Core backend and Vite client for local dev
 - **Core/** — ASP.NET Core 10 backend (Minimal APIs, Dapper, SQL Server, JWT Bearer auth)
 - **Core.Tests/** — xUnit tests against SQL Server via Testcontainers (requires Docker)
-- **Client/** — React 19 + TypeScript SPA (Vite, React Router, SignalR); served at http://localhost:5173 under Aspire
+- **Client/** — React 19 + TypeScript, React Router framework mode in SPA mode (`ssr: false`), SignalR; served at http://localhost:5173 under Aspire
 
 Backend features are organized as vertical slices under `Core/Checklist/`. Each endpoint is a static class with `MapEndpoint()` + `Execute()` methods. See [specifications/checklist.md](specifications/checklist.md) for the full domain model and API contract.
 
-The client is organized by page (`lists/`, `list/`, `auth/`) with shared `api/`, `realtime/` and `components/`. See [specifications/client.md](specifications/client.md).
+The client is organized by page (`lists/`, `list/`, `auth/`) with shared `api/`, `realtime/` and `components/`. Routes are declared in `src/routes.ts`; each page file is a route module. See [specifications/client.md](specifications/client.md).
 
 ## Conventions
 
@@ -51,7 +51,10 @@ The client is organized by page (`lists/`, `list/`, `auth/`) with shared `api/`,
 
 ### Client
 
-- **Accessibility is a requirement (WCAG 2.2 AA)**: visible `<label>` for every input, errors via `aria-describedby` + `aria-invalid`, one `<h1 tabIndex={-1}>` per page plus `useDocumentTitle`, icons `aria-hidden` with text alongside
+- **Accessibility is a requirement (WCAG 2.2 AA)**: visible `<label>` for every input, errors via `aria-describedby` + `aria-invalid`, one `<h1 tabIndex={-1}>` per page (and per `ErrorBoundary`) plus `<DocumentTitle>`, icons `aria-hidden` with text alongside
+- Route modules: load page data in `clientLoader` via `loadRouteData()`, show load failures in the route's `ErrorBoundary`, type props with `Route.ComponentProps` from `./+types/<File>`. Pages needing a session go under the `ProtectedLayout` layout in `routes.ts` (its `clientMiddleware` redirects)
+- Forms that navigate (sign-in, create list) use `<Form>`/`useFetcher` + `clientAction`; list-page mutations call `api/checklists.ts` directly and dispatch reducer actions. Refresh loader data with `useRevalidator().revalidate()`, not by fetching by hand
+- Don't touch `window`/`document`/storage at module load: the SPA build prerenders `root.tsx` in Node
 - Prefer native elements: `Dialog` (wraps `<dialog>`), `ConfirmDialog` for destructive actions, `popover` for menus, radios in a `<fieldset>` for segmented controls
 - Never disable a button that may hold focus; use `aria-disabled` and guard the handler
 - When an element holding focus is removed, move focus somewhere meaningful (see `planFocusAfterRemoval` in `ListPage.tsx`)
@@ -59,7 +62,7 @@ The client is organized by page (`lists/`, `list/`, `auth/`) with shared `api/`,
 - New colors go into the tokens in `styles/global.css`, in both the dark (default) and `[data-theme="light"]` blocks, meeting 4.5:1 (text) / 3:1 (UI). Never hard-code colors in components
 - API calls go through `api/checklists.ts`; local changes and SignalR events dispatch the same idempotent reducer actions
 - Realtime: subscribe with `useGroupEvents(listIds, handlers)`; never create another `HubConnection`
-- Tests: `renderApp(path)` + `installFakeApi(lists)`; query by role/name; call `expectNoAxeViolations()` for new pages and dialog states; emit hub events with `latestConnection().emit(...)`
+- Tests: `renderApp(path)` (a `createRoutesStub` built from `routes.ts`) + `installFakeApi(lists)`; first query with `findBy…` because pages render after loaders; query by role/name; call `expectNoAxeViolations()` for new pages and dialog states; `const hub = await subscribedTo(listId)` then `hub.emit(...)` for realtime events
 
 ## Pitfalls
 
@@ -72,7 +75,9 @@ The client is organized by page (`lists/`, `list/`, `auth/`) with shared `api/`,
 - SQL Server 2022 or later is required: list settings use `IS DISTINCT FROM` and `GREATEST`.
 - `TestDatabase` connections are already **open**, but the app's scoped `SqlConnection` starts **closed**. Dapper opens it per command, but `BeginTransaction` needs `db.Open()` first.
 - Client: `eslint-plugin-jsx-a11y` doesn't declare ESLint 10 support yet; `package.json` `overrides` allows it. TypeScript stays on 6.0.x until typescript-eslint supports newer versions.
-- Client: `global.css` must be imported before components in `main.tsx` so CSS Modules can override it.
+- Client: `global.css` must be the first import in `src/root.tsx` so CSS Modules can override it.
+- Client: route types are generated. `npm run typecheck` runs `react-router typegen` first; run it after adding or renaming a route module, or `./+types/...` imports won't resolve.
+- Client: React Router runs a navigation's loaders in parallel; put checks that must run first (like auth) in `clientMiddleware`.
 - Client: jsdom has no `HTMLDialogElement.showModal()`; `src/test/setup.ts` polyfills it.
 
 ## Specifications

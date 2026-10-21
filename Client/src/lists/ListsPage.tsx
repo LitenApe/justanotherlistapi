@@ -1,28 +1,43 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type SubmitEvent } from "react";
-import { Link, useNavigate } from "react-router";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Link, redirect, useFetcher, useRevalidator } from "react-router";
 import { checklistApi } from "../api/checklists";
-import { errorMessage, isAbortError } from "../api/http";
+import { errorMessage } from "../api/http";
+import { loadRouteData, routeErrorMessage } from "../api/routeData";
 import type { Item, ItemGroup } from "../api/types";
 import { useSession } from "../auth/useSession";
+import { DocumentTitle } from "../components/DocumentTitle";
 import { Icon } from "../components/Icon";
-import { useToast } from "../components/Toasts";
-import { useDocumentTitle } from "../components/useDocumentTitle";
+import { formText } from "../lib/formText";
+import { useLoaderState } from "../lib/useLoaderState";
 import { useGroupEvents } from "../realtime/hooks";
+import type { Route } from "./+types/ListsPage";
 import styles from "./ListsPage.module.css";
-
-type LoadState =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "ready"; lists: ItemGroup[] };
 
 const PREVIEW_COUNT = 3;
 const FILTER_THRESHOLD = 6;
 
-export function ListsPage() {
-  useDocumentTitle("Your lists");
-  const [state, setState] = useState<LoadState>({ status: "loading" });
+const byName = (a: ItemGroup, b: ItemGroup) =>
+  a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true });
+
+export async function clientLoader({ request }: Route.ClientLoaderArgs) {
+  const lists = await loadRouteData(request, (signal) => checklistApi.getLists(signal));
+  return { lists: lists.toSorted(byName) };
+}
+
+export async function clientAction({ request }: Route.ClientActionArgs) {
+  const name = formText(await request.formData(), "name").trim();
+  if (!name) return { error: "Give your list a name." };
+  try {
+    const list = await checklistApi.createList(name);
+    return redirect(`/lists/${list.id}`);
+  } catch (error) {
+    return { error: errorMessage(error) };
+  }
+}
+
+export default function ListsPage({ loaderData }: Route.ComponentProps) {
   const [query, setQuery] = useState("");
-  const { lists, reload, update } = useLists(state, setState);
+  const lists = useLiveLists(loaderData.lists);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -31,40 +46,25 @@ export function ListsPage() {
 
   return (
     <div className={styles.page}>
+      <DocumentTitle title="Your lists" />
       <div className={styles.intro}>
         <h1 tabIndex={-1}>Your lists</h1>
-        <CreateListForm onCreated={update.added} />
+        <CreateListForm />
       </div>
 
-      <section aria-labelledby="lists-heading" aria-busy={state.status === "loading"}>
+      <section aria-labelledby="lists-heading">
         <h2 id="lists-heading" className="visually-hidden">
           All lists
         </h2>
 
-        {state.status === "loading" && <ListsSkeleton />}
-
-        {state.status === "error" && (
-          <div className="alert" role="alert">
-            <Icon name="alert" />
-            <div className={styles.errorBody}>
-              <p>Couldn't load your lists. {state.message}</p>
-              <button type="button" className="button button-small" onClick={reload}>
-                Try again
-              </button>
-            </div>
-          </div>
-        )}
-
-        {state.status === "ready" && lists.length === 0 && (
+        {lists.length === 0 ? (
           <div className={`card ${styles.empty}`}>
             <h3>No lists yet</h3>
             <p className="muted">
               Create your first list above. Lists other people share with you show up here too.
             </p>
           </div>
-        )}
-
-        {state.status === "ready" && lists.length > 0 && (
+        ) : (
           <>
             {lists.length > FILTER_THRESHOLD && (
               <div className={styles.filter}>
@@ -104,6 +104,34 @@ export function ListsPage() {
   );
 }
 
+export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
+  const revalidator = useRevalidator();
+  const retrying = revalidator.state === "loading";
+
+  return (
+    <div className={styles.page}>
+      <DocumentTitle title="Your lists" />
+      <h1 tabIndex={-1}>Your lists</h1>
+      <div className="alert" role="alert">
+        <Icon name="alert" />
+        <div className={styles.errorBody}>
+          <p>Couldn't load your lists. {routeErrorMessage(error)}</p>
+          <button
+            type="button"
+            className="button button-small"
+            aria-disabled={retrying}
+            onClick={() => {
+              if (!retrying) void revalidator.revalidate();
+            }}
+          >
+            {retrying ? "Trying again…" : "Try again"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ListCard({ list }: { list: ItemGroup }) {
   const remaining = list.items.length;
   const previewId = useId();
@@ -111,12 +139,7 @@ function ListCard({ list }: { list: ItemGroup }) {
   return (
     <li className={`card ${styles.listCard}`}>
       <h3 className={styles.cardTitle}>
-        <Link
-          to={`/lists/${list.id}`}
-          state={{ name: list.name }}
-          className={styles.cardLink}
-          aria-describedby={previewId}
-        >
+        <Link to={`/lists/${list.id}`} className={styles.cardLink} aria-describedby={previewId}>
           {list.name}
         </Link>
       </h3>
@@ -145,43 +168,28 @@ function ListCard({ list }: { list: ItemGroup }) {
   );
 }
 
-function CreateListForm({ onCreated }: { onCreated: (list: ItemGroup) => void }) {
-  const navigate = useNavigate();
-  const { notify } = useToast();
-  const [name, setName] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+/**
+ * Posts to this route's clientAction, which redirects to the new list. A fetcher
+ * keeps the address bar and history untouched when validation fails.
+ */
+function CreateListForm() {
+  const fetcher = useFetcher<typeof clientAction>();
+  const pending = fetcher.state !== "idle";
+  const error = fetcher.data?.error ?? null;
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (pending) return;
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setError("Give your list a name.");
-      inputRef.current?.focus();
-      return;
-    }
-
-    setError(null);
-    setPending(true);
-    try {
-      const list = await checklistApi.createList(trimmed);
-      onCreated(list);
-      notify(`Created “${list.name}”.`);
-      void navigate(`/lists/${list.id}`, { state: { name: list.name } });
-    } catch (err) {
-      setError(errorMessage(err));
-      setPending(false);
-    }
-  }
+  // Runs for every failed submission, even when the message is the same.
+  useEffect(() => {
+    if (fetcher.data?.error) inputRef.current?.focus();
+  }, [fetcher.data]);
 
   return (
-    <form
+    <fetcher.Form
+      method="post"
       className={styles.createForm}
       noValidate
       onSubmit={(event) => {
-        void handleSubmit(event);
+        if (pending) event.preventDefault();
       }}
     >
       <label className="label" htmlFor="new-list-name">
@@ -191,11 +199,8 @@ function CreateListForm({ onCreated }: { onCreated: (list: ItemGroup) => void })
         <input
           ref={inputRef}
           id="new-list-name"
+          name="name"
           className="input"
-          value={name}
-          onChange={(event) => {
-            setName(event.target.value);
-          }}
           placeholder="e.g. Groceries"
           autoComplete="off"
           required
@@ -212,81 +217,29 @@ function CreateListForm({ onCreated }: { onCreated: (list: ItemGroup) => void })
           {error}
         </p>
       )}
-    </form>
+    </fetcher.Form>
   );
 }
 
-function ListsSkeleton() {
-  return (
-    <>
-      <p className="visually-hidden">Loading your lists…</p>
-      <div className={styles.grid} aria-hidden="true">
-        {Array.from({ length: 6 }, (_, index) => (
-          <div key={index} className={`skeleton ${styles.skeletonCard}`} />
-        ))}
-      </div>
-    </>
-  );
-}
-
-const byName = (a: ItemGroup, b: ItemGroup) =>
-  a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true });
-
-/** Loads the overview and keeps it current with realtime events. */
-function useLists(state: LoadState, setState: (update: (prev: LoadState) => LoadState) => void) {
+/** The lists from the loader, kept current with realtime events. */
+function useLiveLists(loaded: ItemGroup[]) {
   const session = useSession();
-  const [reloadKey, setReloadKey] = useState(0);
-  const lists = useMemo(() => (state.status === "ready" ? state.lists : []), [state]);
-
-  const reload = useCallback(() => {
-    setState(() => ({ status: "loading" }));
-    setReloadKey((key) => key + 1);
-  }, [setState]);
-
-  const refresh = useCallback(
-    async (signal?: AbortSignal) => {
-      try {
-        const data = await checklistApi.getLists(signal);
-        setState(() => ({ status: "ready", lists: data.toSorted(byName) }));
-      } catch (error) {
-        if (isAbortError(error)) return;
-        // Keep showing what we have if a background refresh fails.
-        setState((prev) =>
-          prev.status === "ready" ? prev : { status: "error", message: errorMessage(error) },
-        );
-      }
-    },
-    [setState],
-  );
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void refresh(controller.signal);
-    return () => {
-      controller.abort();
-    };
-  }, [refresh, reloadKey]);
+  const { revalidate } = useRevalidator();
+  const [lists, setLists] = useLoaderState(loaded);
 
   // Lists shared with you while you were away appear when you come back to the tab.
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === "visible") void refresh();
+      if (document.visibilityState === "visible") void revalidate();
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [refresh]);
-
-  const mapLists = useCallback(
-    (fn: (lists: ItemGroup[]) => ItemGroup[]) => {
-      setState((prev) => (prev.status === "ready" ? { ...prev, lists: fn(prev.lists) } : prev));
-    },
-    [setState],
-  );
+  }, [revalidate]);
 
   const mapItems = (groupId: string, fn: (items: Item[]) => Item[]) => {
-    mapLists((current) =>
+    setLists((current) =>
       current.map((list) => (list.id === groupId ? { ...list, items: fn(list.items) } : list)),
     );
   };
@@ -301,7 +254,7 @@ function useLists(state: LoadState, setState: (update: (prev: LoadState) => Load
   };
 
   const removeList = (groupId: string) => {
-    mapLists((current) => current.filter((list) => list.id !== groupId));
+    setLists((current) => current.filter((list) => list.id !== groupId));
   };
 
   useGroupEvents(
@@ -313,7 +266,7 @@ function useLists(state: LoadState, setState: (update: (prev: LoadState) => Load
         mapItems(groupId, (items) => items.filter((item) => item.id !== itemId));
       },
       groupRenamed: (groupId, name) => {
-        mapLists((current) =>
+        setLists((current) =>
           current.map((list) => (list.id === groupId ? { ...list, name } : list)).toSorted(byName),
         );
       },
@@ -321,15 +274,9 @@ function useLists(state: LoadState, setState: (update: (prev: LoadState) => Load
       memberRemoved: (groupId, memberId) => {
         if (memberId === session?.userId) removeList(groupId);
       },
-      resync: () => void refresh(),
+      resync: () => void revalidate(),
     },
   );
 
-  const update = {
-    added: (list: ItemGroup) => {
-      mapLists((current) => [...current, list].toSorted(byName));
-    },
-  };
-
-  return { lists, reload, update };
+  return lists;
 }

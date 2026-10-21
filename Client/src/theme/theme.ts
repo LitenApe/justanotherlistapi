@@ -4,10 +4,21 @@ export type Theme = "dark" | "light";
 
 export const DEFAULT_THEME: Theme = "dark";
 
-// index.html applies a saved theme before first paint; keep the key and colors in sync.
 const STORAGE_KEY = "jal.theme";
 /** Browser UI color on mobile, matching --color-surface. */
-const THEME_COLORS: Record<Theme, string> = { dark: "#1d2027", light: "#ffffff" };
+export const THEME_COLORS: Record<Theme, string> = { dark: "#1d2027", light: "#ffffff" };
+
+/**
+ * Inline <head> script (see root.tsx): applies a saved light theme before first
+ * paint, so there is no flash of the dark default.
+ */
+export const themeBootScript = `try {
+  if (localStorage.getItem(${JSON.stringify(STORAGE_KEY)}) === "light") {
+    document.documentElement.dataset.theme = "light";
+    document.querySelector('meta[name="color-scheme"]').content = "light";
+    document.querySelector('meta[name="theme-color"]').content = ${JSON.stringify(THEME_COLORS.light)};
+  }
+} catch (e) {}`;
 
 /** The viewer's light/dark choice, remembered per browser. Dark is the default. */
 export function createThemeStore(storage: Storage | undefined = safeLocalStorage()) {
@@ -24,6 +35,8 @@ export function createThemeStore(storage: Storage | undefined = safeLocalStorage
   }
 
   function apply(): void {
+    // The build prerenders the app shell in Node, where there is no document.
+    if (typeof document === "undefined") return;
     document.documentElement.dataset.theme = theme;
     document.querySelector('meta[name="color-scheme"]')?.setAttribute("content", theme);
     document
@@ -63,5 +76,5 @@ function safeLocalStorage(): Storage | undefined {
 export const themeStore = createThemeStore();
 
 export function useTheme(): Theme {
-  return useSyncExternalStore(themeStore.subscribe, themeStore.getTheme);
+  return useSyncExternalStore(themeStore.subscribe, themeStore.getTheme, () => DEFAULT_THEME);
 }

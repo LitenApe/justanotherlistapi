@@ -2,7 +2,7 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ItemGroup } from "../api/types";
 import { installFakeApi, makeItem, makeList, ME, OTHER } from "../test/fakeApi";
-import { latestConnection } from "../test/fakeConnection";
+import { latestConnection, subscribedTo } from "../test/fakeConnection";
 import { expectNoAxeViolations, renderApp, signIn } from "../test/render";
 
 async function openList(list: ItemGroup) {
@@ -10,6 +10,7 @@ async function openList(list: ItemGroup) {
   signIn();
   const view = renderApp(`/lists/${list.id}`);
   await screen.findByRole("heading", { level: 2, name: "Items" });
+  await subscribedTo(list.id);
   return { api, ...view };
 }
 
@@ -37,14 +38,15 @@ describe("ListPage", () => {
     await expectNoAxeViolations();
   });
 
-  it("renders the list name from the overview while loading", () => {
+  it("announces loading until the list's data arrives", async () => {
     const list = makeList("Groceries", ["Milk"]);
     installFakeApi([list]);
     signIn();
 
-    renderApp(`/lists/${list.id}`, { name: "Groceries" });
+    renderApp(`/lists/${list.id}`);
 
-    expect(screen.getByRole("heading", { level: 1, name: "Groceries" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading JustAnotherList…");
+    expect(await screen.findByRole("heading", { level: 1, name: "Groceries" })).toBeInTheDocument();
   });
 
   it("toggles an item and sends the full item to the API", async () => {
@@ -228,6 +230,27 @@ describe("ListPage", () => {
     expect(screen.getByText("You were removed from “Groceries”.")).toBeInTheDocument();
   });
 
+  it("offers a retry when the list fails to load", async () => {
+    const list = makeList("Groceries", ["Milk"]);
+    const api = installFakeApi([list]);
+    api.failNext("GET", /^\/api\/list\/.+$/, 500);
+    signIn();
+    const { user } = renderApp(`/lists/${list.id}`);
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Couldn't load this list" }),
+    ).toBeInTheDocument();
+    const alert = screen
+      .getByText(/The server ran into a problem/)
+      .closest<HTMLElement>("[role=alert]");
+    if (!alert) throw new Error("Expected the error to be announced as an alert.");
+    await expectNoAxeViolations();
+
+    await user.click(within(alert).getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Groceries" })).toBeInTheDocument();
+  });
+
   it("explains when you don't have access", async () => {
     installFakeApi([makeList("Secret", [], [OTHER])]);
     signIn();
@@ -244,7 +267,9 @@ describe("ListPage", () => {
   it("handles addresses that aren't lists", async () => {
     signIn();
     renderApp("/lists/not-a-guid");
-    expect(screen.getByRole("heading", { level: 1, name: "List not found" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "List not found" }),
+    ).toBeInTheDocument();
     await expectNoAxeViolations();
   });
 });

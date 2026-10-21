@@ -1,7 +1,7 @@
 import { act, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { installFakeApi, makeItem, makeList } from "../test/fakeApi";
-import { latestConnection } from "../test/fakeConnection";
+import { subscribedTo } from "../test/fakeConnection";
 import { expectNoAxeViolations, renderApp, signIn } from "../test/render";
 
 describe("ListsPage", () => {
@@ -82,9 +82,9 @@ describe("ListsPage", () => {
     signIn();
     renderApp("/");
     await screen.findByRole("link", { name: "Groceries" });
+    const connection = await subscribedTo(groceries.id, chores.id);
 
     act(() => {
-      const connection = latestConnection();
       connection.emit(
         "ItemCreated",
         groceries.id,

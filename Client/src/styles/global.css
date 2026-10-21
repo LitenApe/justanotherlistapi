@@ -406,16 +406,30 @@ textarea.input {
   background: var(--color-surface);
 }
 
-.skeleton {
-  border-radius: var(--radius-md);
-  background: var(--color-surface-muted);
-  animation: pulse 1.6s ease-in-out infinite;
+/* ─── App-level screens (root.tsx) ─────────────────────────────────────── */
+.app-loading {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  color: var(--color-text-muted);
 }
 
-@keyframes pulse {
-  50% {
-    opacity: 0.55;
-  }
+.app-error {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: var(--space-7) var(--page-gutter);
+}
+
+.app-error-stack {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  font-size: 0.8125rem;
 }
 
 /* ─── Preferences ───────────────────────────────────────────────────────── */
@@ -439,9 +453,5 @@ textarea.input {
 
   .badge {
     border-color: CanvasText;
-  }
-
-  .skeleton {
-    border: 1px solid CanvasText;
   }
 }

@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
-import { Link, Outlet, useLocation } from "react-router";
+import { Link, Outlet, useLocation, useNavigation } from "react-router";
 import { sessionStore, type Session } from "../auth/session";
 import { useSession } from "../auth/useSession";
 import { useConnectionStatus, useRealtimeConnection } from "../realtime/hooks";
 import { themeStore, useTheme } from "../theme/theme";
 import { CopyButton } from "./CopyButton";
 import { Icon } from "./Icon";
-import styles from "./Layout.module.css";
+import styles from "./AppShell.module.css";
 
 const getAccessToken = () => sessionStore.getSession()?.accessToken ?? "";
 
-export function Layout() {
+/** Header, skip link, live-update banner and <main> around every page. */
+export function AppShell() {
   const session = useSession();
+  const navigation = useNavigation();
+  const loading = navigation.state !== "idle";
   const mainRef = useRef<HTMLElement>(null);
   useRealtimeConnection(session ? getAccessToken : null);
   useFocusOnNavigation(mainRef);
@@ -41,8 +44,16 @@ export function Layout() {
           </div>
         </div>
       </header>
+      {/* Shown only for slow loads (see the CSS); aria-busy tells screen readers. */}
+      <div className={styles.loadingBar} data-active={loading || undefined} aria-hidden="true" />
       {session && <ConnectionBanner />}
-      <main id="main" ref={mainRef} tabIndex={-1} className={styles.main}>
+      <main
+        id="main"
+        ref={mainRef}
+        tabIndex={-1}
+        className={styles.main}
+        aria-busy={loading || undefined}
+      >
         <Outlet />
       </main>
     </div>
@@ -61,8 +72,8 @@ function useFocusOnNavigation(mainRef: RefObject<HTMLElement | null>) {
     if (previous.current === pathname) return;
     previous.current = pathname;
     const heading = mainRef.current?.querySelector<HTMLElement>("h1");
-    (heading ?? mainRef.current)?.focus();
-    window.scrollTo(0, 0);
+    // <ScrollRestoration> in root.tsx handles scrolling, including on back/forward.
+    (heading ?? mainRef.current)?.focus({ preventScroll: true });
   }, [pathname, mainRef]);
 }
 

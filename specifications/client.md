@@ -7,6 +7,7 @@
 - [Project Structure](#project-structure)
 - [Running The Client](#running-the-client)
 - [Pages](#pages)
+- [Routing And Data Loading](#routing-and-data-loading)
 - [Authentication](#authentication)
 - [Data Flow](#data-flow)
 - [Real-Time Updates](#real-time-updates)
@@ -32,8 +33,8 @@ The client targets **WCAG 2.2 level AA** and works from 320px wide phones up to 
 | Concern     | Choice                                                             |
 | ----------- | ------------------------------------------------------------------ |
 | UI          | React 19, TypeScript 6 (strict)                                    |
-| Build/dev   | Vite 8 (dev server also proxies the API, hub and OAuth server)     |
-| Routing     | React Router 8 (declarative `BrowserRouter`)                       |
+| Framework   | React Router 8 framework mode, SPA (`ssr: false`), on Vite 8       |
+| Data        | Route `clientLoader`/`clientAction`/`clientMiddleware`, `<Form>`   |
 | Real-time   | `@microsoft/signalr`                                               |
 | Styling     | Plain CSS: global design tokens + CSS Modules per component        |
 | State       | React state and reducers; no state management library              |
@@ -48,32 +49,38 @@ There are no UI component or icon libraries. Interactive widgets use native elem
 
 ```
 Client/
-  index.html                 - HTML shell (lang, viewport, color-scheme)
-  vite.config.ts             - Dev proxy (/api, /hubs → Core; /default → mock OAuth) and Vitest config
+  react-router.config.ts     - Framework config: appDirectory "src", SPA mode (ssr: false)
+  vite.config.ts             - React Router plugin, dev proxy (/api, /hubs → Core; /default → mock OAuth), Vitest config
   eslint.config.js           - Type-aware + accessibility lint rules
   src/
-    main.tsx                 - Entry point; loads global CSS before component CSS
-    App.tsx                  - Routes: /sign-in, / (lists), /lists/:listId, 404
+    root.tsx                 - HTML document (Layout), theme boot script, app shell, HydrateFallback, root ErrorBoundary
+    routes.ts                - Route config (see Routing And Data Loading)
+    NotFoundPage.tsx         - Route module for unknown addresses
     api/
       http.ts                - fetch wrapper: bearer token, X-SignalR-Connection-Id, ApiError, 401 → sign out
       checklists.ts          - One function per API endpoint
+      routeData.ts           - loadRouteData(): maps API errors to redirects and route error responses
       types.ts               - Item, ItemGroup, ItemGroupSettings, request inputs
     auth/
       session.ts             - Session store (sessionStorage, expiry timer, sign-out reason)
       signIn.ts              - Dev sign-in against the mock OAuth server
-      SignInPage.tsx         - Sign-in form
-      RequireAuth.tsx        - Redirects signed-out users to /sign-in
+      SignInPage.tsx         - Route module: sign-in form (clientLoader + clientAction)
+      ProtectedLayout.tsx    - Route module: clientMiddleware that requires a session
+      redirects.ts           - signInPath(), safeRedirect() for ?redirectTo=
     realtime/
       hub.ts                 - Single SignalR connection; per-list subscriptions with ref-counted groups
       hooks.ts               - useRealtimeConnection, useGroupEvents, useConnectionStatus
     components/
-      Layout.tsx             - Skip link, header, theme toggle, account popover, connection banner, focus on navigation
+      AppShell.tsx           - Skip link, header, theme toggle, account popover, connection banner,
+                               loading bar, focus on navigation
       Dialog.tsx             - Native <dialog> wrapper; ConfirmDialog.tsx builds on it
       Toasts.tsx             - Visible notifications + screen reader announcements (live regions)
-      Icon.tsx, CopyButton.tsx, useDocumentTitle.ts
-    lists/ListsPage.tsx      - Overview of all lists, create list, filter lists
+      DocumentTitle.tsx      - Renders <title> (React hoists it into <head>)
+      Icon.tsx, CopyButton.tsx
+    lib/                     - GUID helpers, formText(), useLoaderState()
+    lists/ListsPage.tsx      - Route module: overview of all lists, create list, filter lists
     list/
-      ListPage.tsx           - Single list: items, filter/search, dialogs, focus management
+      ListPage.tsx           - Route module: single list (items, filter/search, dialogs, focus management)
       listReducer.ts         - Pure, idempotent state transitions shared by local and realtime changes,
                                plus filtering, auto-hide and auto-delete time helpers
       ListSettingsDialog.tsx - Auto-hide and auto-delete settings; duration.ts converts minutes ↔ amount + unit
@@ -87,9 +94,9 @@ Client/
 
 ## Running The Client
 
-`dotnet run --project Aspire` starts the client together with SQL Server, the mock OAuth server and Core. Aspire runs `npm install` and `npm run dev`, then serves the client at **http://localhost:5173**. The port is fixed so that browser storage (which is per origin) survives restarts.
+`dotnet run --project Aspire` starts the client together with SQL Server, the mock OAuth server and Core. Aspire runs `npm install` and `npm run dev` (`react-router dev`), then serves the client at **http://localhost:5173**. The port is fixed so that browser storage (which is per origin) survives restarts.
 
-The Vite dev server proxies:
+The dev server proxies:
 
 | Path       | Target                                          |
 | ---------- | ----------------------------------------------- |
@@ -99,13 +106,16 @@ The Vite dev server proxies:
 
 Without Aspire, start Core and the OAuth server yourself and run `npm run dev` in `Client/`. The proxy falls back to `http://localhost:5093` and `http://localhost:8080`.
 
-| Script           | Purpose                                        |
-| ---------------- | ---------------------------------------------- |
-| `npm run dev`    | Dev server with hot reload                     |
-| `npm run build`  | Typecheck, then production build into `dist/`  |
-| `npm run check`  | Typecheck + lint + format check + tests (CI)   |
-| `npm test`       | Run tests once (`npm run test:watch` to watch) |
-| `npm run format` | Format with Prettier                           |
+| Script              | Purpose                                                                  |
+| ------------------- | ------------------------------------------------------------------------ |
+| `npm run dev`       | Dev server with hot reload                                               |
+| `npm run build`     | Typecheck, then a static build into `build/client/` (serve it as an SPA) |
+| `npm run typecheck` | Generate route types (`react-router typegen`), then `tsc`                |
+| `npm run check`     | Typecheck + lint + format check + tests (CI)                             |
+| `npm test`          | Run tests once (`npm run test:watch` to watch)                           |
+| `npm run format`    | Format with Prettier                                                     |
+
+The first visit after dependencies change can fail with "504 Outdated Optimize Dep" while Vite re-bundles them; reload the page.
 
 ---
 
@@ -116,9 +126,44 @@ Without Aspire, start Core and the OAuth server yourself and run `npm run dev` i
 | `/sign-in`       | Sign in    | Enter or generate a user ID. Shows a notice when the previous session expired                                                     |
 | `/`              | Your lists | Cards sorted by name with open item count and a preview. Create a list. Filter appears above 6 lists                              |
 | `/lists/:listId` | List       | Progress, add item, search, All / To do / Done filter, edit/delete items, rename/delete list, [settings](#list-settings), members |
-| `*`              | Not found  | Also shown for `/lists/<not-a-guid>`                                                                                              |
+| `*`              | Not found  | `/lists/<not-a-guid>` shows the list route's own "List not found"                                                                 |
 
 The overview mirrors `GET /api/list`, which only returns incomplete items. The list page loads `GET /api/list/{id}` and shows every item. Destructive actions (deleting a list or item, removing a member, leaving) ask for confirmation in a dialog whose initial focus is **Cancel**.
+
+---
+
+## Routing And Data Loading
+
+The client uses React Router's **framework mode** in **SPA mode** (`ssr: false` in `react-router.config.ts`). The API authenticates with bearer tokens that live in the browser, so there is nothing to render on a server. The build prerenders only the document shell (`root.tsx` `Layout` + `HydrateFallback`) into `build/client/index.html`. Anything imported by route modules must therefore be safe to import in Node: browser globals are only touched inside functions, never at module load.
+
+`src/routes.ts`:
+
+```ts
+route("sign-in", "auth/SignInPage.tsx"),
+layout("auth/ProtectedLayout.tsx", [
+  index("lists/ListsPage.tsx"),
+  route("lists/:listId", "list/ListPage.tsx"),
+]),
+route("*", "NotFoundPage.tsx"),
+```
+
+| Route module          | Exports                                                                                               |
+| --------------------- | ----------------------------------------------------------------------------------------------------- |
+| `root.tsx`            | `Layout` (HTML document), `default` (toasts + app shell), `HydrateFallback`, `ErrorBoundary`          |
+| `ProtectedLayout.tsx` | `clientMiddleware` (redirect to `/sign-in?redirectTo=…` without a session), `default`                 |
+| `SignInPage.tsx`      | `clientLoader` (skip if signed in), `clientAction` (token request), `default`                         |
+| `ListsPage.tsx`       | `clientLoader` (`GET /api/list`), `clientAction` (create list → redirect), `default`, `ErrorBoundary` |
+| `ListPage.tsx`        | `clientLoader` (`GET /api/list/{id}`; 404 for non-GUIDs), `default`, `ErrorBoundary`                  |
+
+- **Auth gating** is middleware, not a loader, because React Router runs a navigation's loaders in parallel. Middleware runs first, so signed-out visitors never call the API. The layout component also redirects if the session ends while a page is open.
+- **`redirectTo`** goes through `safeRedirect()`, which only accepts same-origin paths.
+- **Loaders** call the API through `loadRouteData()`. A 401 redirects to sign-in (the session has already been cleared). Other API errors become error responses with the HTTP status (503 when the server can't be reached), which the route's `ErrorBoundary` shows: 403 "You can't open this list", 404 "List not found", anything else an alert with **Try again** (`useRevalidator()`).
+- **Forms that navigate** use React Router forms and `clientAction`s: sign-in (`<Form>`) and create list (`useFetcher`, so a validation error doesn't change the URL or add a history entry). Validation errors come back as action data and move focus to the field.
+- **Mutations on the list page** (toggle, edit, delete, members, settings) stay as direct API calls with an idempotent reducer. They need optimistic updates, focus management and realtime merging, and they shouldn't trigger a full reload of a list that can hold thousands of items.
+- **Loader data vs. live state:** pages keep an editable copy of loader data for realtime events (`useLoaderState()` on the overview, `listReducer` on the list page). The copy resets whenever the loader returns new data. After a SignalR reconnect, or when a hidden overview tab becomes visible, pages call `revalidate()` instead of fetching by hand.
+- **Pending UI:** while the next page loads, the current page stays visible, `<main>` gets `aria-busy`, and a thin bar appears under the header after 150ms (`AppShell`). The first load shows the root `HydrateFallback` ("Loading JustAnotherList…" in `role="status"`).
+- **Titles** are React 19 `<title>` elements (`DocumentTitle`), so they update with the data, for example when another member renames the list.
+- **Route types** come from `react-router typegen` (`.react-router/types`, git-ignored). Route modules import them as `./+types/<File>`.
 
 ---
 
@@ -154,7 +199,7 @@ For local development the client signs in against the mock OAuth server using th
 
 - Connects with `skipNegotiation` over WebSockets, which keeps the Vite proxy from splitting negotiate and connect across connections.
 - Pages subscribe per list with `useGroupEvents(listIds, handlers)`. The hub calls `JoinGroup` on the first subscription for a list and `LeaveGroup` after the last one.
-- Reconnects automatically with exponential backoff (capped at 30s). After reconnecting it rejoins all groups and calls each subscriber's `resync`, which silently reloads data to catch missed events.
+- Reconnects automatically with exponential backoff (capped at 30s). After reconnecting it rejoins all groups and calls each subscriber's `resync`, which revalidates the route's loader to catch missed events.
 - While reconnecting, a banner (`role="status"`) says that live updates are paused.
 
 | Event                   | Overview page                      | List page                                                               |
@@ -167,7 +212,7 @@ For local development the client signs in against the mock OAuth server using th
 | `MemberAdded`           | —                                  | Add to members                                                          |
 | `MemberRemoved`         | Remove the card if it was you      | Remove; if it was you, return to the overview with a message            |
 
-The overview also refetches when the tab becomes visible again, to pick up lists that were shared with you while you were away.
+The overview also revalidates when the tab becomes visible again, to pick up lists that were shared with you while you were away.
 
 ---
 
@@ -199,10 +244,11 @@ Target: WCAG 2.2 AA. The conventions below are enforced by code review, `eslint-
 
 **Structure**
 
-- Every page has a unique `document.title` (`useDocumentTitle`) and exactly one `<h1>`, with a logical heading hierarchy below it.
+- Every page, including error boundaries, has a unique title (`DocumentTitle`) and exactly one `<h1>`, with a logical heading hierarchy below it.
 - Landmarks: `<header>`, `<main id="main">`, and labelled `<section>` regions for the items and members.
 - A "Skip to main content" link is the first focusable element.
-- On client-side navigation, focus moves to the new page's `<h1>` (`tabIndex={-1}`) and the window scrolls to the top.
+- On client-side navigation, focus moves to the new page's `<h1>` (`tabIndex={-1}`) once its data has loaded. `<ScrollRestoration>` scrolls to the top on new pages and restores the position on back/forward.
+- While a page loads, `<main>` has `aria-busy`; the first load announces "Loading JustAnotherList…".
 
 **Forms**
 
@@ -242,7 +288,7 @@ The client has a dark theme (the default) and a light theme.
 - **Toggle:** a "Dark mode" toggle button in the header (`aria-pressed`, moon or sun icon). It's available on every page, including sign-in.
 - **Persistence:** the choice is saved in localStorage (`jal.theme`) per browser. The operating system's `prefers-color-scheme` is deliberately not used, so new visitors always start in dark mode.
 - **Tokens:** `global.css` defines the colors twice: under `:root, :root[data-theme="dark"]` and under `:root[data-theme="light"]`. Each block also sets `color-scheme`, so native controls and scrollbars match. Components only use the `--color-*` tokens.
-- **No flash:** `index.html` starts with `data-theme="dark"`. A small inline script in `<head>` switches to light before first paint when that is the saved choice. `theme/theme.ts` keeps `<html data-theme>`, `<meta name="color-scheme">` and `<meta name="theme-color">` (mobile browser UI) in sync afterwards. The storage key and colors are duplicated in both places, so change them together.
+- **No flash:** the document from `root.tsx` starts with `data-theme="dark"`. An inline script in `<head>` (`themeBootScript`, built in `theme/theme.ts` from the same storage key and colors) switches to light before first paint when that is the saved choice. `<html>` and the two theme `<meta>` tags use `suppressHydrationWarning`, since the script may change them before React hydrates. `themeStore` keeps `<html data-theme>`, `<meta name="color-scheme">` and `<meta name="theme-color">` (mobile browser UI) in sync afterwards.
 
 ---
 
@@ -266,7 +312,9 @@ Tests live next to the code as `*.test.ts(x)` and run in jsdom.
 
 - **Unit:** `listReducer` (idempotency, ordering, filtering, auto-hide and auto-delete times), `duration`, the session store (persistence, expiry), and the hub (ref-counted groups, routing events, resync after reconnect).
 - **Timers:** tests of time-based behaviour use `vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ["setTimeout", "clearTimeout", "Date"] })`. After loading, `await act(() => Promise.resolve())` lets React run the effect that schedules a timer before the test advances the clock.
-- **Page:** each page renders the whole app at a URL (`renderApp`) against `installFakeApi()`, an in-memory implementation of the REST API installed as `fetch`. Realtime events are injected through `latestConnection().emit(...)`. The real hub logic runs over a fake connection, set up in `test/setup.ts`.
+- **Page:** `renderApp(path)` renders the app at a URL with `createRoutesStub`. The stub routes are built from `routes.ts` and the real route modules, so tests run the actual middleware, loaders, actions and error boundaries. The API is `installFakeApi()`, an in-memory implementation of the REST API installed as `fetch`. Pages appear after their loaders, so use `findBy…` for the first query.
+- **Realtime:** the real hub logic runs over a fake connection (set up in `test/setup.ts`). Call `await subscribedTo(listId)` before emitting events, since pages subscribe in an effect after rendering; it returns the connection to `emit(...)` on.
+- The React Router Vite plugin is left out under Vitest (`process.env.VITEST`), since tests render route modules directly.
 - **Accessibility:** `expectNoAxeViolations()` runs axe-core on every page and dialog state under test. Color contrast is excluded because jsdom does not compute styles; the palette was checked separately.
 - Tests assert on roles, accessible names and descriptions, and focus, the way assistive technology sees the page.
 - jsdom lacks `HTMLDialogElement.showModal()`, so `test/setup.ts` polyfills it.

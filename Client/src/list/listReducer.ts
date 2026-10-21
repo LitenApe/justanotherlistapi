@@ -1,20 +1,15 @@
 import type { Item, ItemGroup, ItemGroupSettings } from "../api/types";
 
-export type ListState =
-  | { status: "loading"; name: string | null }
-  | { status: "error"; name: string | null; message: string; forbidden: boolean }
-  | {
-      status: "ready";
-      name: string;
-      items: Item[];
-      members: string[];
-      settings: ItemGroupSettings;
-    };
+/** A loaded list. Loading and load errors belong to the route (clientLoader, ErrorBoundary). */
+export interface ListState {
+  name: string;
+  items: Item[];
+  members: string[];
+  settings: ItemGroupSettings;
+}
 
 export type ListAction =
-  | { type: "loading" }
   | { type: "loaded"; list: ItemGroup }
-  | { type: "failed"; message: string; forbidden: boolean }
   | { type: "itemUpserted"; item: Item }
   | { type: "itemRemoved"; itemId: string }
   | { type: "renamed"; name: string }
@@ -22,8 +17,8 @@ export type ListAction =
   | { type: "memberAdded"; memberId: string }
   | { type: "memberRemoved"; memberId: string };
 
-export function initialListState(name: string | null): ListState {
-  return { status: "loading", name };
+export function listStateFrom(list: ItemGroup): ListState {
+  return { name: list.name, items: list.items, members: list.members, settings: list.settings };
 }
 
 /**
@@ -32,28 +27,8 @@ export function initialListState(name: string | null): ListState {
  */
 export function listReducer(state: ListState, action: ListAction): ListState {
   switch (action.type) {
-    case "loading":
-      return { status: "loading", name: state.name };
     case "loaded":
-      return {
-        status: "ready",
-        name: action.list.name,
-        items: action.list.items,
-        members: action.list.members,
-        settings: action.list.settings,
-      };
-    case "failed":
-      return {
-        status: "error",
-        name: state.name,
-        message: action.message,
-        forbidden: action.forbidden,
-      };
-  }
-
-  if (state.status !== "ready") return state;
-
-  switch (action.type) {
+      return listStateFrom(action.list);
     case "itemUpserted": {
       const index = state.items.findIndex((item) => item.id === action.item.id);
       // New items go to the top, next to the form that adds them.

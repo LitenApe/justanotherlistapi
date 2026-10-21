@@ -1,62 +1,69 @@
-import { useId, useRef, useState, type SubmitEvent } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router";
+import { useEffect, useId, useRef, useState } from "react";
+import { Form, redirect, useNavigation } from "react-router";
+import { DocumentTitle } from "../components/DocumentTitle";
 import { Icon } from "../components/Icon";
 import { useToast } from "../components/Toasts";
-import { useDocumentTitle } from "../components/useDocumentTitle";
+import { formText } from "../lib/formText";
 import { isGuid, newGuid, normalizeGuid } from "../lib/guid";
+import type { Route } from "./+types/SignInPage";
+import { safeRedirect } from "./redirects";
 import { sessionStore } from "./session";
 import { DEFAULT_USER_ID, requestSession } from "./signIn";
-import { useSession } from "./useSession";
 import styles from "./SignInPage.module.css";
 
 const LAST_USER_KEY = "jal.lastUserId";
 
-export function SignInPage() {
-  useDocumentTitle("Sign in");
-  const session = useSession();
-  const location = useLocation();
-  const navigate = useNavigate();
+const returnPath = (request: Request) =>
+  safeRedirect(new URL(request.url).searchParams.get("redirectTo"));
+
+export function clientLoader({ request }: Route.ClientLoaderArgs) {
+  if (sessionStore.getSession()) throw redirect(returnPath(request));
+  return {
+    expired: sessionStore.getSignOutReason() === "expired",
+    lastUserId: readLastUserId(),
+  };
+}
+
+export async function clientAction({ request }: Route.ClientActionArgs) {
+  const userId = formText(await request.formData(), "userId");
+  if (!isGuid(userId)) {
+    return {
+      fieldError: "Enter a user ID in GUID format, like 00000000-0000-0000-0000-000000000001.",
+    };
+  }
+
+  try {
+    const session = await requestSession(normalizeGuid(userId));
+    rememberUserId(session.userId);
+    sessionStore.setSession(session);
+  } catch (error) {
+    return { formError: error instanceof Error ? error.message : "Sign-in failed." };
+  }
+  return redirect(returnPath(request));
+}
+
+export default function SignInPage({ loaderData, actionData }: Route.ComponentProps) {
+  const navigation = useNavigation();
+  const pending = navigation.formData !== undefined;
   const { announce } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const hintId = useId();
   const errorId = useId();
 
-  const [userId, setUserId] = useState(readLastUserId);
-  const [fieldError, setFieldError] = useState<string | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  const [expired] = useState(() => sessionStore.getSignOutReason() === "expired");
+  const [userId, setUserId] = useState(loaderData.lastUserId);
+  // Generating a new ID clears the error shown for the previous attempt.
+  const [clearedResult, setClearedResult] = useState<typeof actionData>(undefined);
+  const result = actionData === clearedResult ? undefined : actionData;
+  const fieldError = result && "fieldError" in result ? result.fieldError : null;
+  const formError = result && "formError" in result ? result.formError : null;
 
-  const from = (location.state as { from?: string } | null)?.from ?? "/";
-
-  if (session) return <Navigate to={from} replace />;
-
-  async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (pending) return;
-
-    if (!isGuid(userId)) {
-      setFieldError("Enter a user ID in GUID format, like 00000000-0000-0000-0000-000000000001.");
-      inputRef.current?.focus();
-      return;
-    }
-
-    setFieldError(null);
-    setFormError(null);
-    setPending(true);
-    try {
-      const next = await requestSession(normalizeGuid(userId));
-      rememberUserId(next.userId);
-      sessionStore.setSession(next);
-      void navigate(from, { replace: true });
-    } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Sign-in failed.");
-      setPending(false);
-    }
-  }
+  useEffect(() => {
+    if (actionData && "fieldError" in actionData) inputRef.current?.focus();
+  }, [actionData]);
 
   return (
     <div className={styles.page}>
+      <DocumentTitle title="Sign in" />
       <div className={`card ${styles.panel}`}>
         <h1 tabIndex={-1}>Sign in</h1>
         <p className="muted">
@@ -64,7 +71,7 @@ export function SignInPage() {
           or a new one to try sharing lists between people. Each browser tab keeps its own sign-in.
         </p>
 
-        {expired && (
+        {loaderData.expired && (
           <p className="notice" role="status">
             Your session expired. Sign in again to continue.
           </p>
@@ -77,11 +84,12 @@ export function SignInPage() {
           </div>
         )}
 
-        <form
+        <Form
+          method="post"
           className={styles.form}
           noValidate
           onSubmit={(event) => {
-            void handleSubmit(event);
+            if (pending) event.preventDefault();
           }}
         >
           <div className="field">
@@ -119,7 +127,7 @@ export function SignInPage() {
             className={`button button-quiet ${styles.generate}`}
             onClick={() => {
               setUserId(newGuid());
-              setFieldError(null);
+              setClearedResult(actionData);
               announce("Generated a new user ID.");
             }}
           >
@@ -129,7 +137,7 @@ export function SignInPage() {
           <button type="submit" className="button button-primary" aria-disabled={pending}>
             {pending ? "Signing in…" : "Sign in"}
           </button>
-        </form>
+        </Form>
       </div>
     </div>
   );

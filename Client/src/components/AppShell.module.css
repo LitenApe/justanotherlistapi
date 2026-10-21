@@ -132,6 +132,35 @@
   text-align: center;
 }
 
+/* A thin bar under the header while a page loads. It appears only after a
+   short delay, so quick navigations don't flash. */
+.loadingBar {
+  position: sticky;
+  top: 3.75rem;
+  z-index: 9;
+  height: 3px;
+  margin-bottom: -3px;
+  background: var(--color-accent);
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.loadingBar[data-active] {
+  animation: loading 2s ease-out 150ms forwards;
+}
+
+@keyframes loading {
+  from {
+    opacity: 1;
+    transform: scaleX(0.05);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(0.85);
+  }
+}
+
 .main {
   flex: 1;
   width: 100%;

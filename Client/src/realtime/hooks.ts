@@ -2,7 +2,11 @@ import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react"
 import { checklistHub, type ConnectionStatus, type GroupEventHandlers } from "./hub";
 
 export function useConnectionStatus(): ConnectionStatus {
-  return useSyncExternalStore(checklistHub.subscribeStatus, checklistHub.getStatus);
+  return useSyncExternalStore(
+    checklistHub.subscribeStatus,
+    checklistHub.getStatus,
+    () => "disconnected" as const,
+  );
 }
 
 /** Keeps the realtime connection open while a user is signed in. */

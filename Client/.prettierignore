@@ -1,3 +1,4 @@
-dist
+build
+.react-router
 coverage
 package-lock.json

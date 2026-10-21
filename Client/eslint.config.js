@@ -6,7 +6,7 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default defineConfig(
-  { ignores: ["dist", "coverage"] },
+  { ignores: ["build", ".react-router", "coverage"] },
   {
     files: ["**/*.{ts,tsx}"],
     extends: [
@@ -25,6 +25,16 @@ export default defineConfig(
     },
     rules: {
       "@typescript-eslint/restrict-template-expressions": ["error", { allowNumber: true }],
+      // Loaders and actions throw redirect() and data() responses by design.
+      "@typescript-eslint/only-throw-error": [
+        "error",
+        {
+          allow: [
+            { from: "lib", name: "Response" },
+            { from: "package", package: "react-router", name: "DataWithResponseInit" },
+          ],
+        },
+      ],
     },
   },
   {

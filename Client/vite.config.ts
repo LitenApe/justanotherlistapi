@@ -1,6 +1,6 @@
 /// <reference types="vitest/config" />
+import { reactRouter } from "@react-router/dev/vite";
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
 
 // Aspire injects service discovery variables for referenced resources.
 // When running standalone, fall back to the default local ports.
@@ -11,7 +11,8 @@ const coreUrl =
 const oauthUrl = process.env.services__oauth__http__0 ?? "http://localhost:8080";
 
 export default defineConfig({
-  plugins: [react()],
+  // The React Router plugin builds the app; Vitest renders route modules directly instead.
+  plugins: process.env.VITEST ? [] : [reactRouter()],
   server: {
     port: Number(process.env.PORT ?? 5173),
     strictPort: true,

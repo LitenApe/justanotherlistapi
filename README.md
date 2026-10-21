@@ -22,24 +22,25 @@ JustAnotherList is an open-source, minimalist app for organising life into share
 
 ## Tech stack
 
-| Layer             | Technology                                                       |
-| ----------------- | ---------------------------------------------------------------- |
-| Runtime           | .NET 10                                                          |
-| Backend           | ASP.NET Core 10 (Minimal API)                                    |
-| Data access       | Dapper + SQL Server                                              |
-| Authentication    | JWT Bearer — delegated to an external OAuth 2.0 / OIDC provider  |
-| API docs          | Scalar (OpenAPI)                                                 |
-| Observability     | OpenTelemetry (traces + logs, OTLP export)                       |
-| Dev orchestration | .NET Aspire                                                      |
-| Frontend          | React 19 + TypeScript, Vite, React Router, SignalR client        |
-| Frontend quality  | ESLint (typescript-eslint, jsx-a11y), Prettier, Vitest, axe-core |
+| Layer             | Technology                                                        |
+| ----------------- | ----------------------------------------------------------------- |
+| Runtime           | .NET 10                                                           |
+| Backend           | ASP.NET Core 10 (Minimal API)                                     |
+| Data access       | Dapper + SQL Server                                               |
+| Authentication    | JWT Bearer — delegated to an external OAuth 2.0 / OIDC provider   |
+| API docs          | Scalar (OpenAPI)                                                  |
+| Observability     | OpenTelemetry (traces + logs, OTLP export)                        |
+| Dev orchestration | .NET Aspire                                                       |
+| Frontend          | React 19 + TypeScript, React Router framework mode (SPA), SignalR |
+| Frontend quality  | ESLint (typescript-eslint, jsx-a11y), Prettier, Vitest, axe-core  |
 
 ## Project structure
 
 ```
 Aspire/                             - .NET Aspire AppHost — wires all services for local development
   Program.cs                        - Registers SQL Server, mock OAuth container, Core project and Vite client
-Client/                             - React + TypeScript web client (see specifications/client.md)
+Client/                             - React Router (framework mode, SPA) web client — see specifications/client.md
+  src/root.tsx, src/routes.ts       - HTML document + app shell, and the route config
   src/api/                          - fetch wrapper and one function per API endpoint
   src/auth/                         - Session store, dev sign-in against the mock OAuth server
   src/realtime/                     - Single SignalR connection with per-list subscriptions
@@ -119,7 +120,7 @@ Design and architecture documents for planned and implemented features live in t
 
 - .NET SDK 10
 - Docker (or another OCI-compatible runtime)
-- Node.js 24 (for the web client; Aspire runs `npm install` and the Vite dev server)
+- Node.js 24 (for the web client; Aspire runs `npm install` and the React Router dev server)
 
 Docker is required because Aspire spins up SQL Server and the OAuth mock server as persistent containers at startup.
 

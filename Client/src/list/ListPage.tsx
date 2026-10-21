@@ -8,15 +8,22 @@ import {
   useState,
   type SubmitEvent,
 } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { data, isRouteErrorResponse, Link, useNavigate, useRevalidator } from "react-router";
 import { checklistApi, toItemInput } from "../api/checklists";
-import { ApiError, errorMessage, isAbortError } from "../api/http";
-import type { Item, ItemGroupSettings, ItemGroupSettingsInput, ItemInput } from "../api/types";
+import { ApiError, errorMessage } from "../api/http";
+import { loadRouteData, routeErrorMessage } from "../api/routeData";
+import type {
+  Item,
+  ItemGroup,
+  ItemGroupSettings,
+  ItemGroupSettingsInput,
+  ItemInput,
+} from "../api/types";
 import { useSession } from "../auth/useSession";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icon";
 import { useToast } from "../components/Toasts";
-import { useDocumentTitle } from "../components/useDocumentTitle";
+import { DocumentTitle } from "../components/DocumentTitle";
 import { isGuid } from "../lib/guid";
 import { useGroupEvents } from "../realtime/hooks";
 import { EditItemDialog } from "./EditItemDialog";
@@ -25,15 +32,15 @@ import { ItemRow, checkboxId } from "./ItemRow";
 import {
   autoDeleteTime,
   filterItems,
-  initialListState,
   isAutoHidden,
   listReducer,
+  listStateFrom,
   nextHideTime,
   type ItemFilter,
-  type ListState,
 } from "./listReducer";
 import { ListSettingsDialog } from "./ListSettingsDialog";
 import { MembersPanel } from "./MembersPanel";
+import type { Route } from "./+types/ListPage";
 import { RenameListDialog } from "./RenameListDialog";
 import styles from "./ListPage.module.css";
 
@@ -53,8 +60,6 @@ const FILTERS: { value: ItemFilter; label: string }[] = [
   { value: "done", label: "Done" },
 ];
 
-const NO_ITEMS: Item[] = [];
-
 /** Timers longer than about 24.8 days fire at once, so long waits re-check daily. */
 const MAX_TIMER_DELAY = 24 * 60 * 60 * 1000;
 
@@ -63,20 +68,91 @@ const dateTimeFormat = new Intl.DateTimeFormat(undefined, {
   timeStyle: "short",
 });
 
-/** Remounts the page per list so state never leaks between lists. */
-export function ListRoute() {
-  const { listId = "" } = useParams();
-  return isGuid(listId) ? <ListPage key={listId} listId={listId} /> : <ListNotFound />;
+export async function clientLoader({ params, request }: Route.ClientLoaderArgs) {
+  if (!isGuid(params.listId)) throw data({ message: "That address doesn't point to a list." }, 404);
+  const list = await loadRouteData(request, (signal) =>
+    checklistApi.getList(params.listId, signal),
+  );
+  return { list };
 }
 
-function ListPage({ listId }: { listId: string }) {
-  const location = useLocation();
+export default function ListRoute({ loaderData }: Route.ComponentProps) {
+  // Keyed so local state (filters, dialogs, focus plans) never leaks between lists.
+  return <ListPage key={loaderData.list.id} list={loaderData.list} />;
+}
+
+export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
+  const revalidator = useRevalidator();
+  const retrying = revalidator.state === "loading";
+  const status = isRouteErrorResponse(error) ? error.status : null;
+
+  if (status === 404) {
+    return (
+      <div className={styles.page}>
+        <DocumentTitle title="List not found" />
+        <h1 tabIndex={-1}>List not found</h1>
+        <p className="muted">That address doesn't point to a list.</p>
+        <Link to="/">Go to your lists</Link>
+      </div>
+    );
+  }
+
+  if (status === 403) {
+    return (
+      <div className={styles.page}>
+        <DocumentTitle title="No access" />
+        <h1 tabIndex={-1}>You can't open this list</h1>
+        <p className="muted">
+          It doesn't exist, or you aren't a member. Ask a member to add you using your user ID.
+        </p>
+        <Link to="/">Go to your lists</Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.page}>
+      <DocumentTitle title="List" />
+      <Link to="/" className={styles.back}>
+        <Icon name="arrowLeft" size={18} />
+        All lists
+      </Link>
+      <h1 tabIndex={-1}>Couldn't load this list</h1>
+      <div className="alert" role="alert">
+        <Icon name="alert" />
+        <div className={styles.errorBody}>
+          <p>{routeErrorMessage(error)}</p>
+          <button
+            type="button"
+            className="button button-small"
+            aria-disabled={retrying}
+            onClick={() => {
+              if (!retrying) void revalidator.revalidate();
+            }}
+          >
+            {retrying ? "Trying again…" : "Try again"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ListPage({ list }: { list: ItemGroup }) {
+  const listId = list.id;
   const navigate = useNavigate();
+  const { revalidate } = useRevalidator();
   const userId = useSession()?.userId ?? "";
   const { notify, announce } = useToast();
 
-  const initialName = (location.state as { name?: string } | null)?.name ?? null;
-  const [state, dispatch] = useReducer(listReducer, initialName, initialListState);
+  const [state, dispatch] = useReducer(listReducer, list, listStateFrom);
+  // Fresh loader data (after a revalidation) replaces local state. Adjusting state
+  // while rendering avoids a render with stale data.
+  const [loadedList, setLoadedList] = useState(list);
+  if (list !== loadedList) {
+    setLoadedList(list);
+    dispatch({ type: "loaded", list });
+  }
   const [filter, setFilter] = useState<ItemFilter>("all");
   const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -85,11 +161,8 @@ function ListPage({ listId }: { listId: string }) {
   // Only moves forward when a done item reaches its auto-hide time (see below).
   const [now, setNow] = useState(() => Date.now());
 
-  useDocumentTitle(state.name ?? "List");
-
-  const items = state.status === "ready" ? state.items : NO_ITEMS;
-  const settings = state.status === "ready" ? state.settings : null;
-  const hideAfter = settings?.hideCompletedAfterMinutes ?? null;
+  const { items, settings } = state;
+  const hideAfter = settings.hideCompletedAfterMinutes;
   const isHidden = useCallback(
     (item: Item) => isAutoHidden(item, hideAfter, now),
     [hideAfter, now],
@@ -100,43 +173,9 @@ function ListPage({ listId }: { listId: string }) {
   );
   const doneCount = useMemo(() => items.filter((item) => item.isComplete).length, [items]);
   const hiddenCount = useMemo(() => items.filter(isHidden).length, [items, isHidden]);
-  const deleteAt = useMemo(
-    () => (settings ? autoDeleteTime(items, settings) : null),
-    [items, settings],
-  );
+  const deleteAt = useMemo(() => autoDeleteTime(items, settings), [items, settings]);
   const editingItem = items.find((item) => item.id === editingId) ?? null;
-  const listName = state.name ?? "this list";
-
-  // ─── Data loading ──────────────────────────────────────────────────────────
-
-  const load = useCallback(
-    async ({ signal, silent = false }: { signal?: AbortSignal; silent?: boolean } = {}) => {
-      try {
-        dispatch({ type: "loaded", list: await checklistApi.getList(listId, signal) });
-      } catch (error) {
-        if (isAbortError(error) || silent) return;
-        dispatch({
-          type: "failed",
-          message: errorMessage(error),
-          forbidden: error instanceof ApiError && error.status === 403,
-        });
-      }
-    },
-    [listId],
-  );
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void load({ signal: controller.signal });
-    return () => {
-      controller.abort();
-    };
-  }, [load]);
-
-  const retry = () => {
-    dispatch({ type: "loading" });
-    void load();
-  };
+  const listName = state.name;
 
   // ─── Focus management ──────────────────────────────────────────────────────
   // When the focused item disappears (deleted, filtered out after a change, or
@@ -410,196 +449,188 @@ function ListPage({ listId }: { listId: string }) {
       if (memberId === userId) leaveRemovedList(`You were removed from “${listName}”.`);
       else dispatch({ type: "memberRemoved", memberId });
     },
-    resync: () => void load({ silent: true }),
+    resync: () => void revalidate(),
   });
 
   // ─── View ──────────────────────────────────────────────────────────────────
 
   return (
     <div className={styles.page}>
+      <DocumentTitle title={state.name} />
       <Link to="/" className={styles.back}>
         <Icon name="arrowLeft" size={18} />
         All lists
       </Link>
 
       <div className={styles.header}>
-        <h1 tabIndex={-1}>{state.name ?? "Loading list…"}</h1>
-        {state.status === "ready" && (
-          <div className={styles.headerActions}>
-            <button
-              type="button"
-              className="button button-small"
-              onClick={() => {
-                setDialog({ type: "rename" });
-              }}
-            >
-              <Icon name="pencil" size={16} />
-              Rename
-            </button>
-            <button
-              type="button"
-              className="button button-small"
-              onClick={() => {
-                setDialog({ type: "settings" });
-              }}
-            >
-              <Icon name="sliders" size={16} />
-              Settings
-            </button>
-            <a
-              href="#members-heading"
-              className={`button button-small ${styles.narrowOnly}`}
-              onClick={(event) => {
-                event.preventDefault();
-                const heading = document.getElementById("members-heading");
-                heading?.scrollIntoView();
-                heading?.focus();
-              }}
-            >
-              <Icon name="users" size={16} />
-              Members ({state.members.length})
-            </a>
-            <button
-              type="button"
-              className="button button-small button-quiet button-danger-text"
-              onClick={() => {
-                setDialog({ type: "deleteList" });
-              }}
-            >
-              <Icon name="trash" size={16} />
-              Delete list
-            </button>
-          </div>
-        )}
+        <h1 tabIndex={-1}>{state.name}</h1>
+        <div className={styles.headerActions}>
+          <button
+            type="button"
+            className="button button-small"
+            onClick={() => {
+              setDialog({ type: "rename" });
+            }}
+          >
+            <Icon name="pencil" size={16} />
+            Rename
+          </button>
+          <button
+            type="button"
+            className="button button-small"
+            onClick={() => {
+              setDialog({ type: "settings" });
+            }}
+          >
+            <Icon name="sliders" size={16} />
+            Settings
+          </button>
+          <a
+            href="#members-heading"
+            className={`button button-small ${styles.narrowOnly}`}
+            onClick={(event) => {
+              event.preventDefault();
+              const heading = document.getElementById("members-heading");
+              heading?.scrollIntoView();
+              heading?.focus();
+            }}
+          >
+            <Icon name="users" size={16} />
+            Members ({state.members.length})
+          </a>
+          <button
+            type="button"
+            className="button button-small button-quiet button-danger-text"
+            onClick={() => {
+              setDialog({ type: "deleteList" });
+            }}
+          >
+            <Icon name="trash" size={16} />
+            Delete list
+          </button>
+        </div>
       </div>
 
-      {state.status === "ready" && (
-        <SettingsSummary settings={state.settings} deleteAt={deleteAt} />
-      )}
+      <SettingsSummary settings={state.settings} deleteAt={deleteAt} />
 
-      {state.status === "loading" && <ListSkeleton />}
-      {state.status === "error" && <ListError state={state} onRetry={retry} />}
+      <div className={styles.layout}>
+        <section aria-labelledby="items-heading" className={styles.itemsSection}>
+          <div className={styles.itemsHeader}>
+            <h2 id="items-heading" ref={itemsHeadingRef} tabIndex={-1}>
+              Items
+            </h2>
+            <Progress done={doneCount} total={items.length} />
+          </div>
 
-      {state.status === "ready" && (
-        <div className={styles.layout}>
-          <section aria-labelledby="items-heading" className={styles.itemsSection}>
-            <div className={styles.itemsHeader}>
-              <h2 id="items-heading" ref={itemsHeadingRef} tabIndex={-1}>
-                Items
-              </h2>
-              <Progress done={doneCount} total={items.length} />
-            </div>
+          <AddItemForm onAdd={addItem} />
 
-            <AddItemForm onAdd={addItem} />
-
-            {items.length > 0 && (
-              <div className={styles.toolbar}>
-                <div className={styles.search}>
-                  <label className="label" htmlFor="item-search">
-                    Search
-                  </label>
-                  <input
-                    id="item-search"
-                    type="search"
-                    className="input"
-                    value={query}
-                    onChange={(event) => {
-                      setQuery(event.target.value);
-                    }}
-                    autoComplete="off"
-                  />
-                </div>
-                <fieldset className={styles.filter}>
-                  <legend className="label">Show</legend>
-                  <div className={styles.segments}>
-                    {FILTERS.map(({ value, label }) => (
-                      <label key={value} className={styles.segment}>
-                        <input
-                          type="radio"
-                          name="item-filter"
-                          className="visually-hidden"
-                          value={value}
-                          checked={filter === value}
-                          onChange={() => {
-                            setFilter(value);
-                          }}
-                        />
-                        {filter === value && <Icon name="check" size={14} />}
-                        {label}
-                        <span className={styles.segmentCount}>
-                          {value === "all"
-                            ? items.length - hiddenCount
-                            : value === "done"
-                              ? doneCount
-                              : items.length - doneCount}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-              </div>
-            )}
-
-            <p role="status" className={`hint ${styles.resultCount}`}>
-              {items.length > 0 && (filter !== "all" || query.trim() || hiddenCount > 0)
-                ? `Showing ${visibleItems.length} of ${items.length} items`
-                : ""}
-            </p>
-
-            {hiddenCount > 0 && filter === "all" && (
-              <p className={`hint ${styles.hiddenNote}`}>
-                {hiddenCount === 1
-                  ? "1 done item is hidden."
-                  : `${hiddenCount} done items are hidden.`}
-                <button
-                  type="button"
-                  className="button button-small button-quiet"
-                  onClick={() => {
-                    // This button disappears with the filter change, so move focus to the filter.
-                    document
-                      .querySelector<HTMLInputElement>('input[name="item-filter"][value="done"]')
-                      ?.focus();
-                    setFilter("done");
+          {items.length > 0 && (
+            <div className={styles.toolbar}>
+              <div className={styles.search}>
+                <label className="label" htmlFor="item-search">
+                  Search
+                </label>
+                <input
+                  id="item-search"
+                  type="search"
+                  className="input"
+                  value={query}
+                  onChange={(event) => {
+                    setQuery(event.target.value);
                   }}
-                >
-                  Show done items
-                </button>
-              </p>
-            )}
-
-            {visibleItems.length > 0 ? (
-              <ul className={styles.items} aria-labelledby="items-heading">
-                {visibleItems.map((item) => (
-                  <ItemRow key={item.id} item={item} onToggle={toggle} onEdit={openEditor} />
-                ))}
-              </ul>
-            ) : (
-              <div className={styles.emptyItems}>
-                {items.length === 0 ? (
-                  <p>This list is empty. Add your first item above.</p>
-                ) : (
-                  <p>
-                    {query.trim()
-                      ? `No items match “${query.trim()}”.`
-                      : filter === "done"
-                        ? "Nothing is done yet."
-                        : "Everything is done. Nice work!"}
-                  </p>
-                )}
+                  autoComplete="off"
+                />
               </div>
-            )}
-          </section>
+              <fieldset className={styles.filter}>
+                <legend className="label">Show</legend>
+                <div className={styles.segments}>
+                  {FILTERS.map(({ value, label }) => (
+                    <label key={value} className={styles.segment}>
+                      <input
+                        type="radio"
+                        name="item-filter"
+                        className="visually-hidden"
+                        value={value}
+                        checked={filter === value}
+                        onChange={() => {
+                          setFilter(value);
+                        }}
+                      />
+                      {filter === value && <Icon name="check" size={14} />}
+                      {label}
+                      <span className={styles.segmentCount}>
+                        {value === "all"
+                          ? items.length - hiddenCount
+                          : value === "done"
+                            ? doneCount
+                            : items.length - doneCount}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            </div>
+          )}
 
-          <MembersPanel
-            members={state.members}
-            currentUserId={userId}
-            onAdd={addMember}
-            onRemove={(memberId) => {
-              setDialog({ type: "removeMember", memberId });
-            }}
-          />
-        </div>
-      )}
+          <p role="status" className={`hint ${styles.resultCount}`}>
+            {items.length > 0 && (filter !== "all" || query.trim() || hiddenCount > 0)
+              ? `Showing ${visibleItems.length} of ${items.length} items`
+              : ""}
+          </p>
+
+          {hiddenCount > 0 && filter === "all" && (
+            <p className={`hint ${styles.hiddenNote}`}>
+              {hiddenCount === 1
+                ? "1 done item is hidden."
+                : `${hiddenCount} done items are hidden.`}
+              <button
+                type="button"
+                className="button button-small button-quiet"
+                onClick={() => {
+                  // This button disappears with the filter change, so move focus to the filter.
+                  document
+                    .querySelector<HTMLInputElement>('input[name="item-filter"][value="done"]')
+                    ?.focus();
+                  setFilter("done");
+                }}
+              >
+                Show done items
+              </button>
+            </p>
+          )}
+
+          {visibleItems.length > 0 ? (
+            <ul className={styles.items} aria-labelledby="items-heading">
+              {visibleItems.map((item) => (
+                <ItemRow key={item.id} item={item} onToggle={toggle} onEdit={openEditor} />
+              ))}
+            </ul>
+          ) : (
+            <div className={styles.emptyItems}>
+              {items.length === 0 ? (
+                <p>This list is empty. Add your first item above.</p>
+              ) : (
+                <p>
+                  {query.trim()
+                    ? `No items match “${query.trim()}”.`
+                    : filter === "done"
+                      ? "Nothing is done yet."
+                      : "Everything is done. Nice work!"}
+                </p>
+              )}
+            </div>
+          )}
+        </section>
+
+        <MembersPanel
+          members={state.members}
+          currentUserId={userId}
+          onAdd={addMember}
+          onRemove={(memberId) => {
+            setDialog({ type: "removeMember", memberId });
+          }}
+        />
+      </div>
 
       <EditItemDialog
         item={editingItem}
@@ -615,23 +646,21 @@ function ListPage({ listId }: { listId: string }) {
 
       <RenameListDialog
         open={dialog?.type === "rename"}
-        currentName={state.name ?? ""}
+        currentName={state.name}
         onRename={renameList}
         onClose={() => {
           setDialog(null);
         }}
       />
 
-      {state.status === "ready" && (
-        <ListSettingsDialog
-          open={dialog?.type === "settings"}
-          settings={state.settings}
-          onSave={saveSettings}
-          onClose={() => {
-            setDialog(null);
-          }}
-        />
-      )}
+      <ListSettingsDialog
+        open={dialog?.type === "settings"}
+        settings={state.settings}
+        onSave={saveSettings}
+        onClose={() => {
+          setDialog(null);
+        }}
+      />
 
       <ConfirmDialog
         open={dialog?.type === "deleteList"}
@@ -795,60 +824,5 @@ function AddItemForm({ onAdd }: { onAdd: (name: string) => Promise<string | null
         </p>
       )}
     </form>
-  );
-}
-
-function ListError({
-  state,
-  onRetry,
-}: {
-  state: Extract<ListState, { status: "error" }>;
-  onRetry: () => void;
-}) {
-  if (state.forbidden) {
-    return (
-      <div className={`card ${styles.message}`}>
-        <h2>You can't open this list</h2>
-        <p className="muted">
-          It doesn't exist, or you aren't a member. Ask a member to add you using your user ID.
-        </p>
-        <Link to="/">Go to your lists</Link>
-      </div>
-    );
-  }
-  return (
-    <div className="alert" role="alert">
-      <Icon name="alert" />
-      <div className={styles.errorBody}>
-        <p>Couldn't load this list. {state.message}</p>
-        <button type="button" className="button button-small" onClick={onRetry}>
-          Try again
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function ListSkeleton() {
-  return (
-    <>
-      <p className="visually-hidden">Loading list…</p>
-      <div className={styles.skeleton} aria-hidden="true">
-        {Array.from({ length: 6 }, (_, index) => (
-          <div key={index} className={`skeleton ${styles.skeletonRow}`} />
-        ))}
-      </div>
-    </>
-  );
-}
-
-function ListNotFound() {
-  useDocumentTitle("List not found");
-  return (
-    <div className={styles.page}>
-      <h1 tabIndex={-1}>List not found</h1>
-      <p className="muted">That address doesn't point to a list.</p>
-      <Link to="/">Go to your lists</Link>
-    </div>
   );
 }

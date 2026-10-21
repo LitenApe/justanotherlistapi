@@ -130,10 +130,6 @@
   justify-items: start;
 }
 
-.skeletonCard {
-  height: 8.5rem;
-}
-
 @media (forced-colors: active) {
   .listCard:has(.cardLink:focus-visible) {
     outline-color: Highlight;

@@ -25,7 +25,7 @@ describe("theme", () => {
 
   it("toggles between dark and light from the header and remembers the choice", async () => {
     const { user } = renderApp("/sign-in");
-    const toggle = screen.getByRole("button", { name: "Dark mode", pressed: true });
+    const toggle = await screen.findByRole("button", { name: "Dark mode", pressed: true });
 
     await user.click(toggle);
 
@@ -39,11 +39,11 @@ describe("theme", () => {
     expect(document.documentElement.dataset.theme).toBe("dark");
   });
 
-  it("is available alongside the account menu when signed in", () => {
+  it("is available alongside the account menu when signed in", async () => {
     signIn();
     renderApp("/lists/not-a-guid");
 
-    expect(screen.getByRole("button", { name: "Dark mode" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Dark mode" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument();
   });
 });
