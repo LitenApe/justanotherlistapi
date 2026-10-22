@@ -308,12 +308,13 @@ Tests use xUnit against a real SQL Server started by [Testcontainers](https://do
 dotnet test
 ```
 
-Client tests come in three kinds: **unit** tests of pure logic (Vitest in Node), **browser** tests of components in real Chromium (Vitest browser mode), and **integration** tests of the production build in Playwright, with only the network (REST, OAuth and the SignalR WebSocket) faked. Pages, dialogs and both themes are checked with axe-core, colour contrast included. See [specifications/client.md](specifications/client.md#testing).
+Client tests come in four kinds: **unit** tests of pure logic (Vitest in Node), **browser** tests of components in real Chromium (Vitest browser mode), **integration** tests of the production build in Playwright with only the network (REST, OAuth and the SignalR WebSocket) faked, and **end-to-end** tests of the whole application with nothing faked. The end-to-end setup starts SQL Server and the mock OAuth server in Docker, runs the real Core and serves the client build, and the tests check collaboration between real users through the backend and SignalR. Pages, dialogs and both themes are checked with axe-core, colour contrast included. See [specifications/client.md](specifications/client.md#testing).
 
 ```bash
 cd Client
 npx playwright install chromium   # once
-npm run check   # typecheck + lint + format check + all tests
+npm run check      # typecheck + lint + format check + unit, browser and integration tests
+npm run test:e2e   # end-to-end: real Core, SQL Server and OAuth server (needs Docker)
 ```
 
 ### How tests work

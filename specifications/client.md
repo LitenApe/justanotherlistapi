@@ -54,6 +54,8 @@ Client/
   vitest.config.ts           - Unit (Node) and browser (Chromium) test projects
   playwright.config.ts       - Integration tests against the production build
   integration/               - Integration specs; support/ has the fake backend, fixtures and static server
+  playwright.e2e.config.ts   - End-to-end tests against the whole application
+  e2e/                       - End-to-end specs; support/ starts the stack and has the user fixtures
   eslint.config.js           - Type-aware + accessibility lint rules
   src/
     root.tsx                 - HTML document (Layout), theme boot script, app shell, HydrateFallback, root ErrorBoundary
@@ -311,19 +313,21 @@ Mobile first, with a 16px page gutter growing to 24px from `40rem`.
 
 ## Testing
 
-Tests come in three kinds. Each kind has its own tool, file naming and rule about what may be faked. The fewer fakes, the closer the test is to what users get.
+Tests come in four kinds. Each kind has its own tool, file naming and rule about what may be faked. The fewer fakes, the closer the test is to what users get.
 
 | Kind        | Runs in                                         | Files                         | May fake                                      |
 | ----------- | ----------------------------------------------- | ----------------------------- | --------------------------------------------- |
 | Unit        | Vitest, Node (no DOM)                           | `src/**/*.unit.test.ts`       | Nothing                                       |
 | Browser     | Vitest browser mode, real Chromium (Playwright) | `src/**/*.browser.test.ts(x)` | Callbacks passed as props, timers when needed |
 | Integration | Playwright Test against the production build    | `integration/*.spec.ts`       | The network (REST, OAuth, SignalR) and timers |
+| End-to-end  | Playwright Test against the whole application   | `e2e/*.spec.ts`               | Nothing                                       |
 
 ```bash
 npm run test:unit         # Vitest "unit" project
 npm run test:browser      # Vitest "browser" project
 npm run test:integration  # builds the SPA, serves it, runs Playwright
 npm test                  # all three
+npm run test:e2e          # needs Docker and the .NET SDK; not part of npm test
 ```
 
 The browser and integration tests need Playwright's Chromium, installed once with `npx playwright install chromium`. Nothing uses `vi.mock`, jsdom or polyfills.
@@ -371,6 +375,28 @@ Fixtures (`integration/support/test.ts`):
 Time-based behaviour uses the real clock where waits are short: an item due to hide in a few seconds, or a 3-second token lifetime. `page.clock` is available when that isn't practical.
 
 Projects: `desktop` runs everything except `@mobile` tests; `mobile` (Pixel 7) runs only tests tagged `@mobile`. The accessibility spec covers both themes, keyboard use, 320px reflow and tap target sizes.
+
+### End-to-end tests
+
+The whole application runs locally and nothing is faked. `e2e/support/globalSetup.ts` calls `startStack()` (`e2e/support/stack.ts`) once per run:
+
+1. **Containers:** SQL Server and the mock OAuth server, using the images from `Aspire/Program.cs`, started with Testcontainers on random ports and removed afterwards. The database is created the way Aspire would.
+2. **Backend:** Core is built into a temporary folder (so a running dev instance doesn't matter) and started in Production mode on a free port, with the connection string and `OAuth__Authority` Aspire would pass.
+3. **Client:** the production build is served with `vite preview` on port 4174, using the same proxy as the dev server, with the `services__…` variables pointed at the test containers and Core. The browser reaches Core and OAuth only through it, as in local development.
+4. Setup waits until `/api/list` answers 401, first from Core and then through the client's proxy, so the pieces are connected before tests start. The containers and builds start in parallel; the whole stack is ready in about 15 seconds.
+
+Container, Core and client output goes to `test-results/e2e-logs/`.
+
+Fixtures (`e2e/support/test.ts`):
+
+- `newUser()` opens a browser context of its own (its own session) and signs in a fresh random user through the real sign-in page and OAuth server. Every test uses new users, so tests never see each other's lists although they share one database, and they run in parallel.
+- `User` has helpers that act through the UI: `createList`, `openList`, `addItem`, `toggle` (waits for the server to save, since the page updates first), `saveSettings`, `addMember`.
+- `receivingLiveUpdates(listId)` waits until the server has accepted the page's `JoinGroup`. With no fake backend to ask, it reads the page's real SignalR WebSocket frames, read-only.
+- Uncaught page errors fail the test.
+
+The specs cover sign-in and token validation, list and item changes surviving reloads (stored in SQL Server), sharing, live sync between members, caller exclusion (your own changes aren't reported back to you), removing, leaving and deleting, privacy (403 for non-members), and settings shared between members.
+
+`autoDelete.spec.ts` checks the server's cleanup service end to end. Auto-delete waits at least a day, so `runSql()` (`e2e/support/database.ts`, using `docker exec` and `sqlcmd`) moves the completion back to a day minus 30 seconds. The list is due shortly after both pages reload and subscribe, and the service (which runs every minute) deletes it within about 90 seconds. Use `runSql()` only to arrange what the UI can't.
 
 ---
 

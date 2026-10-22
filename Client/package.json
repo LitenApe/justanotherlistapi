@@ -15,7 +15,8 @@
     "test:browser": "vitest run --project browser",
     "test:integration": "playwright test",
     "test:watch": "vitest",
-    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test"
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test",
+    "test:e2e": "playwright test --config playwright.e2e.config.ts"
   },
   "dependencies": {
     "@microsoft/signalr": "^10.0.11",
@@ -29,6 +30,7 @@
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.64.1",
     "@react-router/dev": "^8.5.0",
+    "@testcontainers/mssqlserver": "^12.2.1",
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
@@ -40,6 +42,7 @@
     "globals": "^17.13.0",
     "playwright": "^1.64.1",
     "prettier": "^3.9.10",
+    "testcontainers": "^12.2.1",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.71.2",
     "vite": "^8.3.4",

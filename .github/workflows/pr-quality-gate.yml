@@ -105,3 +105,47 @@ jobs:
           name: playwright-test-results
           path: Client/test-results
           retention-days: 7
+
+  e2e:
+    name: End-to-end tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: Client
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.x"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: Client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      # Starts SQL Server and the mock OAuth server in Docker, builds and runs Core,
+      # and serves the production client build; see Client/e2e/support/stack.ts.
+      - name: Run end-to-end tests
+        run: npm run test:e2e
+
+      - name: Upload traces and server logs
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: e2e-test-results
+          path: Client/test-results
+          retention-days: 7

@@ -20,6 +20,8 @@
     "vitest.config.ts",
     "react-router.config.ts",
     "playwright.config.ts",
-    "integration/**/*.ts"
+    "playwright.e2e.config.ts",
+    "integration/**/*.ts",
+    "e2e/**/*.ts"
   ]
 }

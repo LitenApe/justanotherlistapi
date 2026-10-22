@@ -39,7 +39,7 @@ export default defineConfig(
   },
   {
     // Playwright fixtures call their callback `use`, which isn't React's use().
-    files: ["integration/**"],
+    files: ["integration/**", "e2e/**"],
     rules: { "react-hooks/rules-of-hooks": "off" },
   },
   {
