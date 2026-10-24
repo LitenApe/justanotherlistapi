@@ -78,8 +78,7 @@ Core/                               - ASP.NET Core backend
   Utility/
     BearerSecuritySchemeTransformer.cs  - Adds Bearer + OAuth2 security schemes to OpenAPI doc
 Core.Tests/                         - xUnit tests (SQL Server via Testcontainers, requires Docker)
-  ApiFactory.cs                     - WebApplicationFactory<Program> with test DB + TestAuthHandler + CapturingNotifier
-  SignalRApiFactory.cs              - WebApplicationFactory that keeps real ChecklistNotifier + hub for e2e tests
+  ApiFactory.cs                     - WebApplicationFactory<Program> on a test DB + TestAuthHandler (user picked per request)
   TestDatabase.cs                   - Starts shared SQL Server container; isolated DB per test
   TestHelpers.cs                    - CreatePrincipal(Guid): builds a ClaimsPrincipal for unit tests
   AuditLog/
@@ -329,21 +328,23 @@ npm run test:e2e   # end-to-end: real Core, SQL Server and OAuth server (needs D
 
 **HTTP integration tests** boot the full ASP.NET Core app via `WebApplicationFactory` and make real HTTP requests, covering route registration and middleware.
 
-- `ApiFactory` replaces the SQL Server connection with a `TestDatabase` connection, swaps JWT Bearer authentication for a `TestAuthHandler` that always authenticates as a fixed user ID, and replaces `IChecklistNotifier` with `CapturingNotifier` for notification assertions.
-- `SignalRApiFactory` is similar but keeps the **real** `ChecklistNotifier` and SignalR hub, allowing end-to-end tests that connect a `HubConnection` client and verify notifications are broadcast through the actual pipeline.
+- `ApiFactory` points the app's own scoped `SqlConnection` at an isolated `TestDatabase` database, so requests open connections exactly as in production; `factory.Connection` is a separate open connection for arranging data and checking results.
+- It swaps JWT Bearer authentication for a `TestAuthHandler` that signs requests in as a fixed user ID by default. `factory.CreateClientFor(userId)` acts as another user and `factory.CreateAnonymousClient()` as no one.
+- It keeps the **real** `ChecklistNotifier` and SignalR hub, so tests can connect with `factory.CreateHubConnection()` and verify notifications are broadcast through the actual pipeline.
 - The app runs in the `"Testing"` environment, which skips HTTPS redirection and database initialisation.
 
 ### Test coverage by file
 
 | Test file                           | What it covers                                                                            |
 | ----------------------------------- | ----------------------------------------------------------------------------------------- |
+| `ApiFactory.Tests.cs`               | The app gets its own scoped, closed connection to the test database                       |
 | `ClaimsPrincipalExtension.Tests.cs` | `GetUserId()` — all claim types, invalid GUIDs, empty values                              |
 | `CreateItemGroup.Tests.cs`          | Happy path, DB persistence, auto-member insert, validation, auth                          |
 | `CreateItemGroup.Http.Tests.cs`     | `POST /api/list` route registration                                                       |
 | `GetItemGroups.Tests.cs`            | Multi-group listing, only-incomplete items, empty result, auth                            |
-| `GetItemGroups.Http.Tests.cs`       | `GET /api/list` route registration                                                        |
+| `GetItemGroups.Http.Tests.cs`       | `GET /api/list` route registration, 401 when not signed in                                |
 | `GetItemGroup.Tests.cs`             | Full group with all items + members, membership gate, auth                                |
-| `GetItemGroup.Http.Tests.cs`        | `GET /api/list/{id}` route registration                                                   |
+| `GetItemGroup.Http.Tests.cs`        | `GET /api/list/{id}` route registration, 403 for non-members                              |
 | `UpdateItemGroup.Tests.cs`          | Name update, validation, membership gate, auth, notification assertion                    |
 | `UpdateItemGroup.Http.Tests.cs`     | `PUT /api/list/{id}` route registration                                                   |
 | `DeleteItemGroup.Tests.cs`          | Deletion, cascade behaviour, membership gate, auth, notification assertion                |

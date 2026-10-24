@@ -42,14 +42,29 @@ internal static class TestDatabase
 
     public static async Task<SqlConnection> CreateAsync()
     {
-        SqlConnection connection = await CreateEmptyAsync();
+        return await OpenAsync(await CreateConnectionStringAsync());
+    }
+
+    /// <summary>
+    /// Creates an isolated database with the application schema and returns its connection
+    /// string, for an app under test that opens its own connections.
+    /// </summary>
+    public static async Task<string> CreateConnectionStringAsync()
+    {
+        string connectionString = await CreateEmptyDatabaseAsync();
+        await using SqlConnection connection = await OpenAsync(connectionString);
         await ChecklistSchemaInitializer.CreateSchemaAsync(connection);
         await AuditLogSchemaInitializer.CreateSchemaAsync(connection);
-        return connection;
+        return connectionString;
     }
 
     /// <summary>Creates an isolated database without the application schema.</summary>
     public static async Task<SqlConnection> CreateEmptyAsync()
+    {
+        return await OpenAsync(await CreateEmptyDatabaseAsync());
+    }
+
+    private static async Task<string> CreateEmptyDatabaseAsync()
     {
         string masterConnectionString = await GetContainerConnectionStringAsync();
         string dbName = $"test_{Guid.NewGuid():N}";
@@ -60,12 +75,15 @@ internal static class TestDatabase
             await master.ExecuteAsync($"CREATE DATABASE [{dbName}]");
         }
 
-        string dbConnectionString = new SqlConnectionStringBuilder(masterConnectionString)
+        return new SqlConnectionStringBuilder(masterConnectionString)
         {
             InitialCatalog = dbName,
         }.ConnectionString;
+    }
 
-        SqlConnection connection = new SqlConnection(dbConnectionString);
+    private static async Task<SqlConnection> OpenAsync(string connectionString)
+    {
+        SqlConnection connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
         return connection;
     }

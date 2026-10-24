@@ -27,4 +27,17 @@ public sealed class GetItemGroupsHttpTests(ApiFactory factory) : IClassFixture<A
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
+
+    [Fact]
+    public async Task MapEndpoint_ReturnsUnauthorized_WhenNotSignedIn()
+    {
+        HttpClient client = factory.CreateAnonymousClient();
+
+        HttpResponseMessage response = await client.GetAsync(
+            "/api/list",
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
 }

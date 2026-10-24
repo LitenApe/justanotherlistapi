@@ -42,14 +42,13 @@ The client is organized by page (`lists/`, `list/`, `auth/`) with shared `api/`,
 
 ### Tests
 
-- HTTP integration tests: class implements `IClassFixture<ApiFactory>`, uses `factory.CreateClient()`
-- SignalR end-to-end tests: class implements `IClassFixture<SignalRApiFactory>`, connects `HubConnection` via `factory.Server.CreateHandler()`
+- HTTP integration and SignalR tests: class implements `IClassFixture<ApiFactory>`, uses `factory.CreateClient()` / `factory.CreateHubConnection()`
+- `ApiFactory` runs the app on its own scoped `SqlConnection` to an isolated test database (as in production); `factory.Connection` is a separate open connection for arranging and asserting. It keeps the real `ChecklistNotifier` + hub
 - Unit tests for data logic: call internal static methods directly with a `TestDatabase.CreateAsync()` connection
 - File naming: `*.Http.Tests.cs` (integration) vs `*.Tests.cs` (unit)
-- Test auth: `TestAuthHandler` provides a fixed `UserId`; insert matching `Members` row for authorization
+- Test auth: `TestAuthHandler` signs requests in as `TestAuthHandler.UserId` (insert a matching `Members` row); act as someone else with `factory.CreateClientFor(userId)` / `factory.CreateHubConnection(userId)`, or as no one with `factory.CreateAnonymousClient()`
 - Notification assertions: use `CapturingNotifier` in unit tests, assert on `Notifications` list (type + data + `ExcludeConnectionId`)
-- `ApiFactory` replaces `IChecklistNotifier` with `CapturingNotifier`; `SignalRApiFactory` keeps the real `ChecklistNotifier` + hub
-- Both factories remove `ChecklistCleanupService` (`services.RemoveChecklistCleanupService()`); test auto-delete by calling `AutoDeleteItemGroups` with a fixed `now`
+- `ApiFactory` removes `ChecklistCleanupService` (`services.RemoveChecklistCleanupService()`); test auto-delete by calling `AutoDeleteItemGroups` with a fixed `now`
 
 ### Client
 

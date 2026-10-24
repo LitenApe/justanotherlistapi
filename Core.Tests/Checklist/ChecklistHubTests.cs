@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.SignalR.Client;
 
 namespace Core.Tests.Checklist;
 
-public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture<SignalRApiFactory>
+public sealed class ChecklistHubTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     [Fact]
     public async Task JoinGroup_Succeeds_WhenUserIsMember()
@@ -22,7 +22,7 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
             new { MemberId = TestAuthHandler.UserId, ItemGroupId = itemGroupId }
         );
 
-        await using HubConnection connection = CreateHubConnection();
+        await using HubConnection connection = factory.CreateHubConnection();
         await connection.StartAsync(TestContext.Current.CancellationToken);
 
         // Act & Assert — should not throw
@@ -44,7 +44,7 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
         );
         // No member row for TestAuthHandler.UserId
 
-        await using HubConnection connection = CreateHubConnection();
+        await using HubConnection connection = factory.CreateHubConnection();
         await connection.StartAsync(TestContext.Current.CancellationToken);
 
         // Act & Assert
@@ -67,7 +67,7 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
             new { MemberId = TestAuthHandler.UserId, ItemGroupId = itemGroupId }
         );
 
-        await using HubConnection connection = CreateHubConnection();
+        await using HubConnection connection = factory.CreateHubConnection();
         await connection.StartAsync(TestContext.Current.CancellationToken);
         await connection.InvokeAsync(
             "JoinGroup",
@@ -97,7 +97,7 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
             new { MemberId = TestAuthHandler.UserId, ItemGroupId = itemGroupId }
         );
 
-        await using HubConnection connection = CreateHubConnection();
+        await using HubConnection connection = factory.CreateHubConnection();
         await connection.StartAsync(TestContext.Current.CancellationToken);
         await connection.InvokeAsync(
             "JoinGroup",
@@ -158,7 +158,7 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
             }
         );
 
-        await using HubConnection connection = CreateHubConnection();
+        await using HubConnection connection = factory.CreateHubConnection();
         await connection.StartAsync(TestContext.Current.CancellationToken);
         await connection.InvokeAsync(
             "JoinGroup",
@@ -225,7 +225,7 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
             }
         );
 
-        await using HubConnection connection = CreateHubConnection();
+        await using HubConnection connection = factory.CreateHubConnection();
         await connection.StartAsync(TestContext.Current.CancellationToken);
         await connection.InvokeAsync(
             "JoinGroup",
@@ -273,7 +273,7 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
             new { MemberId = TestAuthHandler.UserId, ItemGroupId = itemGroupId }
         );
 
-        await using HubConnection connection = CreateHubConnection();
+        await using HubConnection connection = factory.CreateHubConnection();
         await connection.StartAsync(TestContext.Current.CancellationToken);
         await connection.InvokeAsync(
             "JoinGroup",
@@ -322,7 +322,7 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
             new { MemberId = TestAuthHandler.UserId, ItemGroupId = itemGroupId }
         );
 
-        await using HubConnection connection = CreateHubConnection();
+        await using HubConnection connection = factory.CreateHubConnection();
         await connection.StartAsync(TestContext.Current.CancellationToken);
         await connection.InvokeAsync(
             "JoinGroup",
@@ -373,7 +373,7 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
             new { MemberId = TestAuthHandler.UserId, ItemGroupId = itemGroupId }
         );
 
-        await using HubConnection connection = CreateHubConnection();
+        await using HubConnection connection = factory.CreateHubConnection();
         await connection.StartAsync(TestContext.Current.CancellationToken);
         await connection.InvokeAsync(
             "JoinGroup",
@@ -418,7 +418,7 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
             new { MemberId = TestAuthHandler.UserId, ItemGroupId = itemGroupId }
         );
 
-        await using HubConnection connection = CreateHubConnection();
+        await using HubConnection connection = factory.CreateHubConnection();
         await connection.StartAsync(TestContext.Current.CancellationToken);
         await connection.InvokeAsync(
             "JoinGroup",
@@ -472,7 +472,7 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
             new { MemberId = memberToRemove, ItemGroupId = itemGroupId }
         );
 
-        await using HubConnection connection = CreateHubConnection();
+        await using HubConnection connection = factory.CreateHubConnection();
         await connection.StartAsync(TestContext.Current.CancellationToken);
         await connection.InvokeAsync(
             "JoinGroup",
@@ -520,7 +520,7 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
             new { MemberId = TestAuthHandler.UserId, ItemGroupId = itemGroupId }
         );
 
-        await using HubConnection connection = CreateHubConnection();
+        await using HubConnection connection = factory.CreateHubConnection();
         await connection.StartAsync(TestContext.Current.CancellationToken);
         await connection.InvokeAsync(
             "JoinGroup",
@@ -550,16 +550,53 @@ public sealed class ChecklistHubTests(SignalRApiFactory factory) : IClassFixture
         Assert.False(received);
     }
 
-    private HubConnection CreateHubConnection()
+    [Fact]
+    public async Task MemberRemoved_ReachesTheRemovedMember()
     {
-        return new HubConnectionBuilder()
-            .WithUrl(
-                $"{factory.Server.BaseAddress}hubs/checklist",
-                options =>
-                {
-                    options.HttpMessageHandlerFactory = _ => factory.Server.CreateHandler();
-                }
-            )
-            .Build();
+        // Arrange
+        var itemGroupId = Guid.NewGuid();
+        var removedMemberId = Guid.NewGuid();
+        await factory.Connection.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Removed Member Broadcast" }
+        );
+        await factory.Connection.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new[]
+            {
+                new { MemberId = TestAuthHandler.UserId, ItemGroupId = itemGroupId },
+                new { MemberId = removedMemberId, ItemGroupId = itemGroupId },
+            }
+        );
+
+        await using HubConnection removedMember = factory.CreateHubConnection(removedMemberId);
+        await removedMember.StartAsync(TestContext.Current.CancellationToken);
+        await removedMember.InvokeAsync(
+            "JoinGroup",
+            itemGroupId,
+            TestContext.Current.CancellationToken
+        );
+
+        var tcs = new TaskCompletionSource<(Guid GroupId, Guid MemberId)>();
+        removedMember.On<Guid, Guid>(
+            "MemberRemoved",
+            (groupId, memberId) => tcs.TrySetResult((groupId, memberId))
+        );
+
+        // Act — another member removes them
+        using HttpClient client = factory.CreateClient();
+        HttpResponseMessage response = await client.DeleteAsync(
+            $"/api/list/{itemGroupId}/member/{removedMemberId}",
+            TestContext.Current.CancellationToken
+        );
+        response.EnsureSuccessStatusCode();
+
+        // Assert — the removed member still hears it, so their page can leave the list
+        (Guid receivedGroupId, Guid receivedMemberId) = await tcs.Task.WaitAsync(
+            TimeSpan.FromSeconds(5),
+            TestContext.Current.CancellationToken
+        );
+        Assert.Equal(itemGroupId, receivedGroupId);
+        Assert.Equal(removedMemberId, receivedMemberId);
     }
 }

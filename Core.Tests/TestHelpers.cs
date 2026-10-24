@@ -25,8 +25,8 @@ internal static class TestHelpers
     }
 
     /// <summary>
-    /// The cleanup service connects with the app's connection string on a timer, which tests
-    /// don't provide. Tests call <see cref="AutoDeleteItemGroups"/> directly instead.
+    /// The cleanup service deletes due lists on its own timer, which tests can't control.
+    /// Tests call <see cref="AutoDeleteItemGroups"/> directly with a fixed time instead.
     /// </summary>
     public static void RemoveChecklistCleanupService(this IServiceCollection services)
     {
