@@ -4,6 +4,7 @@ using Core.Checklist;
 using Dapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Data.SqlClient;
 
 namespace Core.Tests.Checklist.MemberTests;
 
@@ -241,4 +242,110 @@ public sealed class RemoveMemberTests
             Assert.IsType<CapturingNotifier.MemberRemovedNotification>(notification);
         Assert.Equal("conn-rm-004", memberRemoved.ExcludeConnectionId);
     }
+
+    [Fact]
+    public async Task RemoveData_RemovesMember_WhenAnotherMemberRemains()
+    {
+        var itemGroupId = Guid.NewGuid();
+        var memberId = Guid.NewGuid();
+        var otherMemberId = Guid.NewGuid();
+        await using var db = await TestDatabase.CreateAsync();
+        await InsertGroup(db, itemGroupId, memberId, otherMemberId);
+
+        bool removed = await RemoveMember.RemoveData(
+            itemGroupId,
+            memberId,
+            db,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.True(removed);
+        Assert.Equal(otherMemberId, Assert.Single(await LoadMembers(db, itemGroupId)));
+    }
+
+    [Fact]
+    public async Task RemoveData_KeepsMember_WhenTheyAreTheLastOne()
+    {
+        var itemGroupId = Guid.NewGuid();
+        var memberId = Guid.NewGuid();
+        await using var db = await TestDatabase.CreateAsync();
+        await InsertGroup(db, itemGroupId, memberId);
+
+        bool removed = await RemoveMember.RemoveData(
+            itemGroupId,
+            memberId,
+            db,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.False(removed);
+        Assert.Equal(memberId, Assert.Single(await LoadMembers(db, itemGroupId)));
+    }
+
+    [Fact]
+    public async Task RemoveData_KeepsLastMember_WhoAlsoBelongsToAnotherGroup()
+    {
+        var itemGroupId = Guid.NewGuid();
+        var otherGroupId = Guid.NewGuid();
+        var memberId = Guid.NewGuid();
+        await using var db = await TestDatabase.CreateAsync();
+        await InsertGroup(db, itemGroupId, memberId);
+        await InsertGroup(db, otherGroupId, memberId, Guid.NewGuid());
+
+        bool removed = await RemoveMember.RemoveData(
+            itemGroupId,
+            memberId,
+            db,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.False(removed);
+        Assert.Equal(memberId, Assert.Single(await LoadMembers(db, itemGroupId)));
+    }
+
+    [Fact]
+    public async Task RemoveData_ChangesNothing_WhenTargetIsNotAMember()
+    {
+        var itemGroupId = Guid.NewGuid();
+        var memberId = Guid.NewGuid();
+        await using var db = await TestDatabase.CreateAsync();
+        await InsertGroup(db, itemGroupId, memberId);
+
+        bool removed = await RemoveMember.RemoveData(
+            itemGroupId,
+            Guid.NewGuid(),
+            db,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.True(removed);
+        Assert.Equal(memberId, Assert.Single(await LoadMembers(db, itemGroupId)));
+    }
+
+    private static async Task InsertGroup(
+        SqlConnection db,
+        Guid itemGroupId,
+        params Guid[] memberIds
+    )
+    {
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        foreach (Guid memberId in memberIds)
+        {
+            await db.ExecuteAsync(
+                "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+                new { MemberId = memberId, ItemGroupId = itemGroupId }
+            );
+        }
+    }
+
+    private static async Task<List<Guid>> LoadMembers(SqlConnection db, Guid itemGroupId) =>
+        [
+            .. await db.QueryAsync<Guid>(
+                "SELECT MemberId FROM Members WHERE ItemGroupId = @ItemGroupId",
+                new { ItemGroupId = itemGroupId }
+            ),
+        ];
 }

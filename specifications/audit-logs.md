@@ -104,7 +104,7 @@ Core/
 
 Core.Tests/
   AuditLog/
-    AuditLog.Http.Tests.cs      ← integration tests for all 7 outcome values
+    AuditLog.Http.Tests.cs      ← integration tests for the outcome values and every endpoint's audit fields
     ChannelAuditWriter.Tests.cs ← unit tests for drain loop, batching, and error handling
     CapturingAuditWriter.cs     ← test double that records entries in-memory
     NoOpAuditWriter.cs          ← test double that discards all entries
@@ -468,6 +468,10 @@ public static async Task<Results<Created<Thing>, ...>> Execute(
 ```
 
 For handlers where all context (IDs, user) is already in route values, `AuditContext` is not required.
+
+**4. Add the endpoint to `auditedEndpoints` in `AuditLog.Http.Tests.cs`**
+
+`AuditedEndpoints_CoverEveryChecklistEndpoint` fails until every endpoint under `/api/list` is listed there. `EveryEndpoint_CapturesItsOperationResourceTypeAndRouteIds` then checks that its entry carries the expected operation name, resource type and route IDs. Operation names are stored in `AuditLog.Operation`, so never rename an existing one: old rows would no longer match.
 
 ---
 
