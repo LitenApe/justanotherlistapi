@@ -64,7 +64,7 @@ Core/                               - ASP.NET Core backend
     ChecklistApiEndpointRouteBuilderExtension.cs  - Maps all routes under /api/list
     ChecklistAuthorizationExtensions.cs           - ExecuteAsItemGroupMember/ExecuteAsAuthenticatedUser helpers
     ChecklistCleanupService.cs      - BackgroundService that runs AutoDeleteItemGroups once a minute
-    ChecklistConnectionExtensions.cs              - IDbConnection.IsMember() and IsLastMember() shared helpers
+    ChecklistConnectionExtensions.cs              - IDbConnection.IsMember() shared helper
     ChecklistHub.cs                 - SignalR hub at /hubs/checklist — JoinGroup (membership-gated) and LeaveGroup
     ChecklistNotifier.cs            - IChecklistNotifier impl: broadcasts via IHubContext with optional caller exclusion
     IChecklistClient.cs             - Typed client interface (ItemCreated, ItemUpdated, etc.)

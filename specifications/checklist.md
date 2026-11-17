@@ -586,7 +586,7 @@ Revokes a user's access to an item group. Any member can remove any other member
 | `403 Forbidden`    | Authenticated user is not a member                                                                                |
 | `409 Conflict`     | `memberId` is the last remaining member of the group. Removing them would leave the group permanently unreachable |
 
-**Orphan prevention rule:** A group must always have at least one member. Attempting to remove the last member returns `409 Conflict`. The check is performed in a single query that simultaneously verifies the group has exactly one member and that member is the target `memberId`.
+**Orphan prevention rule:** A group must always have at least one member. Attempting to remove the last member returns `409 Conflict`. The check is a single query that verifies the group has exactly one member and that member is the target `memberId`. It runs in the same transaction as the delete, after taking an update lock on the group's `ItemGroups` row, so removals from one group take turns. Without the lock, two members removing each other (or themselves) at the same moment could both pass the check and leave the group with no members.
 
 ---
 
@@ -602,10 +602,9 @@ Name fields (`ItemGroup.Name`, `Item.Name`) are validated with `string.IsNullOrW
 
 ### Membership Check Helper
 
-`ChecklistConnectionExtensions` provides two shared query helpers used across all handlers:
+`ChecklistConnectionExtensions.IsMember(itemGroupId, userId)` is the membership query shared by every handler and `ChecklistHub`. It returns `false` immediately if `userId` is null, otherwise queries the `Members` table.
 
-- `IsMember(itemGroupId, userId)` — returns `false` immediately if `userId` is null, otherwise queries the `Members` table
-- `IsLastMember(itemGroupId, memberId)` — single query that checks both total member count and whether the target is the sole member
+The last-member check lives in `RemoveMember.RemoveData`, inside the transaction that keeps it true (see [RemoveMember](#delete-apilistitemgroupidmembermemberid--removemember)).
 
 ---
 

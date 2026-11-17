@@ -7,6 +7,7 @@ using Core.AuditLog;
 using Dapper;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -16,6 +17,126 @@ namespace Core.Tests.AuditLog;
 
 public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
+    private static readonly Guid auditedGroupId = Guid.NewGuid();
+    private static readonly Guid auditedItemId = Guid.NewGuid();
+    private static readonly Guid auditedMemberId = Guid.NewGuid();
+
+    // Every endpoint under /api/list, with the operation name and resource type its audit entry
+    // must carry. AuditLog.Operation stores the names, so renaming one (or the class its
+    // nameof() refers to) would split that operation's history in two.
+    private static readonly AuditedEndpoint[] auditedEndpoints =
+    [
+        new("GetItemGroups", "ItemGroup", HttpMethod.Get, "/api/list"),
+        new("GetItemGroup", "ItemGroup", HttpMethod.Get, $"/api/list/{auditedGroupId}"),
+        new("CreateItemGroup", "ItemGroup", HttpMethod.Post, "/api/list", new { Name = "" }),
+        new(
+            "UpdateItemGroup",
+            "ItemGroup",
+            HttpMethod.Put,
+            $"/api/list/{auditedGroupId}",
+            new { Name = "Name" }
+        ),
+        new(
+            "UpdateItemGroupSettings",
+            "ItemGroup",
+            HttpMethod.Put,
+            $"/api/list/{auditedGroupId}/settings",
+            new { }
+        ),
+        new("DeleteItemGroup", "ItemGroup", HttpMethod.Delete, $"/api/list/{auditedGroupId}"),
+        new(
+            "CreateItem",
+            "Item",
+            HttpMethod.Post,
+            $"/api/list/{auditedGroupId}",
+            new { Name = "Name" }
+        ),
+        new(
+            "UpdateItem",
+            "Item",
+            HttpMethod.Put,
+            $"/api/list/{auditedGroupId}/{auditedItemId}",
+            new { Name = "Name" }
+        ),
+        new("DeleteItem", "Item", HttpMethod.Delete, $"/api/list/{auditedGroupId}/{auditedItemId}"),
+        new("GetMembers", "ItemGroup", HttpMethod.Get, $"/api/list/{auditedGroupId}/member"),
+        new(
+            "AddMember",
+            "ItemGroup",
+            HttpMethod.Post,
+            $"/api/list/{auditedGroupId}/member/{auditedMemberId}"
+        ),
+        new(
+            "RemoveMember",
+            "ItemGroup",
+            HttpMethod.Delete,
+            $"/api/list/{auditedGroupId}/member/{auditedMemberId}"
+        ),
+    ];
+
+    [Fact]
+    public async Task EveryEndpoint_CapturesItsOperationResourceTypeAndRouteIds()
+    {
+        // All requests go through one host: starting a host per endpoint costs seconds each.
+        var writer = new CapturingAuditWriter();
+        await using WebApplicationFactory<Program> webFactory = WithAuditWriter(writer);
+        HttpClient client = webFactory.CreateClient();
+
+        foreach (AuditedEndpoint endpoint in auditedEndpoints)
+        {
+            writer.Entries.Clear();
+
+            // The caller isn't a member of the group, so most requests end in 403, and
+            // CreateItemGroup gets a blank name. Every outcome is audited the same way.
+            using var request = new HttpRequestMessage(endpoint.Method, endpoint.Path);
+            if (endpoint.Body is not null)
+            {
+                request.Content = JsonContent.Create(endpoint.Body);
+            }
+            await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+            // IDs in the route end up in the entry: the group as ResourceId, the item as
+            // SubResourceId and the member as TargetUserId. Comparing tuples that start with
+            // the operation name makes a failure say which endpoint broke.
+            AuditEntry entry = Assert.Single(writer.Entries);
+            Assert.Equal(
+                (
+                    endpoint.Operation,
+                    endpoint.ResourceType,
+                    IdInPath(endpoint, auditedGroupId),
+                    IdInPath(endpoint, auditedItemId),
+                    IdInPath(endpoint, auditedMemberId)
+                ),
+                (
+                    entry.Operation,
+                    entry.ResourceType,
+                    entry.ResourceId,
+                    entry.SubResourceId,
+                    entry.TargetUserId
+                )
+            );
+        }
+    }
+
+    [Fact]
+    public void AuditedEndpoints_CoverEveryChecklistEndpoint()
+    {
+        IEnumerable<string?> mapped = factory
+            .Services.GetRequiredService<EndpointDataSource>()
+            .Endpoints.OfType<RouteEndpoint>()
+            .Where(e =>
+                e.RoutePattern.RawText?.StartsWith("/api/list", StringComparison.Ordinal) == true
+            )
+            .Select(e => e.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName);
+
+        // A new endpoint fails this until it's added to auditedEndpoints above (and to the
+        // resource types in AuditEndpointFilter).
+        Assert.Equal(
+            auditedEndpoints.Select(e => e.Operation).Order(StringComparer.Ordinal),
+            mapped.Order(StringComparer.Ordinal)
+        );
+    }
+
     [Fact]
     public async Task CreateItemGroup_CapturesAuditEntry_WithResourceId()
     {
@@ -349,6 +470,26 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
         Assert.Null(entry.UserId);
         Assert.Null(entry.ResourceType);
     }
+
+    private static Guid? IdInPath(AuditedEndpoint endpoint, Guid id) =>
+        endpoint.Path.Contains(id.ToString(), StringComparison.Ordinal) ? id : null;
+
+    private WebApplicationFactory<Program> WithAuditWriter(CapturingAuditWriter writer) =>
+        factory.WithWebHostBuilder(b =>
+            b.ConfigureServices(services =>
+            {
+                services.RemoveAll<IAuditWriter>();
+                services.AddSingleton<IAuditWriter>(writer);
+            })
+        );
+
+    private sealed record AuditedEndpoint(
+        string Operation,
+        string ResourceType,
+        HttpMethod Method,
+        string Path,
+        object? Body = null
+    );
 }
 
 // Authenticates successfully but returns a principal with no identifier claims.
