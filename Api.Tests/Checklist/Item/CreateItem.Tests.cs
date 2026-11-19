@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Api.AuditLog;
 using Api.Checklist;
+using Checklist.Domain;
 using Dapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;

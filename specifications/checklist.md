@@ -39,7 +39,7 @@
 
 The Checklist feature is a collaborative list management system. Users can create item groups (shared lists), add items to them, and invite other users as members. All members of a group have equal read and write access to the group and its items.
 
-The feature is implemented as a vertical slice under `Api/Checklist/` using ASP.NET Core Minimal APIs and Dapper for data access.
+The feature is implemented as a vertical slice under `Api/Checklist/` using ASP.NET Core Minimal APIs and Dapper for data access. Its domain records (`ItemGroup`, `ItemGroupSettings`, `Item`) and ports live in the `Checklist` project; see [architecture.md](architecture.md) for how the two projects divide the work.
 
 ---
 
@@ -616,7 +616,7 @@ Checklist mutations are broadcast to group members in real time via SignalR.
 
 - **Hub**: `ChecklistHub` at `/hubs/checklist` — authenticated, validates group membership on `JoinGroup`/`LeaveGroup`
 - **Client interface**: `IChecklistClient` — typed server→client messages (`ItemCreated`, `ItemUpdated`, `ItemDeleted`, `MemberAdded`, `MemberRemoved`, `GroupRenamed`, `GroupSettingsChanged`, `GroupDeleted`)
-- **Notifier abstraction**: `IChecklistNotifier` — testable wrapper around `IHubContext<ChecklistHub, IChecklistClient>`
+- **Notifier port**: `IChecklistNotifier` (in `Checklist/Ports/`), implemented by `ChecklistNotifier` around `IHubContext<ChecklistHub, IChecklistClient>`. Tests swap in `CapturingNotifier`
 - **Caller exclusion**: Mutations send an `X-SignalR-Connection-Id` header; the notifier uses `GroupExcept` to skip the caller. Clients learn their connection ID from the negotiate response (and a new one on every reconnect), so they must not skip negotiation
 
 ### Events

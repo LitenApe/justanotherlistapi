@@ -16,8 +16,11 @@
 ## Architecture
 
 - **Aspire/** — .NET Aspire AppHost; orchestrates SQL Server, mock OAuth container, Api backend and Vite client for local dev
-- **Api/** — ASP.NET Core 11 backend (Minimal APIs, Dapper, SQL Server, JWT Bearer auth)
+- **Checklist/** — the inside of the hexagon: domain records and ports (use cases to follow). No library packages and no project references, so it can't depend on ASP.NET Core, Dapper or SignalR
+- **Api/** — ASP.NET Core 11 backend (Minimal APIs, Dapper, SQL Server, JWT Bearer auth): the adapters around `Checklist`, plus the composition root `Program.cs`
 - **Api.Tests/** — xUnit tests against SQL Server via Testcontainers (requires Docker)
+
+The backend is moving to a hexagonal (ports and adapters) architecture one slice at a time; see [specifications/architecture.md](specifications/architecture.md) for the layout, the rules and the migration status.
 - **Client/** — React 19 + TypeScript, React Router framework mode in SPA mode (`ssr: false`), SignalR; served at http://localhost:5173 under Aspire
 
 Backend features are organized as vertical slices under `Api/Checklist/`. Each endpoint is a static class with `MapEndpoint()` + `Execute()` methods. See [specifications/checklist.md](specifications/checklist.md) for the full domain model and API contract.
@@ -95,6 +98,7 @@ The client is organized by page (`lists/`, `list/`, `auth/`) with shared `api/`,
 
 Detailed design docs live in [specifications/](specifications/):
 
+- [architecture.md](specifications/architecture.md) — Backend layout (ports and adapters), where code and rules belong, migration status
 - [checklist.md](specifications/checklist.md) — Domain model, endpoints, DB schema, authorization rules
 - [audit-logs.md](specifications/audit-logs.md) — Audit schema, per-operation capture, ChannelAuditWriter design
 - [authentication.md](specifications/authentication.md) — JWT Bearer setup, claim resolution, failure modes

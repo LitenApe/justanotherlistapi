@@ -5,6 +5,7 @@ using Api.AuditLog;
 using Api.Checklist;
 using Api.DevSeed;
 using Api.Utility;
+using Checklist.Ports;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Data.SqlClient;

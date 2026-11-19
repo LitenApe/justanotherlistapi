@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The inside of the hexagon: domain, use cases and the ports they need.
+    Keep this project free of library packages and project references, so nothing
+    here can depend on ASP.NET Core, Dapper or SignalR. See specifications/architecture.md.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+</Project>

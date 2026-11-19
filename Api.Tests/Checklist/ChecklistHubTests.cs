@@ -1,4 +1,4 @@
-using Api.Checklist;
+using Checklist.Domain;
 using Dapper;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;

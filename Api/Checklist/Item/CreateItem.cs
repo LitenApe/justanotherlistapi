@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Data;
 using System.Security.Claims;
 using Api.AuditLog;
+using Checklist.Domain;
+using Checklist.Ports;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
 

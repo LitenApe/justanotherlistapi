@@ -50,7 +50,10 @@ Client/                             - React Router (framework mode, SPA) web cli
   src/theme/                        - Light/dark theme (dark by default) with a header toggle
   src/styles/global.css             - Design tokens per theme (WCAG AA contrast) and base styles
   src/test/                         - Fake API, fake SignalR connection, axe helper
-Api/                                - ASP.NET Core backend
+Checklist/                          - The inside of the hexagon, no packages — see specifications/architecture.md
+  Domain/                           - ItemGroup, ItemGroupSettings, Item records (also the JSON and SignalR payloads)
+  Ports/                            - IChecklistNotifier: broadcasting changes to a list's members
+Api/                                - ASP.NET Core backend: the adapters around Checklist
   Program.cs                        - App composition root: DI, middleware, auth, OpenAPI, DB init
   DatabaseInitializer.cs            - Runs idempotent CREATE TABLE + CREATE INDEX at startup
   AuditLog/
@@ -68,7 +71,6 @@ Api/                                - ASP.NET Core backend
     ChecklistHub.cs                 - SignalR hub at /hubs/checklist — JoinGroup (membership-gated) and LeaveGroup
     ChecklistNotifier.cs            - IChecklistNotifier impl: broadcasts via IHubContext with optional caller exclusion
     IChecklistClient.cs             - Typed client interface (ItemCreated, ItemUpdated, etc.)
-    IChecklistNotifier.cs           - Abstraction for broadcasting notifications (testable)
     Item/                           - CreateItem, UpdateItem, DeleteItem handlers
     ItemGroup/                      - GetItemGroups, GetItemGroup, CreateItemGroup, UpdateItemGroup,
     |                                 UpdateItemGroupSettings, DeleteItemGroup handlers, AutoDeleteItemGroups

@@ -1,3 +1,5 @@
+using Checklist.Domain;
+using Checklist.Ports;
 using Microsoft.AspNetCore.SignalR;
 
 namespace Api.Checklist;

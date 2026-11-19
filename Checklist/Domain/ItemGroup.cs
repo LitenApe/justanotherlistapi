@@ -1,6 +1,6 @@
 using System.ComponentModel;
 
-namespace Api.Checklist;
+namespace Checklist.Domain;
 
 public sealed record ItemGroup
 {
