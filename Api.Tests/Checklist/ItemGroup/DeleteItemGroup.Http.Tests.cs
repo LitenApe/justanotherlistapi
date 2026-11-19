@@ -27,4 +27,20 @@ public sealed class DeleteItemGroupHttpTests(ApiFactory factory) : IClassFixture
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
+
+    [Fact]
+    public async Task MapEndpoint_ReturnsForbidden_AndKeepsTheList_WhenTheUserIsNotAMember()
+    {
+        var itemGroupId = Guid.NewGuid();
+        await factory.Connection.InsertItemGroup(itemGroupId, TestAuthHandler.UserId);
+        HttpClient client = factory.CreateClientFor(Guid.NewGuid());
+
+        HttpResponseMessage response = await client.DeleteAsync(
+            $"/api/list/{itemGroupId}",
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.NotNull(await factory.Connection.LoadItemGroupName(itemGroupId));
+    }
 }

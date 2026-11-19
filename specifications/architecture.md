@@ -12,6 +12,7 @@
   - [HTTP Endpoints](#http-endpoints)
   - [SQL Server](#sql-server)
   - [Realtime](#realtime)
+  - [Cleanup Service](#cleanup-service)
   - [Composition Root](#composition-root)
 - [Where the Rules Live](#where-the-rules-live)
 - [Testing](#testing)
@@ -57,11 +58,11 @@ Because `Checklist` has no package references, the compiler stops the inside fro
 
 ## The Inside: Checklist
 
-| Folder      | Contents                                                                                                                                      |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Domain/`   | The records the API and SignalR send (`ItemGroup`, `ItemGroupSettings`, `Item`), `Caller`, and the values use cases take: `Name`, `ItemInput` |
-| `Ports/`    | The interfaces the inside needs from the outside: `IMembership`, `IItemStore`, `IChecklistNotifier`                                           |
-| `UseCases/` | One class per operation, in a folder per slice. Namespace `Checklist.UseCases` for all of them                                                |
+| Folder      | Contents                                                                                                                                                                |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Domain/`   | The records the API and SignalR send (`ItemGroup`, `ItemGroupSettings`, `Item`), `Caller`, and the values use cases take: `Name`, `ItemInput`, `ItemGroupSettingsInput` |
+| `Ports/`    | The interfaces the inside needs from the outside: `IMembership`, `IItemGroupStore`, `IItemStore`, `IChecklistNotifier`, `IAuditTrail`                                   |
+| `UseCases/` | One class per operation, in a folder per slice (`ItemGroup`, `Item`, `Member`). Namespace `Checklist.UseCases` for all of them                                          |
 
 ### Domain
 
@@ -71,15 +72,19 @@ The domain records keep their `[Description]` attributes (plain `System.Componen
 
 `Name` is a list or item name. `Name.TryCreate` is the only way to make one and refuses blank names, so a use case can't be handed a blank name: endpoint adapters parse names first and answer 400 when that fails. `ItemInput(Name, Description, IsComplete)` is what a member sets on an item when adding or editing it.
 
+`ItemGroupSettingsInput` is the same idea for a list's settings: `TryCreate` accepts each one off (`null`) or within its range, auto-delete from one day and auto-hide from zero minutes, both up to a year. When the auto-delete countdown starts is up to the store, so the input has no timestamp.
+
 ### Ports
 
 Each port is named after what the inside needs, and each method covers one atomic operation, so use cases never manage transactions.
 
-| Port                 | Methods                                                                                                      | Adapter                       |
-| -------------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------- |
-| `IMembership`        | `IsMember`, `ListMembers`, `Add` (false if already a member), `RemoveUnlessLast` (false for the last member) | `SqlMembership`               |
-| `IItemStore`         | `Create`, `Update` (returns the stored completion time), `Delete`; items in other lists are left alone       | `SqlItemStore`                |
-| `IChecklistNotifier` | `NotifyItemCreated` … `NotifyGroupDeleted`, each with the connection to leave out                            | `ChecklistNotifier` (SignalR) |
+| Port                 | Methods                                                                                                                                            | Adapter                       |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| `IMembership`        | `IsMember`, `ListMembers`, `Add` (false if already a member), `RemoveUnlessLast` (false for the last member)                                       | `SqlMembership`               |
+| `IItemGroupStore`    | `Create` (with its first member), `Load`, `ListForMember`, `Rename`, `UpdateSettings` (returns them as stored), `Delete`, `DeleteDueForAutoDelete` | `SqlItemGroupStore`           |
+| `IItemStore`         | `Create`, `Update` (returns the stored completion time), `Delete`; items in other lists are left alone                                             | `SqlItemStore`                |
+| `IChecklistNotifier` | `NotifyItemCreated` … `NotifyGroupDeleted`, each with the connection to leave out                                                                  | `ChecklistNotifier` (SignalR) |
+| `IAuditTrail`        | `ItemGroupAutoDeleted`: audit entries that no request is behind                                                                                    | `AuditTrail` (audit log)      |
 
 ### Use Cases
 
@@ -134,6 +139,9 @@ SQL adapters in `Api/Sql/` implement the ports with Dapper, always through `Comm
 - `SqlMembership.Add` is one conditional insert whose existence check holds `UPDLOCK, HOLDLOCK` until the insert. Of two concurrent adds of the same member, the second waits, finds the row and returns `false`.
 - `SqlMembership.RemoveUnlessLast` takes an update lock on the list's `ItemGroups` row, then checks and deletes in the same transaction, so removals from one list take turns.
 - `SqlItemStore.Update` works out the completion time in the statement that writes the item: `COALESCE(CompletedAt, @Now)` keeps a time that's already stored, and `OUTPUT` returns it. So editing a completed item keeps its original time, and when two members complete an item at once, the first one's time stays.
+- `SqlItemGroupStore.Create` inserts the list and its first member in one transaction, so a list never exists without a member.
+- `SqlItemGroupStore.UpdateSettings` compares the stored auto-delete delay as it writes (`IS DISTINCT FROM`), so only a real change restarts the countdown.
+- `SqlItemGroupStore.DeleteDueForAutoDelete` is one `DELETE … OUTPUT` statement. When several app instances run auto-delete at once, each list is deleted, and so audited and announced, by one of them only.
 
 Moving such rules into C# would mean loading, changing and saving a row, with optimistic concurrency on top: more code and more round trips for the same behavior. So the domain stays thin.
 
@@ -141,9 +149,13 @@ Moving such rules into C# would mean loading, changing and saving a row, with op
 
 `ChecklistHub.JoinGroup` builds a `Caller` from the connection and asks the `SubscribeToItemGroup` use case whether it may receive the list's updates; only then does it add the connection to the SignalR group. `ChecklistNotifier` implements `IChecklistNotifier` with `IHubContext`.
 
+### Cleanup Service
+
+`ChecklistCleanupService` is a driving adapter too. Once a minute it creates a DI scope, which gives it a SQL connection of its own the way a request has one, and runs the `AutoDeleteItemGroups` use case. No request is behind those deletions, so the audit endpoint filter never sees them: the use case records each one through the `IAuditTrail` port, whose `AuditTrail` adapter writes to the same audit log.
+
 ### Composition Root
 
-`Program.cs` calls `AddChecklist()` (`ChecklistServiceCollectionExtensions`), which registers every use case and binds each port to its adapter. Use cases and SQL adapters are scoped, so they share the request's connection; the notifier is a singleton.
+`Program.cs` calls `AddChecklist()` (`ChecklistServiceCollectionExtensions`), which registers every use case and binds each port to its adapter. Use cases and SQL adapters are scoped, so they share the request's connection; the notifier and the audit trail are singletons.
 
 ---
 
@@ -152,11 +164,16 @@ Moving such rules into C# would mean loading, changing and saving a row, with op
 | Rule                                                                    | Where                                                               |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | Only members may read or change a list                                  | Use cases, through `IMembership.IsMember`; the hub, likewise        |
+| Whoever creates a list is its first member                              | `CreateItemGroup`; `SqlItemGroupStore.Create` (one transaction)     |
 | A list always keeps at least one member                                 | `SqlMembership.RemoveUnlessLast` (locked transaction)               |
 | A user is a member at most once                                         | `SqlMembership.Add` (one conditional insert)                        |
 | Names aren't blank                                                      | `Name.TryCreate`, which endpoint adapters call before anything else |
+| Settings stay in range                                                  | `ItemGroupSettingsInput.TryCreate`, likewise                        |
 | An item added as complete counts as completed now                       | `CreateItem`, with the time from `TimeProvider`                     |
 | Editing a completed item keeps its completion time; reopening clears it | `SqlItemStore.Update` (one statement)                               |
+| Only a change to the auto-delete delay restarts its countdown           | `SqlItemGroupStore.UpdateSettings` (one statement)                  |
+| Which lists auto-delete deletes, and each one once                      | `SqlItemGroupStore.DeleteDueForAutoDelete` (one statement)          |
+| Every auto-delete is audited and announced to all members               | `AutoDeleteItemGroups`, through `IAuditTrail` and the notifier      |
 | Who triggered a change doesn't get it back                              | `Caller.ConnectionId`, passed to the notifier by use cases          |
 
 ---
@@ -173,7 +190,7 @@ All backend tests run against a real SQL Server (Testcontainers). There are no i
 | Adapter helpers   | `Api.Tests/Http/`                                  | Small pieces of the HTTP adapter, such as `ToCaller`                                                                                                                                   |
 | HTTP tests        | `*.Http.Tests.cs`                                  | The whole app through `ApiFactory`: routes, status codes, auditing, and races between concurrent requests                                                                              |
 
-`TestHelpers` arranges and checks data (`InsertItemGroup`, `InsertItem`, `LoadMembers`, `LoadItem`) and makes names with `ValidName`.
+`TestHelpers` arranges and checks data (`InsertItemGroup`, `InsertItem`, `SetItemGroupSettings`, `LoadItemGroupName`, `LoadSettings`, `LoadMembers`, `LoadItem`, `CountItems`) and makes domain values with `ValidName` and `ValidSettings`.
 
 ---
 
@@ -190,13 +207,13 @@ All backend tests run against a real SQL Server (Testcontainers). There are no i
 
 ## Migration Status
 
-The backend is moving to this layout one step at a time, and every step keeps all tests passing. Until a slice is migrated, its endpoints still follow the static `MapEndpoint` + `Execute` pattern described in [checklist.md](checklist.md#structural-conventions).
+The backend moved to this layout one step at a time, and every step kept all tests passing. Every slice follows it now.
 
-| Step                                                                          | State       |
-| ----------------------------------------------------------------------------- | ----------- |
-| Rename `Core` to `Api` (in hexagonal terms, "core" means the inside)          | Done        |
-| `Checklist` project with the domain records and the `IChecklistNotifier` port | Done        |
-| Member slice: `Caller`, `IMembership`, use cases, endpoint adapters, hub      | Done        |
-| Item slice: `Name`, `ItemInput`, `IItemStore`, use cases, endpoint adapters   | Done        |
-| ItemGroup slice, auto-delete and the cleanup service                          | Not started |
-| Adapters grouped by kind, old helpers removed, architecture test              | Not started |
+| Step                                                                                                                                            | State       |
+| ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| Rename `Core` to `Api` (in hexagonal terms, "core" means the inside)                                                                            | Done        |
+| `Checklist` project with the domain records and the `IChecklistNotifier` port                                                                   | Done        |
+| Member slice: `Caller`, `IMembership`, use cases, endpoint adapters, hub                                                                        | Done        |
+| Item slice: `Name`, `ItemInput`, `IItemStore`, use cases, endpoint adapters                                                                     | Done        |
+| ItemGroup slice: `ItemGroupSettingsInput`, `IItemGroupStore`, `IAuditTrail`, use cases, endpoint adapters, cleanup service; old helpers removed | Done        |
+| Adapters grouped by kind, architecture test                                                                                                     | Not started |

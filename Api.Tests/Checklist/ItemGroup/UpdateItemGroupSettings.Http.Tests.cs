@@ -65,6 +65,22 @@ public sealed class UpdateItemGroupSettingsHttpTests(ApiFactory factory) : IClas
         Assert.Equal(30, group.Settings.HideCompletedAfterMinutes);
     }
 
+    [Fact]
+    public async Task MapEndpoint_ReturnsForbidden_AndKeepsTheSettings_WhenTheUserIsNotAMember()
+    {
+        Guid itemGroupId = await InsertGroupWithTestUser();
+        HttpClient client = factory.CreateClientFor(Guid.NewGuid());
+
+        HttpResponseMessage response = await client.PutAsJsonAsync(
+            $"/api/list/{itemGroupId}/settings",
+            new { AutoDeleteAfterMinutes = 1440 },
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(new ItemGroupSettings(), await factory.Connection.LoadSettings(itemGroupId));
+    }
+
     private async Task<Guid> InsertGroupWithTestUser()
     {
         var itemGroupId = Guid.NewGuid();

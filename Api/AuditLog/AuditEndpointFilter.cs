@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using Api.Checklist;
 using Api.Http;
 
 namespace Api.AuditLog;
@@ -11,12 +10,12 @@ internal sealed partial class AuditEndpointFilter(
 {
     private static readonly Dictionary<string, string> resourceTypes = new(StringComparer.Ordinal)
     {
-        [nameof(GetItemGroups)] = "ItemGroup",
-        [nameof(GetItemGroup)] = "ItemGroup",
-        [nameof(CreateItemGroup)] = "ItemGroup",
-        [nameof(UpdateItemGroup)] = "ItemGroup",
-        [nameof(UpdateItemGroupSettings)] = "ItemGroup",
-        [nameof(DeleteItemGroup)] = "ItemGroup",
+        [GetItemGroupsEndpoint.Operation] = "ItemGroup",
+        [GetItemGroupEndpoint.Operation] = "ItemGroup",
+        [CreateItemGroupEndpoint.Operation] = "ItemGroup",
+        [UpdateItemGroupEndpoint.Operation] = "ItemGroup",
+        [UpdateItemGroupSettingsEndpoint.Operation] = "ItemGroup",
+        [DeleteItemGroupEndpoint.Operation] = "ItemGroup",
         [CreateItemEndpoint.Operation] = "Item",
         [UpdateItemEndpoint.Operation] = "Item",
         [DeleteItemEndpoint.Operation] = "Item",

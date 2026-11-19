@@ -1,6 +1,6 @@
 using Checklist.Domain;
 
-namespace Api.Checklist;
+namespace Api.Sql;
 
 /// <summary>
 /// Flat ItemGroups row for Dapper, which can't populate the nested <see cref="ItemGroupSettings"/>.

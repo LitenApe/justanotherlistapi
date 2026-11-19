@@ -1,3 +1,4 @@
+using Api.AuditLog;
 using Api.Checklist;
 using Api.Sql;
 using Checklist.Ports;
@@ -17,9 +18,18 @@ internal static class ChecklistServiceCollectionExtensions
         // Ports
         services.AddScoped<IMembership, SqlMembership>();
         services.AddScoped<IItemStore, SqlItemStore>();
+        services.AddScoped<IItemGroupStore, SqlItemGroupStore>();
         services.AddSingleton<IChecklistNotifier, ChecklistNotifier>();
+        services.AddSingleton<IAuditTrail, AuditTrail>();
 
         // Use cases
+        services.AddScoped<GetItemGroups>();
+        services.AddScoped<GetItemGroup>();
+        services.AddScoped<CreateItemGroup>();
+        services.AddScoped<UpdateItemGroup>();
+        services.AddScoped<UpdateItemGroupSettings>();
+        services.AddScoped<DeleteItemGroup>();
+        services.AddScoped<AutoDeleteItemGroups>();
         services.AddScoped<GetMembers>();
         services.AddScoped<AddMember>();
         services.AddScoped<RemoveMember>();

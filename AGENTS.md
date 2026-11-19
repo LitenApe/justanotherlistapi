@@ -16,14 +16,12 @@
 ## Architecture
 
 - **Aspire/** — .NET Aspire AppHost; orchestrates SQL Server, mock OAuth container, Api backend and Vite client for local dev
-- **Checklist/** — the inside of the hexagon: domain records and ports (use cases to follow). No library packages and no project references, so it can't depend on ASP.NET Core, Dapper or SignalR
+- **Checklist/** — the inside of the hexagon: domain records and values, ports and use cases. No library packages and no project references, so it can't depend on ASP.NET Core, Dapper or SignalR
 - **Api/** — ASP.NET Core 11 backend (Minimal APIs, Dapper, SQL Server, JWT Bearer auth): the adapters around `Checklist`, plus the composition root `Program.cs`
 - **Api.Tests/** — xUnit tests against SQL Server via Testcontainers (requires Docker)
-
-The backend is moving to a hexagonal (ports and adapters) architecture one slice at a time; see [specifications/architecture.md](specifications/architecture.md) for the layout, the rules and the migration status.
 - **Client/** — React 19 + TypeScript, React Router framework mode in SPA mode (`ssr: false`), SignalR; served at http://localhost:5173 under Aspire
 
-Backend features are organized as vertical slices under `Api/Checklist/`. Each endpoint is a static class with `MapEndpoint()` + `Execute()` methods. See [specifications/checklist.md](specifications/checklist.md) for the full domain model and API contract.
+The backend follows a hexagonal (ports and adapters) architecture, in slices (ItemGroup, Item, Member): each operation is a use case in `Checklist/UseCases/<Slice>/` behind an endpoint adapter in `Api/Http/<Slice>/`. See [specifications/architecture.md](specifications/architecture.md) for the layout and where each rule lives, and [specifications/checklist.md](specifications/checklist.md) for the full domain model and API contract.
 
 The client is organized by page (`lists/`, `list/`, `auth/`) with shared `api/`, `realtime/` and `components/`. Routes are declared in `src/routes.ts`; each page file is a route module. See [specifications/client.md](specifications/client.md).
 
@@ -31,26 +29,15 @@ The client is organized by page (`lists/`, `list/`, `auth/`) with shared `api/`,
 
 ### Backend endpoints
 
-New and migrated operations (the Member and Item slices so far) follow [specifications/architecture.md](specifications/architecture.md):
+Every operation follows [specifications/architecture.md](specifications/architecture.md):
 
 - Use case in `Checklist/UseCases/<Slice>/`: ports in the constructor, one `Execute(Caller caller, …, CancellationToken ct)` returning a nested `Outcome` enum (commands) or the data, `null` for non-members (queries). No HTTP types, SQL, transactions or `AuditContext`
+- Values with a rule (`Name`, `ItemGroupSettingsInput`) live in `Checklist/Domain/` with a `TryCreate` that the endpoint adapter calls
 - Endpoint adapter in `Api/Http/<Slice>/<Operation>Endpoint.cs`: `internal const string Operation` for `.WithName()` (stored in `AuditLog.Operation`, never change it); `Handle` parses the request (400), calls `user.ToCaller(httpRequest)` (401), runs the use case, maps its outcome to `TypedResults` and sets `AuditContext`
 - SQL in a port adapter in `Api/Sql/`. Rules that must hold under concurrency go in one statement or one locked transaction
 - Register use cases and adapters in `AddChecklist()` (`ChecklistServiceCollectionExtensions`)
-
-The slice not migrated yet (ItemGroup) still uses the old pattern:
-
-- One static class per endpoint (e.g., `CreateItemGroup.cs`) with `MapEndpoint` and `Execute` methods
-- Use `Results<Ok<T>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult>` typed results
-- Authorization via `db.ExecuteAsItemGroupMember<T>(...)` or `db.ExecuteAsAuthenticatedUser<T>(...)` extension methods
-- Separate internal `CreateData`/`LoadData` methods for testable data logic
-- Audit context: set `auditContext.ResourceId` in handlers that create the resource (`CreateItemGroup`)
-- Read `X-SignalR-Connection-Id` from `httpRequest.Headers` and pass as `excludeConnectionId`
-
-Both:
-
 - All Dapper queries use `CommandDefinition` with `CancellationToken`
-- SignalR notifications: call `IChecklistNotifier.NotifyXxx()` after mutations
+- SignalR notifications: use cases call `IChecklistNotifier.NotifyXxx()` after mutations, leaving out `caller.ConnectionId`
 - Hub at `/hubs/checklist`: `ChecklistHub.JoinGroup` admits only members (through `SubscribeToItemGroup`), uses SignalR groups by `groupId.ToString()`
 - Current time: take `TimeProvider` and pass `now` on; don't use `SYSDATETIMEOFFSET()` or `DateTimeOffset.UtcNow`
 - Schema changes: add columns to the `CREATE TABLE` and an `IF COL_LENGTH(...) IS NULL ALTER TABLE ... ADD` block in `ChecklistSchemaInitializer` so existing databases upgrade
@@ -59,13 +46,12 @@ Both:
 
 - HTTP integration and SignalR tests: class implements `IClassFixture<ApiFactory>`, uses `factory.CreateClient()` / `factory.CreateHubConnection()`
 - `ApiFactory` runs the app on its own scoped `SqlConnection` to an isolated test database (as in production); `factory.Connection` is a separate open connection for arranging and asserting. It keeps the real `ChecklistNotifier` + hub
-- Use-case tests (migrated slices): build the use case with the real SQL adapters on a `TestDatabase.CreateAsync()` connection and `CapturingNotifier` (plus a `FixedTimeProvider` when the time matters), and call `Execute` with a `Caller`. Arrange with `db.InsertItemGroup(id, memberIds…)` and `db.InsertItem(...)`, make names with `TestHelpers.ValidName(...)`, and check with `db.LoadMembers(id)` and `db.LoadItem(id)` from `TestHelpers`
+- Use-case tests: build the use case with the real SQL adapters on a `TestDatabase.CreateAsync()` connection and `CapturingNotifier` (plus a `FixedTimeProvider` when the time matters), and call `Execute` with a `Caller`. Arrange with `db.InsertItemGroup(id, memberIds…)`, `db.InsertItem(...)` and `db.SetItemGroupSettings(...)`, make domain values with `TestHelpers.ValidName(...)` and `ValidSettings(...)`, and check with the `Load…` helpers in `TestHelpers`
 - SQL adapter tests go in `Api.Tests/Sql/`, one port method at a time; tests of domain values such as `Name` go in `Api.Tests/Checklist/Domain/`
-- Unit tests for data logic (slices not migrated yet): call internal static methods directly with a `TestDatabase.CreateAsync()` connection
 - File naming: `*.Http.Tests.cs` (integration) vs `*.Tests.cs` (unit)
 - Test auth: `TestAuthHandler` signs requests in as `TestAuthHandler.UserId` (insert a matching `Members` row); act as someone else with `factory.CreateClientFor(userId)` / `factory.CreateHubConnection(userId)`, or as no one with `factory.CreateAnonymousClient()`
 - Notification assertions: use `CapturingNotifier` in unit tests, assert on `Notifications` list (type + data + `ExcludeConnectionId`)
-- `ApiFactory` removes `ChecklistCleanupService` (`services.RemoveChecklistCleanupService()`); test auto-delete by calling `AutoDeleteItemGroups` with a fixed `now`
+- `ApiFactory` removes `ChecklistCleanupService` (`services.RemoveChecklistCleanupService()`); test auto-delete by running the `AutoDeleteItemGroups` use case with a `FixedTimeProvider`
 
 ### Client
 

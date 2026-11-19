@@ -1,210 +1,57 @@
-using System.Security.Claims;
-using Api.Checklist;
+using Api.Sql;
 using Checklist.Domain;
-using Dapper;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.HttpResults;
+using Checklist.UseCases;
+using Microsoft.Data.SqlClient;
 
 namespace Api.Tests.Checklist.ItemGroupTests;
 
 public sealed class DeleteItemGroupTests
 {
     [Fact]
-    public async Task Execute_DeletesItemGroup_WhenUserIsMember()
+    public async Task Execute_DeletesTheList_AndTellsTheOtherMembers()
     {
-        // Arrange
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
         var notifier = new CapturingNotifier();
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, userId);
 
-        await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync(
-            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
-            new { Id = itemGroupId, Name = "ToDelete" }
-        );
-        await db.ExecuteAsync(
-            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
-            new { MemberId = userId, ItemGroupId = itemGroupId }
-        );
-
-        // Act
-        Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await DeleteItemGroup.Execute(
+        DeleteItemGroup.Outcome outcome = await DeleteUseCase(db, notifier)
+            .Execute(
+                new Caller(userId, "conn-delete-001"),
                 itemGroupId,
-                claimsPrincipal,
-                db,
-                notifier,
-                TestHelpers.CreateHttpRequest(),
                 TestContext.Current.CancellationToken
             );
 
-        // Assert
-        Assert.IsType<NoContent>(result.Result);
-
-        // Confirm DB deletion
-        ItemGroup? deleted = await db.QueryFirstOrDefaultAsync<ItemGroup>(
-            "SELECT Id, Name FROM ItemGroups WHERE Id = @Id",
-            new { Id = itemGroupId }
-        );
-        Assert.Null(deleted);
-
-        // Confirm notification
+        Assert.Equal(DeleteItemGroup.Outcome.Deleted, outcome);
+        Assert.Null(await db.LoadItemGroupName(itemGroupId));
         object notification = Assert.Single(notifier.Notifications);
         CapturingNotifier.GroupDeletedNotification groupDeleted =
             Assert.IsType<CapturingNotifier.GroupDeletedNotification>(notification);
         Assert.Equal(itemGroupId, groupDeleted.GroupId);
-        Assert.Null(groupDeleted.ExcludeConnectionId);
+        Assert.Equal("conn-delete-001", groupDeleted.ExcludeConnectionId);
     }
 
     [Fact]
-    public async Task Execute_CascadeDeletesItemsAndMembers_WhenItemGroupIsDeleted()
+    public async Task Execute_ReturnsNotAMember_AndKeepsTheList_WhenTheCallerIsNotAMember()
     {
-        // Arrange
-        var userId = Guid.NewGuid();
-        var otherMemberId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-        var itemId = Guid.NewGuid();
-        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
-
-        await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync(
-            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
-            new { Id = itemGroupId, Name = "Group" }
-        );
-        await db.ExecuteAsync(
-            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
-            new { MemberId = userId, ItemGroupId = itemGroupId }
-        );
-        await db.ExecuteAsync(
-            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
-            new { MemberId = otherMemberId, ItemGroupId = itemGroupId }
-        );
-        await db.ExecuteAsync(
-            "INSERT INTO Items (Id, Name, IsComplete, ItemGroupId) VALUES (@Id, @Name, @IsComplete, @ItemGroupId)",
-            new
-            {
-                Id = itemId,
-                Name = "Item",
-                IsComplete = false,
-                ItemGroupId = itemGroupId,
-            }
-        );
-
-        // Act
-        await DeleteItemGroup.Execute(
-            itemGroupId,
-            claimsPrincipal,
-            db,
-            new CapturingNotifier(),
-            TestHelpers.CreateHttpRequest(),
-            TestContext.Current.CancellationToken
-        );
-
-        // Assert — cascade delete should remove items and members
-        IEnumerable<Item> remainingItems = await db.QueryAsync<Item>(
-            "SELECT Id FROM Items WHERE ItemGroupId = @ItemGroupId",
-            new { ItemGroupId = itemGroupId }
-        );
-        Assert.Empty(remainingItems);
-
-        IEnumerable<Guid> remainingMembers = await db.QueryAsync<Guid>(
-            "SELECT MemberId FROM Members WHERE ItemGroupId = @ItemGroupId",
-            new { ItemGroupId = itemGroupId }
-        );
-        Assert.Empty(remainingMembers);
-    }
-
-    [Fact]
-    public async Task Execute_ReturnsUnauthorized_WhenUserIsNull()
-    {
-        // Arrange
-        var itemGroupId = Guid.NewGuid();
-        var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
-
-        await using var db = await TestDatabase.CreateAsync();
-
-        // Act
-        Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await DeleteItemGroup.Execute(
-                itemGroupId,
-                claimsPrincipal,
-                db,
-                new CapturingNotifier(),
-                TestHelpers.CreateHttpRequest(),
-                TestContext.Current.CancellationToken
-            );
-
-        // Assert
-        Assert.IsType<UnauthorizedHttpResult>(result.Result);
-    }
-
-    [Fact]
-    public async Task Execute_ReturnsForbid_WhenUserIsNotMember()
-    {
-        // Arrange
-        var userId = Guid.NewGuid();
-        var itemGroupId = Guid.NewGuid();
-        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
-
-        await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync(
-            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
-            new { Id = itemGroupId, Name = "ToDelete" }
-        );
-        // No member added for this user
-
-        // Act
-        Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await DeleteItemGroup.Execute(
-                itemGroupId,
-                claimsPrincipal,
-                db,
-                new CapturingNotifier(),
-                TestHelpers.CreateHttpRequest(),
-                TestContext.Current.CancellationToken
-            );
-
-        // Assert
-        Assert.IsType<ForbidHttpResult>(result.Result);
-    }
-
-    [Fact]
-    public async Task Execute_PassesSignalRConnectionId_WhenHeaderIsPresent()
-    {
-        // Arrange
-        var userId = Guid.NewGuid();
-        var itemGroupId = Guid.NewGuid();
-        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
         var notifier = new CapturingNotifier();
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, Guid.NewGuid());
 
-        await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync(
-            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
-            new { Id = itemGroupId, Name = "ToDelete" }
-        );
-        await db.ExecuteAsync(
-            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
-            new { MemberId = userId, ItemGroupId = itemGroupId }
-        );
+        DeleteItemGroup.Outcome outcome = await DeleteUseCase(db, notifier)
+            .Execute(
+                new Caller(Guid.NewGuid()),
+                itemGroupId,
+                TestContext.Current.CancellationToken
+            );
 
-        HttpRequest httpRequest = TestHelpers.CreateHttpRequest();
-        httpRequest.Headers["X-SignalR-Connection-Id"] = "conn-dg-002";
-
-        // Act
-        await DeleteItemGroup.Execute(
-            itemGroupId,
-            claimsPrincipal,
-            db,
-            notifier,
-            httpRequest,
-            TestContext.Current.CancellationToken
-        );
-
-        // Assert
-        object notification = Assert.Single(notifier.Notifications);
-        CapturingNotifier.GroupDeletedNotification groupDeleted =
-            Assert.IsType<CapturingNotifier.GroupDeletedNotification>(notification);
-        Assert.Equal("conn-dg-002", groupDeleted.ExcludeConnectionId);
+        Assert.Equal(DeleteItemGroup.Outcome.NotAMember, outcome);
+        Assert.NotNull(await db.LoadItemGroupName(itemGroupId));
+        Assert.Empty(notifier.Notifications);
     }
+
+    private static DeleteItemGroup DeleteUseCase(SqlConnection db, CapturingNotifier notifier) =>
+        new(new SqlMembership(db), new SqlItemGroupStore(db), notifier);
 }
