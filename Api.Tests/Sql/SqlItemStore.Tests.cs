@@ -40,37 +40,37 @@ public sealed class SqlItemStoreTests
         var store = new SqlItemStore(db);
 
         // Completing sets the time.
-        Assert.Equal(
+        Item? completed = await store.Update(
+            itemGroupId,
+            itemId,
+            Input("Milk", true),
             completedAt,
-            await store.Update(itemGroupId, itemId, Input("Milk", true), completedAt, ct)
+            ct
         );
+        Assert.Equal(completedAt, completed?.CompletedAt);
 
         // Saving a completed item again keeps the original time.
-        Assert.Equal(
-            completedAt,
-            await store.Update(
-                itemGroupId,
-                itemId,
-                Input("Oat milk", true),
-                completedAt.AddDays(2),
-                ct
-            )
+        Item? edited = await store.Update(
+            itemGroupId,
+            itemId,
+            Input("Oat milk", true),
+            completedAt.AddDays(2),
+            ct
         );
+        Assert.Equal(completedAt, edited?.CompletedAt);
 
-        // Reopening clears it.
-        Assert.Null(
-            await store.Update(
-                itemGroupId,
-                itemId,
-                Input("Oat milk", false),
-                completedAt.AddDays(3),
-                ct
-            )
+        // Reopening clears it. What Update returns is the row as stored.
+        Item? reopened = await store.Update(
+            itemGroupId,
+            itemId,
+            Input("Oat milk", false),
+            completedAt.AddDays(3),
+            ct
         );
-        Item? stored = await db.LoadItem(itemId);
-        Assert.NotNull(stored);
-        Assert.Equal("Oat milk", stored.Name);
-        Assert.Null(stored.CompletedAt);
+        Assert.NotNull(reopened);
+        Assert.Equal("Oat milk", reopened.Name);
+        Assert.Null(reopened.CompletedAt);
+        Assert.Equal(reopened, await db.LoadItem(itemId));
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public sealed class SqlItemStoreTests
         await db.InsertItemGroup(otherGroupId);
         await db.InsertItem(otherGroupId, itemId, "Milk");
 
-        DateTimeOffset? completedAt = await new SqlItemStore(db).Update(
+        Item? updated = await new SqlItemStore(db).Update(
             itemGroupId,
             itemId,
             Input("Renamed", true),
@@ -92,7 +92,7 @@ public sealed class SqlItemStoreTests
             TestContext.Current.CancellationToken
         );
 
-        Assert.Null(completedAt);
+        Assert.Null(updated);
         Assert.Equal("Milk", (await db.LoadItem(itemId))?.Name);
     }
 

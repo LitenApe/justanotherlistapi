@@ -487,7 +487,7 @@ Updates the name, description, and/or completion status of an existing item. All
 | `401 Unauthorized` | Missing user ID claim              |
 | `403 Forbidden`    | Authenticated user is not a member |
 
-**Note:** The UPDATE is scoped to both `Id = @itemId AND ItemGroupId = @itemGroupId`. If either does not exist or they do not match, zero rows are affected and `204 No Content` is still returned. There is no 404 response.
+**Note:** The UPDATE is scoped to both `Id = @itemId AND ItemGroupId = @itemGroupId`. If either does not exist or they do not match, zero rows are affected and `204 No Content` is still returned. There is no 404 response, and since nothing changed, the other members get no `ItemUpdated` notification: an item someone else just deleted stays deleted on their screens.
 
 `CompletedAt` is maintained by the server and is not part of the request:
 
@@ -495,7 +495,7 @@ Updates the name, description, and/or completion status of an existing item. All
 - Saving an item that is already complete (for example, to rename it) keeps the original time, so editing doesn't restart the auto-hide or auto-delete clock.
 - Reopening an item clears it.
 
-The `ItemUpdated` notification carries the stored value, which `SqlItemStore.Update` reads back with `OUTPUT INSERTED.CompletedAt`.
+The `ItemUpdated` notification carries the item as stored, which `SqlItemStore.Update` reads back with `OUTPUT`.
 
 ---
 

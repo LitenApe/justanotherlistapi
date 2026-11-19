@@ -17,6 +17,10 @@ public sealed class UpdateItem(
         NotAMember,
     }
 
+    /// <summary>
+    /// Updates the item and tells the list's other members. An item someone deleted a moment ago
+    /// stays deleted: the update still counts, but there's nothing to tell anyone.
+    /// </summary>
     public async Task<Outcome> Execute(
         Caller caller,
         Guid itemGroupId,
@@ -30,25 +34,13 @@ public sealed class UpdateItem(
             return Outcome.NotAMember;
         }
 
-        DateTimeOffset? completedAt = await items.Update(
-            itemGroupId,
-            itemId,
-            input,
-            timeProvider.GetUtcNow(),
-            ct
-        );
-
-        // The other members get the stored completion time, which editing a completed item keeps.
-        var item = new Item
+        // The stored item carries the completion time, which editing a completed item keeps.
+        Item? item = await items.Update(itemGroupId, itemId, input, timeProvider.GetUtcNow(), ct);
+        if (item is not null)
         {
-            Id = itemId,
-            ItemGroupId = itemGroupId,
-            Name = input.Name.Value,
-            Description = input.Description,
-            IsComplete = input.IsComplete,
-            CompletedAt = completedAt,
-        };
-        await notifier.NotifyItemUpdated(itemGroupId, item, caller.ConnectionId);
+            await notifier.NotifyItemUpdated(itemGroupId, item, caller.ConnectionId);
+        }
+
         return Outcome.Updated;
     }
 }
