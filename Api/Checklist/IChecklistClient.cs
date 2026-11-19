@@ -1,3 +1,5 @@
+using Checklist.Domain;
+
 namespace Api.Checklist;
 
 public interface IChecklistClient

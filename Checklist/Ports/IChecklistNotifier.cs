@@ -1,4 +1,6 @@
-namespace Api.Checklist;
+using Checklist.Domain;
+
+namespace Checklist.Ports;
 
 public interface IChecklistNotifier
 {

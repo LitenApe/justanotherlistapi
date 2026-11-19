@@ -1,4 +1,5 @@
-using Api.Checklist;
+using Checklist.Domain;
+using Checklist.Ports;
 
 namespace Api.Tests;
 

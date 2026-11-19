@@ -1,5 +1,6 @@
 using System.Data;
 using System.Security.Claims;
+using Checklist.Domain;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
 

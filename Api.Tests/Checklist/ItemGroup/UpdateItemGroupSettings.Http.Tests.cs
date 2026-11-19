@@ -1,5 +1,5 @@
 using System.Net;
-using Api.Checklist;
+using Checklist.Domain;
 using Dapper;
 
 namespace Api.Tests.Checklist.ItemGroupTests;
