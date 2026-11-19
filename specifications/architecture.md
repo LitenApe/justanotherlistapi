@@ -119,14 +119,16 @@ public sealed class RemoveMember(IMembership membership, IChecklistNotifier noti
 
 The adapters are grouped by kind, each kind in a folder and namespace of its own:
 
-| Folder            | Adapters                                                                                                                                |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `Api/Http/`       | Driving: the endpoint adapters, a folder per slice, with `ToCaller` and `MapChecklistApi()`                                             |
-| `Api/Realtime/`   | Driving: `ChecklistHub`. Driven: `ChecklistNotifier`, for `IChecklistNotifier`                                                          |
-| `Api/Background/` | Driving: `ChecklistCleanupService`                                                                                                      |
-| `Api/Sql/`        | Driven: `SqlItemGroupStore`, `SqlItemStore`, `SqlMembership`; the schema (`DatabaseInitializer`, `ChecklistSchemaInitializer`)          |
-| `Api/AuditLog/`   | The audit log: `AuditEndpointFilter` around every endpoint, `AuditTrail` for `IAuditTrail`, `ChannelAuditWriter` and the table's schema |
-| `Api/`            | `Program.cs` and `AddChecklist()`: the composition root                                                                                 |
+| Folder            | Adapters                                                                                                                                                                           |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Api/Http/`       | Driving: the endpoint adapters, a folder per slice, with `ToCaller`, `MapChecklistApi()` and the OpenAPI document's security schemes                                               |
+| `Api/Realtime/`   | Driving: `ChecklistHub`. Driven: `ChecklistNotifier`, for `IChecklistNotifier`                                                                                                     |
+| `Api/Background/` | Driving: `ChecklistCleanupService`                                                                                                                                                 |
+| `Api/Sql/`        | Driven: `SqlItemGroupStore`, `SqlItemStore`, `SqlMembership`; the schema (`DatabaseInitializer`, `ChecklistSchemaInitializer`)                                                     |
+| `Api/AuditLog/`   | The audit log: `AuditEndpointFilter` around every endpoint, `AuthenticationAudit` for rejected tokens, `AuditTrail` for `IAuditTrail`, `ChannelAuditWriter` and the table's schema |
+| `Api/Extensions/` | `GetUserId()`: the user ID in a token, shared by the driving adapters and the audit log                                                                                            |
+| `Api/DevSeed/`    | A development-only endpoint that wipes the database and fills it with sample lists. It isn't part of the product, so it writes SQL directly instead of going through use cases     |
+| `Api/`            | `Program.cs` and `AddChecklist()`: the composition root, which only wires things together                                                                                          |
 
 ### HTTP Endpoints
 
