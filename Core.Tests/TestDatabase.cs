@@ -13,31 +13,25 @@ namespace Core.Tests;
 /// </summary>
 internal static class TestDatabase
 {
-    private static readonly SemaphoreSlim InitLock = new(1, 1);
-    private static MsSqlContainer? container;
+    // Tests run in parallel and all await this one task, so none of them can get at the
+    // container before StartAsync has finished. (Publishing the container first and starting
+    // it afterwards let parallel tests call GetConnectionString on a container that didn't
+    // exist yet.)
+    private static readonly Lazy<Task<MsSqlContainer>> container = new(StartContainerAsync);
+
+    private static async Task<MsSqlContainer> StartContainerAsync()
+    {
+        MsSqlContainer started = new MsSqlBuilder(
+            "mcr.microsoft.com/mssql/server:2025-latest"
+        ).Build();
+        await started.StartAsync();
+        return started;
+    }
 
     private static async Task<string> GetContainerConnectionStringAsync()
     {
-        if (container is not null)
-        {
-            return container.GetConnectionString();
-        }
-
-        await InitLock.WaitAsync();
-        try
-        {
-            if (container is null)
-            {
-                container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2025-latest").Build();
-                await container.StartAsync();
-            }
-        }
-        finally
-        {
-            InitLock.Release();
-        }
-
-        return container.GetConnectionString();
+        MsSqlContainer started = await container.Value;
+        return started.GetConnectionString();
     }
 
     public static async Task<SqlConnection> CreateAsync()
