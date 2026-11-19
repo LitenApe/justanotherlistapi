@@ -1,4 +1,4 @@
-using Projects;
+using Aspire.Hosting.Dotnet;
 
 IDistributedApplicationBuilder builder = DistributedApplication.CreateBuilder(args);
 
@@ -14,8 +14,9 @@ IResourceBuilder<ContainerResource> oauth = builder
     .WithHttpHealthCheck("/default/.well-known/openid-configuration")
     .WithLifetime(ContainerLifetime.Persistent);
 
-IResourceBuilder<ProjectResource> core = builder
-    .AddProject<Core>("Core")
+// The path is relative to this AppHost's folder.
+IResourceBuilder<DotnetProjectResource> core = builder
+    .AddDotnetProject("Core", "../Core/Core.csproj")
     .WaitFor(db)
     .WaitFor(oauth)
     .WithReference(db)
