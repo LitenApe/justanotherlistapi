@@ -31,6 +31,8 @@ for (const theme of ["dark", "light"] as const) {
       await useTheme(app, theme);
       await page.goto("/sign-in");
       await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+      // The theme is set before the app renders, so also wait for the page itself.
+      await expect(page.getByRole("heading", { level: 1, name: "Sign in" })).toBeVisible();
       await expectAccessible(page);
 
       const list = busyList();
