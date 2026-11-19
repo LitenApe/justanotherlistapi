@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Api.Checklist;
+using Checklist.Domain;
 using Dapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.SqlClient;
@@ -45,6 +46,40 @@ internal static class TestHelpers
             );
         }
     }
+
+    /// <summary>A <see cref="Name"/> for arranging tests; <paramref name="value"/> must not be blank.</summary>
+    public static Name ValidName(string value) =>
+        Name.TryCreate(value, out Name? name)
+            ? name
+            : throw new ArgumentException("Names can't be blank.", nameof(value));
+
+    /// <summary>Inserts an item; it's complete when it has a <paramref name="completedAt"/>.</summary>
+    public static async Task InsertItem(
+        this SqlConnection db,
+        Guid itemGroupId,
+        Guid itemId,
+        string name = "Item",
+        DateTimeOffset? completedAt = null
+    )
+    {
+        await db.ExecuteAsync(
+            "INSERT INTO Items (Id, Name, IsComplete, CompletedAt, ItemGroupId) VALUES (@Id, @Name, @IsComplete, @CompletedAt, @ItemGroupId)",
+            new
+            {
+                Id = itemId,
+                Name = name,
+                IsComplete = completedAt is not null,
+                CompletedAt = completedAt,
+                ItemGroupId = itemGroupId,
+            }
+        );
+    }
+
+    public static Task<Item?> LoadItem(this SqlConnection db, Guid itemId) =>
+        db.QuerySingleOrDefaultAsync<Item>(
+            "SELECT Id, Name, Description, IsComplete, CompletedAt, ItemGroupId FROM Items WHERE Id = @Id",
+            new { Id = itemId }
+        );
 
     public static async Task<IReadOnlyList<Guid>> LoadMembers(
         this SqlConnection db,

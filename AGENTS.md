@@ -31,20 +31,20 @@ The client is organized by page (`lists/`, `list/`, `auth/`) with shared `api/`,
 
 ### Backend endpoints
 
-New and migrated operations (the Member slice so far) follow [specifications/architecture.md](specifications/architecture.md):
+New and migrated operations (the Member and Item slices so far) follow [specifications/architecture.md](specifications/architecture.md):
 
 - Use case in `Checklist/UseCases/<Slice>/`: ports in the constructor, one `Execute(Caller caller, …, CancellationToken ct)` returning a nested `Outcome` enum (commands) or the data, `null` for non-members (queries). No HTTP types, SQL, transactions or `AuditContext`
-- Endpoint adapter in `Api/Http/<Slice>/<Operation>Endpoint.cs`: `internal const string Name` for `.WithName()` (stored in `AuditLog.Operation`, never change it); `Handle` parses the request (400), calls `user.ToCaller(httpRequest)` (401), runs the use case, maps its outcome to `TypedResults` and sets `AuditContext`
+- Endpoint adapter in `Api/Http/<Slice>/<Operation>Endpoint.cs`: `internal const string Operation` for `.WithName()` (stored in `AuditLog.Operation`, never change it); `Handle` parses the request (400), calls `user.ToCaller(httpRequest)` (401), runs the use case, maps its outcome to `TypedResults` and sets `AuditContext`
 - SQL in a port adapter in `Api/Sql/`. Rules that must hold under concurrency go in one statement or one locked transaction
 - Register use cases and adapters in `AddChecklist()` (`ChecklistServiceCollectionExtensions`)
 
-The slices not migrated yet (Item, ItemGroup) still use the old pattern:
+The slice not migrated yet (ItemGroup) still uses the old pattern:
 
-- One static class per endpoint (e.g., `CreateItem.cs`) with `MapEndpoint` and `Execute` methods
+- One static class per endpoint (e.g., `CreateItemGroup.cs`) with `MapEndpoint` and `Execute` methods
 - Use `Results<Ok<T>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult>` typed results
 - Authorization via `db.ExecuteAsItemGroupMember<T>(...)` or `db.ExecuteAsAuthenticatedUser<T>(...)` extension methods
 - Separate internal `CreateData`/`LoadData` methods for testable data logic
-- Audit context: set `auditContext.SubResourceId` in handlers when a sub-resource is created
+- Audit context: set `auditContext.ResourceId` in handlers that create the resource (`CreateItemGroup`)
 - Read `X-SignalR-Connection-Id` from `httpRequest.Headers` and pass as `excludeConnectionId`
 
 Both:
@@ -59,8 +59,8 @@ Both:
 
 - HTTP integration and SignalR tests: class implements `IClassFixture<ApiFactory>`, uses `factory.CreateClient()` / `factory.CreateHubConnection()`
 - `ApiFactory` runs the app on its own scoped `SqlConnection` to an isolated test database (as in production); `factory.Connection` is a separate open connection for arranging and asserting. It keeps the real `ChecklistNotifier` + hub
-- Use-case tests (migrated slices): build the use case with the real SQL adapters on a `TestDatabase.CreateAsync()` connection and `CapturingNotifier`, and call `Execute` with a `Caller`. Arrange with `db.InsertItemGroup(id, memberIds…)` and check with `db.LoadMembers(id)` from `TestHelpers`
-- SQL adapter tests go in `Api.Tests/Sql/`, one port method at a time
+- Use-case tests (migrated slices): build the use case with the real SQL adapters on a `TestDatabase.CreateAsync()` connection and `CapturingNotifier` (plus a `FixedTimeProvider` when the time matters), and call `Execute` with a `Caller`. Arrange with `db.InsertItemGroup(id, memberIds…)` and `db.InsertItem(...)`, make names with `TestHelpers.ValidName(...)`, and check with `db.LoadMembers(id)` and `db.LoadItem(id)` from `TestHelpers`
+- SQL adapter tests go in `Api.Tests/Sql/`, one port method at a time; tests of domain values such as `Name` go in `Api.Tests/Checklist/Domain/`
 - Unit tests for data logic (slices not migrated yet): call internal static methods directly with a `TestDatabase.CreateAsync()` connection
 - File naming: `*.Http.Tests.cs` (integration) vs `*.Tests.cs` (unit)
 - Test auth: `TestAuthHandler` signs requests in as `TestAuthHandler.UserId` (insert a matching `Members` row); act as someone else with `factory.CreateClientFor(userId)` / `factory.CreateHubConnection(userId)`, or as no one with `factory.CreateAnonymousClient()`

@@ -57,17 +57,19 @@ Because `Checklist` has no package references, the compiler stops the inside fro
 
 ## The Inside: Checklist
 
-| Folder       | Contents                                                                                          |
-| ------------ | ------------------------------------------------------------------------------------------------- |
-| `Domain/`    | The records the API and SignalR send (`ItemGroup`, `ItemGroupSettings`, `Item`), and `Caller`     |
-| `Ports/`     | The interfaces the inside needs from the outside: `IMembership`, `IChecklistNotifier`             |
-| `UseCases/`  | One class per operation, in a folder per slice. Namespace `Checklist.UseCases` for all of them    |
+| Folder      | Contents                                                                                                                                      |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Domain/`   | The records the API and SignalR send (`ItemGroup`, `ItemGroupSettings`, `Item`), `Caller`, and the values use cases take: `Name`, `ItemInput` |
+| `Ports/`    | The interfaces the inside needs from the outside: `IMembership`, `IItemStore`, `IChecklistNotifier`                                           |
+| `UseCases/` | One class per operation, in a folder per slice. Namespace `Checklist.UseCases` for all of them                                                |
 
 ### Domain
 
 The domain records keep their `[Description]` attributes (plain `System.ComponentModel`, used for the OpenAPI document) and stay the JSON and SignalR payloads. Separate HTTP DTOs only pay off once the shapes need to differ.
 
 `Caller(UserId, ConnectionId)` says who is asking. A driving adapter builds it: endpoints with `ToCaller`, the hub from its connection. `ConnectionId` is the caller's SignalR connection, if any. Use cases never interpret it; they only pass it to the notifier, so the sender doesn't get its own change back.
+
+`Name` is a list or item name. `Name.TryCreate` is the only way to make one and refuses blank names, so a use case can't be handed a blank name: endpoint adapters parse names first and answer 400 when that fails. `ItemInput(Name, Description, IsComplete)` is what a member sets on an item when adding or editing it.
 
 ### Ports
 
@@ -76,7 +78,8 @@ Each port is named after what the inside needs, and each method covers one atomi
 | Port                 | Methods                                                                                                      | Adapter                       |
 | -------------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------- |
 | `IMembership`        | `IsMember`, `ListMembers`, `Add` (false if already a member), `RemoveUnlessLast` (false for the last member) | `SqlMembership`               |
-| `IChecklistNotifier` | `NotifyItemCreated` … `NotifyGroupDeleted`, each with the connection to leave out                           | `ChecklistNotifier` (SignalR) |
+| `IItemStore`         | `Create`, `Update` (returns the stored completion time), `Delete`; items in other lists are left alone       | `SqlItemStore`                |
+| `IChecklistNotifier` | `NotifyItemCreated` … `NotifyGroupDeleted`, each with the connection to leave out                            | `ChecklistNotifier` (SignalR) |
 
 ### Use Cases
 
@@ -84,6 +87,7 @@ Each port is named after what the inside needs, and each method covers one atomi
 - Commands return a nested `Outcome` enum, such as `RemoveMember.Outcome.LastMember`. Queries return the data, or `null` when the caller isn't a member.
 - Membership comes first, through `IMembership.IsMember`.
 - Notifications go out after the change, with `caller.ConnectionId` as the connection to leave out.
+- The current time comes from `TimeProvider`, which is part of .NET, and goes to ports as `now`.
 - No HTTP types, no SQL, no transactions, no `AuditContext`.
 
 ```csharp
@@ -113,10 +117,11 @@ public sealed class RemoveMember(IMembership membership, IChecklistNotifier noti
 
 Each endpoint adapter is an `internal static class` in `Api/Http/<Slice>/`, named after its operation plus `Endpoint` (`RemoveMemberEndpoint`), in namespace `Api.Http`.
 
-- `internal const string Name` is passed to `.WithName(Name)`. `AuditLog.Operation` stores it, so never change it.
+- `internal const string Operation` is passed to `.WithName(Operation)`. `AuditLog.Operation` stores it, so never change it. (A constant called `Name` would hide the `Name` domain type inside the class.)
 - `MapEndpoint` registers the route with its summary, description and tag.
+- A request body is a nested `Request` record whose `[Description]` attributes document it in OpenAPI. Only `Handle` sees it.
 - A private `Handle` does four things, in this order:
-  1. Parse the request into domain values, or return 400. Parsing comes first, so invalid input gets 400 before 401, as [checklist.md](checklist.md#validation) requires.
+  1. Parse the request into domain values (such as `Name.TryCreate`), or return 400. Parsing comes first, so invalid input gets 400 before 401, as [checklist.md](checklist.md#validation) requires.
   2. Resolve the caller with `user.ToCaller(httpRequest)`, or return 401. `ToCaller` reads the user ID claim and the `X-SignalR-Connection-Id` header.
   3. Call the use case.
   4. Map its outcome to `TypedResults`.
@@ -128,6 +133,7 @@ SQL adapters in `Api/Sql/` implement the ports with Dapper, always through `Comm
 
 - `SqlMembership.Add` is one conditional insert whose existence check holds `UPDLOCK, HOLDLOCK` until the insert. Of two concurrent adds of the same member, the second waits, finds the row and returns `false`.
 - `SqlMembership.RemoveUnlessLast` takes an update lock on the list's `ItemGroups` row, then checks and deletes in the same transaction, so removals from one list take turns.
+- `SqlItemStore.Update` works out the completion time in the statement that writes the item: `COALESCE(CompletedAt, @Now)` keeps a time that's already stored, and `OUTPUT` returns it. So editing a completed item keeps its original time, and when two members complete an item at once, the first one's time stays.
 
 Moving such rules into C# would mean loading, changing and saving a row, with optimistic concurrency on top: more code and more round trips for the same behavior. So the domain stays thin.
 
@@ -143,12 +149,15 @@ Moving such rules into C# would mean loading, changing and saving a row, with op
 
 ## Where the Rules Live
 
-| Rule                                       | Where                                                          |
-| ------------------------------------------ | -------------------------------------------------------------- |
-| Only members may read or change a list     | Use cases, through `IMembership.IsMember`; the hub, likewise   |
-| A list always keeps at least one member    | `SqlMembership.RemoveUnlessLast` (locked transaction)          |
-| A user is a member at most once            | `SqlMembership.Add` (one conditional insert)                   |
-| Who triggered a change doesn't get it back | `Caller.ConnectionId`, passed to the notifier by use cases     |
+| Rule                                                                    | Where                                                               |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Only members may read or change a list                                  | Use cases, through `IMembership.IsMember`; the hub, likewise        |
+| A list always keeps at least one member                                 | `SqlMembership.RemoveUnlessLast` (locked transaction)               |
+| A user is a member at most once                                         | `SqlMembership.Add` (one conditional insert)                        |
+| Names aren't blank                                                      | `Name.TryCreate`, which endpoint adapters call before anything else |
+| An item added as complete counts as completed now                       | `CreateItem`, with the time from `TimeProvider`                     |
+| Editing a completed item keeps its completion time; reopening clears it | `SqlItemStore.Update` (one statement)                               |
+| Who triggered a change doesn't get it back                              | `Caller.ConnectionId`, passed to the notifier by use cases          |
 
 ---
 
@@ -156,12 +165,15 @@ Moving such rules into C# would mean loading, changing and saving a row, with op
 
 All backend tests run against a real SQL Server (Testcontainers). There are no in-memory fakes of the ports, because they would have to copy the rules the SQL adapters enforce.
 
-| Kind              | Where                                         | What it covers                                                                                                  |
-| ----------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Use-case tests    | `Api.Tests/Checklist/<Slice>/<Operation>.Tests.cs` | The use case built with the real SQL adapters on a `TestDatabase` connection and `CapturingNotifier`: outcome, stored data, notifications |
-| SQL adapter tests | `Api.Tests/Sql/`                              | One port method at a time, including the rules in the table above                                               |
-| Adapter helpers   | `Api.Tests/Http/`                             | Small pieces of the HTTP adapter, such as `ToCaller`                                                            |
-| HTTP tests        | `*.Http.Tests.cs`                             | The whole app through `ApiFactory`: routes, status codes, auditing, and races between concurrent requests      |
+| Kind              | Where                                              | What it covers                                                                                                                                                                         |
+| ----------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Domain tests      | `Api.Tests/Checklist/Domain/`                      | Domain values such as `Name`, without a database                                                                                                                                       |
+| Use-case tests    | `Api.Tests/Checklist/<Slice>/<Operation>.Tests.cs` | The use case built with the real SQL adapters on a `TestDatabase` connection, `CapturingNotifier` and, when the time matters, `FixedTimeProvider`: outcome, stored data, notifications |
+| SQL adapter tests | `Api.Tests/Sql/`                                   | One port method at a time, including the rules in the table above                                                                                                                      |
+| Adapter helpers   | `Api.Tests/Http/`                                  | Small pieces of the HTTP adapter, such as `ToCaller`                                                                                                                                   |
+| HTTP tests        | `*.Http.Tests.cs`                                  | The whole app through `ApiFactory`: routes, status codes, auditing, and races between concurrent requests                                                                              |
+
+`TestHelpers` arranges and checks data (`InsertItemGroup`, `InsertItem`, `LoadMembers`, `LoadItem`) and makes names with `ValidName`.
 
 ---
 
@@ -180,11 +192,11 @@ All backend tests run against a real SQL Server (Testcontainers). There are no i
 
 The backend is moving to this layout one step at a time, and every step keeps all tests passing. Until a slice is migrated, its endpoints still follow the static `MapEndpoint` + `Execute` pattern described in [checklist.md](checklist.md#structural-conventions).
 
-| Step                                                                                     | State       |
-| ---------------------------------------------------------------------------------------- | ----------- |
-| Rename `Core` to `Api` (in hexagonal terms, "core" means the inside)                    | Done        |
-| `Checklist` project with the domain records and the `IChecklistNotifier` port           | Done        |
-| Member slice: `Caller`, `IMembership`, use cases, endpoint adapters, hub                | Done        |
-| Item slice                                                                               | Not started |
-| ItemGroup slice, auto-delete and the cleanup service                                    | Not started |
-| Adapters grouped by kind, old helpers removed, architecture test                        | Not started |
+| Step                                                                          | State       |
+| ----------------------------------------------------------------------------- | ----------- |
+| Rename `Core` to `Api` (in hexagonal terms, "core" means the inside)          | Done        |
+| `Checklist` project with the domain records and the `IChecklistNotifier` port | Done        |
+| Member slice: `Caller`, `IMembership`, use cases, endpoint adapters, hub      | Done        |
+| Item slice: `Name`, `ItemInput`, `IItemStore`, use cases, endpoint adapters   | Done        |
+| ItemGroup slice, auto-delete and the cleanup service                          | Not started |
+| Adapters grouped by kind, old helpers removed, architecture test              | Not started |

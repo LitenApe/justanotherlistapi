@@ -17,12 +17,12 @@ internal sealed partial class AuditEndpointFilter(
         [nameof(UpdateItemGroup)] = "ItemGroup",
         [nameof(UpdateItemGroupSettings)] = "ItemGroup",
         [nameof(DeleteItemGroup)] = "ItemGroup",
-        [nameof(CreateItem)] = "Item",
-        [nameof(UpdateItem)] = "Item",
-        [nameof(DeleteItem)] = "Item",
-        [GetMembersEndpoint.Name] = "ItemGroup",
-        [AddMemberEndpoint.Name] = "ItemGroup",
-        [RemoveMemberEndpoint.Name] = "ItemGroup",
+        [CreateItemEndpoint.Operation] = "Item",
+        [UpdateItemEndpoint.Operation] = "Item",
+        [DeleteItemEndpoint.Operation] = "Item",
+        [GetMembersEndpoint.Operation] = "ItemGroup",
+        [AddMemberEndpoint.Operation] = "ItemGroup",
+        [RemoveMemberEndpoint.Operation] = "ItemGroup",
     };
 
     public async ValueTask<object?> InvokeAsync(

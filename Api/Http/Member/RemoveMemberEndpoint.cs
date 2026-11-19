@@ -9,7 +9,7 @@ namespace Api.Http;
 internal static class RemoveMemberEndpoint
 {
     /// <summary>The endpoint's name, stored in <c>AuditLog.Operation</c>: never change it.</summary>
-    internal const string Name = "RemoveMember";
+    internal const string Operation = "RemoveMember";
 
     internal static void MapEndpoint(this IEndpointRouteBuilder builder)
     {
@@ -20,7 +20,7 @@ internal static class RemoveMemberEndpoint
                 "Revokes a user's access to an item group by removing them as a member. The authenticated user must be a member of the group. Returns 409 Conflict if the target member is the last member of the group, as removing them would leave the group permanently unreachable."
             )
             .WithTags("Member")
-            .WithName(Name);
+            .WithName(Operation);
     }
 
     private static async Task<
