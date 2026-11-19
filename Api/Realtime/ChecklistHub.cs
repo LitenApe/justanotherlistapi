@@ -3,7 +3,7 @@ using Checklist.UseCases;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
-namespace Api.Checklist;
+namespace Api.Realtime;
 
 [Authorize]
 public sealed class ChecklistHub(SubscribeToItemGroup subscribe) : Hub<IChecklistClient>

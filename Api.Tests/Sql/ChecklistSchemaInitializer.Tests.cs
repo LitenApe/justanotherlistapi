@@ -1,9 +1,9 @@
-using Api.Checklist;
+using Api.Sql;
 using Checklist.Domain;
 using Dapper;
 using Microsoft.Data.SqlClient;
 
-namespace Api.Tests.Checklist;
+namespace Api.Tests.Sql;
 
 public sealed class ChecklistSchemaInitializerTests
 {

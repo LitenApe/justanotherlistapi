@@ -17,7 +17,6 @@
 - [Where the Rules Live](#where-the-rules-live)
 - [Testing](#testing)
 - [Adding an Operation](#adding-an-operation)
-- [Migration Status](#migration-status)
 
 ---
 
@@ -118,6 +117,17 @@ public sealed class RemoveMember(IMembership membership, IChecklistNotifier noti
 
 ## The Outside: Api
 
+The adapters are grouped by kind, each kind in a folder and namespace of its own:
+
+| Folder            | Adapters                                                                                                                                |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `Api/Http/`       | Driving: the endpoint adapters, a folder per slice, with `ToCaller` and `MapChecklistApi()`                                             |
+| `Api/Realtime/`   | Driving: `ChecklistHub`. Driven: `ChecklistNotifier`, for `IChecklistNotifier`                                                          |
+| `Api/Background/` | Driving: `ChecklistCleanupService`                                                                                                      |
+| `Api/Sql/`        | Driven: `SqlItemGroupStore`, `SqlItemStore`, `SqlMembership`; the schema (`DatabaseInitializer`, `ChecklistSchemaInitializer`)          |
+| `Api/AuditLog/`   | The audit log: `AuditEndpointFilter` around every endpoint, `AuditTrail` for `IAuditTrail`, `ChannelAuditWriter` and the table's schema |
+| `Api/`            | `Program.cs` and `AddChecklist()`: the composition root                                                                                 |
+
 ### HTTP Endpoints
 
 Each endpoint adapter is an `internal static class` in `Api/Http/<Slice>/`, named after its operation plus `Endpoint` (`RemoveMemberEndpoint`), in namespace `Api.Http`.
@@ -182,13 +192,14 @@ Moving such rules into C# would mean loading, changing and saving a row, with op
 
 All backend tests run against a real SQL Server (Testcontainers). There are no in-memory fakes of the ports, because they would have to copy the rules the SQL adapters enforce.
 
-| Kind              | Where                                              | What it covers                                                                                                                                                                         |
-| ----------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Domain tests      | `Api.Tests/Checklist/Domain/`                      | Domain values such as `Name`, without a database                                                                                                                                       |
-| Use-case tests    | `Api.Tests/Checklist/<Slice>/<Operation>.Tests.cs` | The use case built with the real SQL adapters on a `TestDatabase` connection, `CapturingNotifier` and, when the time matters, `FixedTimeProvider`: outcome, stored data, notifications |
-| SQL adapter tests | `Api.Tests/Sql/`                                   | One port method at a time, including the rules in the table above                                                                                                                      |
-| Adapter helpers   | `Api.Tests/Http/`                                  | Small pieces of the HTTP adapter, such as `ToCaller`                                                                                                                                   |
-| HTTP tests        | `*.Http.Tests.cs`                                  | The whole app through `ApiFactory`: routes, status codes, auditing, and races between concurrent requests                                                                              |
+| Kind               | Where                                              | What it covers                                                                                                                                                                         |
+| ------------------ | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Domain tests       | `Api.Tests/Checklist/Domain/`                      | Domain values such as `Name`, without a database                                                                                                                                       |
+| Use-case tests     | `Api.Tests/Checklist/<Slice>/<Operation>.Tests.cs` | The use case built with the real SQL adapters on a `TestDatabase` connection, `CapturingNotifier` and, when the time matters, `FixedTimeProvider`: outcome, stored data, notifications |
+| SQL adapter tests  | `Api.Tests/Sql/`                                   | One port method at a time, including the rules in the table above                                                                                                                      |
+| Adapter helpers    | `Api.Tests/Http/`                                  | Small pieces of the HTTP adapter, such as `ToCaller`                                                                                                                                   |
+| HTTP tests         | `*.Http.Tests.cs`                                  | The whole app through `ApiFactory`: routes, status codes, auditing, and races between concurrent requests                                                                              |
+| Architecture tests | `Api.Tests/Architecture.Tests.cs`                  | The dependency rules: `Checklist` references nothing but .NET, use cases take only ports and `TimeProvider`, and `Api.Http` never takes an `IDbConnection`                             |
 
 `TestHelpers` arranges and checks data (`InsertItemGroup`, `InsertItem`, `SetItemGroupSettings`, `LoadItemGroupName`, `LoadSettings`, `LoadMembers`, `LoadItem`, `CountItems`) and makes domain values with `ValidName` and `ValidSettings`.
 
@@ -202,18 +213,3 @@ All backend tests run against a real SQL Server (Testcontainers). There are no i
 4. Register the use case, and any new adapter, in `AddChecklist()`.
 5. Add the endpoint to the audit resource types in `AuditEndpointFilter` and to `auditedEndpoints` in `AuditLog.Http.Tests.cs` (see [audit-logs.md](audit-logs.md#adding-audit-logging-to-a-new-endpoint)).
 6. Add use-case, adapter and HTTP tests.
-
----
-
-## Migration Status
-
-The backend moved to this layout one step at a time, and every step kept all tests passing. Every slice follows it now.
-
-| Step                                                                                                                                            | State       |
-| ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| Rename `Core` to `Api` (in hexagonal terms, "core" means the inside)                                                                            | Done        |
-| `Checklist` project with the domain records and the `IChecklistNotifier` port                                                                   | Done        |
-| Member slice: `Caller`, `IMembership`, use cases, endpoint adapters, hub                                                                        | Done        |
-| Item slice: `Name`, `ItemInput`, `IItemStore`, use cases, endpoint adapters                                                                     | Done        |
-| ItemGroup slice: `ItemGroupSettingsInput`, `IItemGroupStore`, `IAuditTrail`, use cases, endpoint adapters, cleanup service; old helpers removed | Done        |
-| Adapters grouped by kind, architecture test                                                                                                     | Not started |

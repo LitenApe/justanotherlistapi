@@ -1,8 +1,7 @@
 using Api.AuditLog;
-using Api.Checklist;
 using Microsoft.Data.SqlClient;
 
-namespace Api;
+namespace Api.Sql;
 
 internal static class DatabaseInitializer
 {

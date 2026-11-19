@@ -17,7 +17,7 @@
 
 - **Aspire/** — .NET Aspire AppHost; orchestrates SQL Server, mock OAuth container, Api backend and Vite client for local dev
 - **Checklist/** — the inside of the hexagon: domain records and values, ports and use cases. No library packages and no project references, so it can't depend on ASP.NET Core, Dapper or SignalR
-- **Api/** — ASP.NET Core 11 backend (Minimal APIs, Dapper, SQL Server, JWT Bearer auth): the adapters around `Checklist`, plus the composition root `Program.cs`
+- **Api/** — ASP.NET Core 11 backend (Minimal APIs, Dapper, SQL Server, JWT Bearer auth): the adapters around `Checklist`, grouped by kind (`Http/`, `Realtime/`, `Background/`, `Sql/`, `AuditLog/`), plus the composition root `Program.cs`
 - **Api.Tests/** — xUnit tests against SQL Server via Testcontainers (requires Docker)
 - **Client/** — React 19 + TypeScript, React Router framework mode in SPA mode (`ssr: false`), SignalR; served at http://localhost:5173 under Aspire
 
@@ -48,6 +48,7 @@ Every operation follows [specifications/architecture.md](specifications/architec
 - `ApiFactory` runs the app on its own scoped `SqlConnection` to an isolated test database (as in production); `factory.Connection` is a separate open connection for arranging and asserting. It keeps the real `ChecklistNotifier` + hub
 - Use-case tests: build the use case with the real SQL adapters on a `TestDatabase.CreateAsync()` connection and `CapturingNotifier` (plus a `FixedTimeProvider` when the time matters), and call `Execute` with a `Caller`. Arrange with `db.InsertItemGroup(id, memberIds…)`, `db.InsertItem(...)` and `db.SetItemGroupSettings(...)`, make domain values with `TestHelpers.ValidName(...)` and `ValidSettings(...)`, and check with the `Load…` helpers in `TestHelpers`
 - SQL adapter tests go in `Api.Tests/Sql/`, one port method at a time; tests of domain values such as `Name` go in `Api.Tests/Checklist/Domain/`
+- `Architecture.Tests.cs` pins the dependency rules (`Checklist` references nothing but .NET, use cases take only ports and `TimeProvider`, `Api.Http` never takes an `IDbConnection`). When it fails, fix the code, not the test
 - File naming: `*.Http.Tests.cs` (integration) vs `*.Tests.cs` (unit)
 - Test auth: `TestAuthHandler` signs requests in as `TestAuthHandler.UserId` (insert a matching `Members` row); act as someone else with `factory.CreateClientFor(userId)` / `factory.CreateHubConnection(userId)`, or as no one with `factory.CreateAnonymousClient()`
 - Notification assertions: use `CapturingNotifier` in unit tests, assert on `Notifications` list (type + data + `ExcludeConnectionId`)
@@ -98,7 +99,7 @@ Every operation follows [specifications/architecture.md](specifications/architec
 
 Detailed design docs live in [specifications/](specifications/):
 
-- [architecture.md](specifications/architecture.md) — Backend layout (ports and adapters), where code and rules belong, migration status
+- [architecture.md](specifications/architecture.md) — Backend layout (ports and adapters), where code and rules belong, how to add an operation
 - [checklist.md](specifications/checklist.md) — Domain model, endpoints, DB schema, authorization rules
 - [audit-logs.md](specifications/audit-logs.md) — Audit schema, per-operation capture, ChannelAuditWriter design
 - [authentication.md](specifications/authentication.md) — JWT Bearer setup, claim resolution, failure modes

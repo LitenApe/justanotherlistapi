@@ -1,6 +1,6 @@
 using Checklist.Domain;
 
-namespace Api.Checklist;
+namespace Api.Realtime;
 
 public interface IChecklistClient
 {

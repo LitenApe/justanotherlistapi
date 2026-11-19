@@ -1,7 +1,6 @@
 using Api.AuditLog;
-using Api.Http;
 
-namespace Api;
+namespace Api.Http;
 
 public static class ChecklistApiEndpointRouteBuilderExtension
 {

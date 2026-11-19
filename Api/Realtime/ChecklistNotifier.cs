@@ -2,7 +2,7 @@ using Checklist.Domain;
 using Checklist.Ports;
 using Microsoft.AspNetCore.SignalR;
 
-namespace Api.Checklist;
+namespace Api.Realtime;
 
 public sealed class ChecklistNotifier(IHubContext<ChecklistHub, IChecklistClient> hubContext)
     : IChecklistNotifier
