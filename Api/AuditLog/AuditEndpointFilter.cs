@@ -5,6 +5,7 @@ namespace Api.AuditLog;
 
 internal sealed partial class AuditEndpointFilter(
     IAuditWriter auditWriter,
+    TimeProvider timeProvider,
     ILogger<AuditEndpointFilter> logger
 ) : IEndpointFilter
 {
@@ -113,7 +114,7 @@ internal sealed partial class AuditEndpointFilter(
 
             auditWriter.Enqueue(
                 new AuditEntry(
-                    Timestamp: DateTimeOffset.UtcNow,
+                    Timestamp: timeProvider.GetUtcNow(),
                     TraceId: traceId,
                     UserId: userId,
                     IpAddress: ipAddress,

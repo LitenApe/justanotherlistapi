@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
 
-namespace Api.Utility;
+namespace Api.Http;
 
 public sealed class BearerSecuritySchemeTransformer(
     IAuthenticationSchemeProvider schemeProvider,

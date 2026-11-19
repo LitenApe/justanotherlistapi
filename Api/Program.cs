@@ -1,5 +1,4 @@
 using System.Data;
-using System.Diagnostics;
 using Api;
 using Api.AuditLog;
 using Api.Background;
@@ -7,7 +6,6 @@ using Api.DevSeed;
 using Api.Http;
 using Api.Realtime;
 using Api.Sql;
-using Api.Utility;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Data.SqlClient;
@@ -65,8 +63,10 @@ builder
             .CamelCase;
     });
 
-// List settings
+// The clock, for the use cases, the audit log and the cleanup job
 builder.Services.AddSingleton(TimeProvider.System);
+
+// Background job: deletes the lists whose auto-delete countdown has run out, once a minute
 builder.Services.AddHostedService<ChecklistCleanupService>();
 
 // Authentication & Authorization
@@ -114,27 +114,7 @@ builder
                 }
                 return Task.CompletedTask;
             },
-            OnAuthenticationFailed = context =>
-            {
-                IAuditWriter writer =
-                    context.HttpContext.RequestServices.GetRequiredService<IAuditWriter>();
-                writer.Enqueue(
-                    new AuditEntry(
-                        Timestamp: DateTimeOffset.UtcNow,
-                        TraceId: Activity.Current?.TraceId.ToString(),
-                        UserId: null,
-                        IpAddress: context.HttpContext.Connection.RemoteIpAddress?.ToString(),
-                        ResourceType: null,
-                        Operation: "AuthenticationFailed",
-                        ResourceId: null,
-                        SubResourceId: null,
-                        TargetUserId: null,
-                        Outcome: "AuthenticationFailed",
-                        FailureReason: context.Exception.Message
-                    )
-                );
-                return Task.CompletedTask;
-            },
+            OnAuthenticationFailed = AuthenticationAudit.OnAuthenticationFailed,
         };
     });
 builder.Services.AddAuthorization();

@@ -87,7 +87,7 @@ HTTP Response sent to client
                         └─────────────────────────────────────┘
 ```
 
-The `OnAuthenticationFailed` JWT event short-circuits this flow — it fires before routing reaches the endpoint pipeline, so `AuditEndpointFilter` is never called. The JWT event writes the audit entry directly to `IAuditWriter`.
+The `OnAuthenticationFailed` JWT event short-circuits this flow — it fires before routing reaches the endpoint pipeline, so `AuditEndpointFilter` is never called. Its handler, `AuthenticationAudit.OnAuthenticationFailed`, writes the audit entry directly to `IAuditWriter`.
 
 ### File Structure
 
@@ -95,12 +95,14 @@ The `OnAuthenticationFailed` JWT event short-circuits this flow — it fires bef
 Api/
   AuditLog/
     AuditEntry.cs               ← immutable DTO written to the DB
-    AuditContext.cs             ← scoped per-request bag populated by handlers
+    AuditContext.cs             ← scoped per-request bag the endpoint adapters fill in
     IAuditWriter.cs             ← interface: void Enqueue(AuditEntry)
     ChannelAuditWriter.cs       ← singleton background writer (IHostedService)
     AuditEndpointFilter.cs      ← IEndpointFilter; captures outcome via Response.OnStarting
+    AuthenticationAudit.cs      ← OnAuthenticationFailed handler; audits rejected tokens
+    AuditTrail.cs               ← IAuditTrail; audits changes no request made (auto-delete)
     AuditLogSchemaInitializer.cs← DDL for the AuditLog table (idempotent IF NOT EXISTS)
-  Program.cs                    ← registers services; wires OnAuthenticationFailed
+  Program.cs                    ← registers services; points OnAuthenticationFailed at AuthenticationAudit
 
 Api.Tests/
   AuditLog/
@@ -140,7 +142,7 @@ CREATE TABLE AuditLog (
 | Column | Description |
 |---|---|
 | `Id` | Sequential GUID primary key (`NEWSEQUENTIALID()`). Sequential insertion order improves clustered index performance for high-volume append workloads. |
-| `Timestamp` | UTC timestamp of the event (`DateTimeOffset.UtcNow` at the point the `Response.OnStarting` callback fires). |
+| `Timestamp` | UTC timestamp of the event, from the app's `TimeProvider` (for requests, when the `Response.OnStarting` callback fires). |
 | `TraceId` | OpenTelemetry W3C trace ID (`Activity.Current?.TraceId`) for correlating audit records with distributed traces and application logs. NULL when no active trace exists. |
 | `UserId` | GUID of the authenticated user performing the operation. NULL for unauthenticated requests (`AuthenticationFailed` events). |
 | `IpAddress` | Client IP address. Resolved from `HttpContext.Connection.RemoteIpAddress` after `UseForwardedHeaders` middleware has applied `X-Forwarded-For`. NULL when not available. |
@@ -255,9 +257,10 @@ public sealed record AuditEntry(
 );
 ```
 
-`AuditEntry` is constructed in two places:
+`AuditEntry` is constructed in three places:
 - `AuditEndpointFilter.EnqueueAuditEntry` — for all Checklist endpoint requests
-- The `OnAuthenticationFailed` JWT event in `Program.cs` — for token validation failures
+- `AuthenticationAudit.OnAuthenticationFailed`, the JWT event handler — for token validation failures
+- `AuditTrail.ItemGroupAutoDeleted` — for the lists the cleanup job auto-deletes
 
 ### `IAuditWriter` and `ChannelAuditWriter`
 
@@ -366,31 +369,35 @@ public sealed class AuditContext
 
 ### JWT `OnAuthenticationFailed` Event
 
-`AuditEndpointFilter` only runs for requests that reach the endpoint pipeline. A request bearing an invalid Bearer token is rejected by the JWT middleware before routing — the endpoint pipeline (including the filter) is never reached. The `OnAuthenticationFailed` event in the `AddJwtBearer` configuration is the only interception point for these events.
+`AuditEndpointFilter` only runs for requests that reach the endpoint pipeline. A request bearing an invalid Bearer token is rejected by the JWT middleware before routing — the endpoint pipeline (including the filter) is never reached. The `OnAuthenticationFailed` event in the `AddJwtBearer` configuration is the only interception point for these events. `Program.cs` points it at `AuthenticationAudit.OnAuthenticationFailed` in `Api/AuditLog/`:
 
 ```csharp
+// Program.cs
 options.Events = new JwtBearerEvents
 {
-    OnAuthenticationFailed = context =>
-    {
-        IAuditWriter writer =
-            context.HttpContext.RequestServices.GetRequiredService<IAuditWriter>();
-        writer.Enqueue(new AuditEntry(
-            Timestamp: DateTimeOffset.UtcNow,
-            TraceId: Activity.Current?.TraceId.ToString(),
-            UserId: null,
-            IpAddress: context.HttpContext.Connection.RemoteIpAddress?.ToString(),
-            ResourceType: null,
-            Operation: "AuthenticationFailed",
-            ResourceId: null,
-            SubResourceId: null,
-            TargetUserId: null,
-            Outcome: "AuthenticationFailed",
-            FailureReason: context.Exception.Message
-        ));
-        return Task.CompletedTask;
-    },
+    OnAuthenticationFailed = AuthenticationAudit.OnAuthenticationFailed,
+    // OnMessageReceived reads SignalR's access_token query parameter
 };
+
+// Api/AuditLog/AuthenticationAudit.cs
+internal static Task OnAuthenticationFailed(AuthenticationFailedContext context)
+{
+    IServiceProvider services = context.HttpContext.RequestServices;
+    services.GetRequiredService<IAuditWriter>().Enqueue(new AuditEntry(
+        Timestamp: services.GetRequiredService<TimeProvider>().GetUtcNow(),
+        TraceId: Activity.Current?.TraceId.ToString(),
+        UserId: null,
+        IpAddress: context.HttpContext.Connection.RemoteIpAddress?.ToString(),
+        ResourceType: null,
+        Operation: Operation, // "AuthenticationFailed"
+        ResourceId: null,
+        SubResourceId: null,
+        TargetUserId: null,
+        Outcome: "AuthenticationFailed",
+        FailureReason: context.Exception.Message
+    ));
+    return Task.CompletedTask;
+}
 ```
 
 `OnChallenge` is intentionally **not** handled. It fires for all unauthenticated requests — including health checks, `OPTIONS` preflights, and requests with no token at all — producing excessive noise with no useful security signal.

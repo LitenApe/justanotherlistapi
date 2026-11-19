@@ -65,6 +65,7 @@ Api/                                - ASP.NET Core backend: the adapters around 
     AuditEntry.cs                   - Immutable record representing a single audited event
     AuditLogSchemaInitializer.cs    - Idempotent DDL for the AuditLog table and its indexes
     AuditTrail.cs                   - IAuditTrail on the audit log: entries no request is behind (auto-delete)
+    AuthenticationAudit.cs          - Audits rejected bearer tokens, which never reach the endpoint filter
     ChannelAuditWriter.cs           - IAuditWriter + IHostedService: batches entries via a bounded Channel
     IAuditWriter.cs                 - Enqueue(AuditEntry) abstraction consumed by handlers and the filter
   Background/
@@ -72,6 +73,7 @@ Api/                                - ASP.NET Core backend: the adapters around 
   Extensions/
     ClaimsPrincipalExtension.cs     - GetUserId(): reads sub / NameIdentifier / user_id claim → Guid?
   Http/
+    BearerSecuritySchemeTransformer.cs  - Adds Bearer + OAuth2 security schemes to the OpenAPI document
     CallerExtensions.cs             - ToCaller(): the signed-in user and SignalR connection behind a request
     ChecklistApiEndpointRouteBuilderExtension.cs  - MapChecklistApi(): maps all routes under /api/list
     Item/                           - Endpoint adapters: CreateItem, UpdateItem, DeleteItem
@@ -88,8 +90,6 @@ Api/                                - ASP.NET Core backend: the adapters around 
     SqlItemGroupStore.cs            - IItemGroupStore on the ItemGroups table; settings and auto-delete in one statement each
     SqlItemStore.cs                 - IItemStore on the Items table; editing a completed item keeps its completion time
     SqlMembership.cs                - IMembership on the Members table, with race-safe add and last-member removal
-  Utility/
-    BearerSecuritySchemeTransformer.cs  - Adds Bearer + OAuth2 security schemes to OpenAPI doc
 Api.Tests/                          - xUnit tests (SQL Server via Testcontainers, requires Docker)
   ApiFactory.cs                     - WebApplicationFactory<Program> on a test DB + TestAuthHandler (user picked per request)
   Architecture.Tests.cs             - Dependency rules: Checklist uses only .NET, use cases take only ports, adapters only use cases
