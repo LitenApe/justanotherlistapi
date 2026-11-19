@@ -356,13 +356,13 @@ public sealed class AuditContext
 | Handler | Property set | Why |
 |---|---|---|
 | `CreateItemGroup` | `ResourceId` | The new group ID is generated inside the handler (`Guid.NewGuid()`). There is no `itemGroupId` route value on `POST /api/list`. |
-| `CreateItem` | `SubResourceId` | The new item ID is generated inside the handler. The `itemGroupId` is a route value but the item's ID is not. |
+| `CreateItemEndpoint` | `SubResourceId` | The `CreateItem` use case generates the new item's ID. The `itemGroupId` is a route value but the item's ID is not. |
 | `AddMemberEndpoint` | `TargetUserId` | The `memberId` route value identifies the user being added. |
 | `RemoveMemberEndpoint` | `TargetUserId` | Same as `AddMemberEndpoint`. |
 
-**Handlers that do not take `AuditContext`** — `GetItemGroups`, `GetItemGroup`, `GetMembersEndpoint`, `UpdateItemGroup`, `UpdateItem`, `DeleteItemGroup`, `DeleteItem`. The filter resolves all needed context for these handlers from route values or HTTP context without handler cooperation.
+**Handlers that do not take `AuditContext`** — `GetItemGroups`, `GetItemGroup`, `GetMembersEndpoint`, `UpdateItemGroup`, `UpdateItemEndpoint`, `DeleteItemGroup`, `DeleteItemEndpoint`. The filter resolves all needed context for these handlers from route values or HTTP context without handler cooperation.
 
-**Important**: `AuditContext.ResourceId` and `AuditContext.SubResourceId` are only set on the *successful* code path inside `CreateItemGroup` and `CreateItem` respectively. For early-exit paths (BadRequest, Unauthorized, Forbidden) the handler returns before setting these properties, so the filter records `NULL`. This is correct — when a create operation was not permitted, no resource was created.
+**Important**: `AuditContext.ResourceId` and `AuditContext.SubResourceId` are only set on the *successful* code path inside `CreateItemGroup` and `CreateItemEndpoint` respectively. For early-exit paths (BadRequest, Unauthorized, Forbidden) the handler returns before setting these properties, so the filter records `NULL`. This is correct — when a create operation was not permitted, no resource was created.
 
 ### JWT `OnAuthenticationFailed` Event
 
@@ -435,10 +435,10 @@ Endpoints on the `/api/list` route group automatically receive an audit entry be
 internal static class GetSomethingEndpoint
 {
     /// <summary>The endpoint's name, stored in <c>AuditLog.Operation</c>: never change it.</summary>
-    internal const string Name = "GetSomething";
+    internal const string Operation = "GetSomething";
 
     internal static void MapEndpoint(this IEndpointRouteBuilder builder) =>
-        builder.MapGet("/{itemGroupId:guid}/something", Handle).WithName(Name);
+        builder.MapGet("/{itemGroupId:guid}/something", Handle).WithName(Operation);
 }
 ```
 
@@ -450,7 +450,7 @@ The filter uses this name as the `Operation` value. Without it, the filter logs 
 private static readonly Dictionary<string, string> resourceTypes = new(StringComparer.Ordinal)
 {
     // existing entries ...
-    [GetSomethingEndpoint.Name] = "ItemGroup",   // ← add here
+    [GetSomethingEndpoint.Operation] = "ItemGroup",   // ← add here
 };
 ```
 

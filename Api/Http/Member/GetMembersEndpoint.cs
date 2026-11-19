@@ -7,7 +7,7 @@ namespace Api.Http;
 internal static class GetMembersEndpoint
 {
     /// <summary>The endpoint's name, stored in <c>AuditLog.Operation</c>: never change it.</summary>
-    internal const string Name = "GetMembers";
+    internal const string Operation = "GetMembers";
 
     internal static void MapEndpoint(this IEndpointRouteBuilder builder)
     {
@@ -18,7 +18,7 @@ internal static class GetMembersEndpoint
                 "Returns the list of user IDs that are members of the specified item group. The authenticated user must already be a member."
             )
             .WithTags("Member")
-            .WithName(Name);
+            .WithName(Operation);
     }
 
     private static async Task<

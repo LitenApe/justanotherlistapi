@@ -40,4 +40,22 @@ public sealed class DeleteItemHttpTests(ApiFactory factory) : IClassFixture<ApiF
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
+
+    [Fact]
+    public async Task MapEndpoint_ReturnsForbidden_AndKeepsTheItem_WhenTheUserIsNotAMember()
+    {
+        var itemGroupId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        await factory.Connection.InsertItemGroup(itemGroupId, TestAuthHandler.UserId);
+        await factory.Connection.InsertItem(itemGroupId, itemId);
+        HttpClient client = factory.CreateClientFor(Guid.NewGuid());
+
+        HttpResponseMessage response = await client.DeleteAsync(
+            $"/api/list/{itemGroupId}/{itemId}",
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.NotNull(await factory.Connection.LoadItem(itemId));
+    }
 }

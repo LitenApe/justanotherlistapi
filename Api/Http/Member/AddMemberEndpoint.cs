@@ -9,7 +9,7 @@ namespace Api.Http;
 internal static class AddMemberEndpoint
 {
     /// <summary>The endpoint's name, stored in <c>AuditLog.Operation</c>: never change it.</summary>
-    internal const string Name = "AddMember";
+    internal const string Operation = "AddMember";
 
     internal static void MapEndpoint(this IEndpointRouteBuilder builder)
     {
@@ -20,7 +20,7 @@ internal static class AddMemberEndpoint
                 "Grants another user access to an item group by adding them as a member. The authenticated user must already be a member. Returns 409 Conflict if the user is already a member."
             )
             .WithTags("Member")
-            .WithName(Name);
+            .WithName(Operation);
     }
 
     private static async Task<

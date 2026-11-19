@@ -51,8 +51,9 @@ Client/                             - React Router (framework mode, SPA) web cli
   src/styles/global.css             - Design tokens per theme (WCAG AA contrast) and base styles
   src/test/                         - Fake API, fake SignalR connection, axe helper
 Checklist/                          - The inside of the hexagon, no packages — see specifications/architecture.md
-  Domain/                           - ItemGroup, ItemGroupSettings, Item records (also the JSON and SignalR payloads), Caller
-  Ports/                            - IMembership (who belongs to which list), IChecklistNotifier (realtime updates)
+  Domain/                           - ItemGroup, ItemGroupSettings, Item records (also the JSON and SignalR payloads), Caller, Name, ItemInput
+  Ports/                            - IMembership (who belongs to which list), IItemStore (the items in each list), IChecklistNotifier (realtime updates)
+  UseCases/Item/                    - CreateItem, UpdateItem, DeleteItem
   UseCases/Member/                  - GetMembers, AddMember, RemoveMember, SubscribeToItemGroup (for the hub)
 Api/                                - ASP.NET Core backend: the adapters around Checklist
   Program.cs                        - App composition root: DI, middleware, auth, OpenAPI, DB init
@@ -73,22 +74,24 @@ Api/                                - ASP.NET Core backend: the adapters around 
     ChecklistHub.cs                 - SignalR hub at /hubs/checklist — JoinGroup (membership-gated) and LeaveGroup
     ChecklistNotifier.cs            - IChecklistNotifier impl: broadcasts via IHubContext with optional caller exclusion
     IChecklistClient.cs             - Typed client interface (ItemCreated, ItemUpdated, etc.)
-    Item/                           - CreateItem, UpdateItem, DeleteItem handlers
     ItemGroup/                      - GetItemGroups, GetItemGroup, CreateItemGroup, UpdateItemGroup,
     |                                 UpdateItemGroupSettings, DeleteItemGroup handlers, AutoDeleteItemGroups
   Extensions/
     ClaimsPrincipalExtension.cs     - GetUserId(): reads sub / NameIdentifier / user_id claim → Guid?
   Http/
     CallerExtensions.cs             - ToCaller(): the signed-in user and SignalR connection behind a request
+    Item/                           - Endpoint adapters: CreateItem, UpdateItem, DeleteItem
     Member/                         - Endpoint adapters: GetMembers, AddMember, RemoveMember
   Sql/
+    SqlItemStore.cs                 - IItemStore on the Items table; editing a completed item keeps its completion time
     SqlMembership.cs                - IMembership on the Members table, with race-safe add and last-member removal
   Utility/
     BearerSecuritySchemeTransformer.cs  - Adds Bearer + OAuth2 security schemes to OpenAPI doc
 Api.Tests/                          - xUnit tests (SQL Server via Testcontainers, requires Docker)
   ApiFactory.cs                     - WebApplicationFactory<Program> on a test DB + TestAuthHandler (user picked per request)
+  FixedTimeProvider.cs              - TimeProvider that always returns the time it was given
   TestDatabase.cs                   - Starts shared SQL Server container; isolated DB per test
-  TestHelpers.cs                    - CreatePrincipal, CreateHttpRequest, and InsertItemGroup / LoadMembers for arranging data
+  TestHelpers.cs                    - CreatePrincipal, CreateHttpRequest, ValidName, and Insert/Load helpers for lists, items and members
   AuditLog/
     AuditLog.Http.Tests.cs          - HTTP integration tests verifying audit entries are captured per operation
     CapturingAuditWriter.cs         - In-memory IAuditWriter that accumulates entries for assertion
@@ -97,12 +100,14 @@ Api.Tests/                          - xUnit tests (SQL Server via Testcontainers
   Checklist/
     CapturingNotifier.cs            - In-memory IChecklistNotifier that records notifications for assertion
     ChecklistHubTests.cs            - SignalR hub auth tests + full end-to-end notification pipeline tests
-    Item/                           - Unit + HTTP tests for Item endpoints
+    Domain/                         - Tests for domain values such as Name
+    Item/                           - Use-case + HTTP tests for the Item slice
     ItemGroup/                      - Unit + HTTP tests for ItemGroup endpoints
     Member/                         - Use-case + HTTP tests for the Member slice
   Http/
     CallerExtensions.Tests.cs       - ToCaller(): user ID and connection ID from a request
   Sql/
+    SqlItemStore.Tests.cs           - IItemStore against SQL Server, including completion times
     SqlMembership.Tests.cs          - IMembership against SQL Server, one method at a time
 Directory.Build.props               - Solution-wide MSBuild settings and analyzer packages
 Directory.Build.targets             - CSharpier format check wired into every CLI build

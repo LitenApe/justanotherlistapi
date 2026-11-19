@@ -16,6 +16,7 @@ internal static class ChecklistServiceCollectionExtensions
     {
         // Ports
         services.AddScoped<IMembership, SqlMembership>();
+        services.AddScoped<IItemStore, SqlItemStore>();
         services.AddSingleton<IChecklistNotifier, ChecklistNotifier>();
 
         // Use cases
@@ -23,6 +24,9 @@ internal static class ChecklistServiceCollectionExtensions
         services.AddScoped<AddMember>();
         services.AddScoped<RemoveMember>();
         services.AddScoped<SubscribeToItemGroup>();
+        services.AddScoped<CreateItem>();
+        services.AddScoped<UpdateItem>();
+        services.AddScoped<DeleteItem>();
 
         return services;
     }

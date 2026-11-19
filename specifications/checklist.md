@@ -495,7 +495,7 @@ Updates the name, description, and/or completion status of an existing item. All
 - Saving an item that is already complete (for example, to rename it) keeps the original time, so editing doesn't restart the auto-hide or auto-delete clock.
 - Reopening an item clears it.
 
-The `ItemUpdated` notification carries the stored value, read back with `OUTPUT INSERTED.CompletedAt`.
+The `ItemUpdated` notification carries the stored value, which `SqlItemStore.Update` reads back with `OUTPUT INSERTED.CompletedAt`.
 
 ---
 
@@ -596,7 +596,7 @@ Revokes a user's access to an item group. Any member can remove any other member
 
 ### Validation
 
-Name fields (`ItemGroup.Name`, `Item.Name`) are validated with `string.IsNullOrWhiteSpace`. This check runs before the authentication and membership checks so that `400 Bad Request` is always returned for invalid input regardless of auth status.
+Name fields (`ItemGroup.Name`, `Item.Name`) must not be blank. Item endpoints parse the name into the `Name` domain value (`Name.TryCreate`), which refuses blank names; the ItemGroup handlers, not migrated yet, check `string.IsNullOrWhiteSpace`. Either way, the check runs before the authentication and membership checks so that `400 Bad Request` is always returned for invalid input regardless of auth status.
 
 ### Idempotent Deletes and Updates
 
@@ -682,14 +682,14 @@ For each deleted group, `AutoDeleteItemGroups` enqueues an `AutoDeleteItemGroup`
 
 ## Structural Conventions
 
-The Member slice (`GetMembers`, `AddMember`, `RemoveMember`) follows the ports-and-adapters layout in [architecture.md](architecture.md): a use case in `Checklist/UseCases/`, an endpoint adapter in `Api/Http/` and its SQL in `Api/Sql/`. The other operations still use the structure below until they're migrated.
+The Member slice (`GetMembers`, `AddMember`, `RemoveMember`) and the Item slice (`CreateItem`, `UpdateItem`, `DeleteItem`) follow the ports-and-adapters layout in [architecture.md](architecture.md): a use case in `Checklist/UseCases/`, an endpoint adapter in `Api/Http/` and its SQL in `Api/Sql/`. The ItemGroup operations still use the structure below until they're migrated.
 
 Each of those operations is a standalone `static` class following the same structure:
 
 - `MapEndpoint(IEndpointRouteBuilder)` — registers the route with summary, description, tag, and name
-- `Execute(...)` — the handler method bound by Minimal API. Contains validation, auth checks, and delegates to data methods. Handlers that participate in audit logging (`CreateItemGroup`, `CreateItem`) also accept an `AuditContext` parameter and populate the relevant ID fields before returning.
-- `CreateData` / `UpdateData` / `RemoveData` / `DeleteData` / `LoadData` — `internal static` data access methods, made internal for direct testing without the HTTP stack. Delete operations use `RemoveData` (`DeleteItemGroup`) or `DeleteData` (`DeleteItem`).
+- `Execute(...)` — the handler method bound by Minimal API. Contains validation, auth checks, and delegates to data methods. `CreateItemGroup`, which takes part in audit logging, also accepts an `AuditContext` parameter and sets the new list's ID before returning.
+- `CreateData` / `UpdateData` / `RemoveData` / `DeleteData` / `LoadData` — `internal static` data access methods, made internal for direct testing without the HTTP stack. Delete operations use `RemoveData` (`DeleteItemGroup`) or `DeleteData` (`AutoDeleteItemGroups`).
 - `Request` record — nested inside the handler class where a request body is required
-- Handlers that need the current time (`CreateItem`, `UpdateItem`, `UpdateItemGroupSettings`) take a `TimeProvider` and pass `now` into their data methods, so tests control the clock
+- Handlers that need the current time (`UpdateItemGroupSettings`) take a `TimeProvider` and pass `now` into their data methods, so tests control the clock. The migrated `CreateItem` and `UpdateItem` use cases do the same with their port
 
 All endpoints are registered in `ChecklistApiEndpointRouteBuilderExtension.MapChecklistApi()` on a single route group, which applies `.RequireAuthorization()` and `.AddEndpointFilter<AuditEndpointFilter>()` uniformly. The `AuditEndpointFilter` runs after every handler and enqueues an `AuditEntry` based on the HTTP outcome.
