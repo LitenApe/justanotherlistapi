@@ -106,9 +106,8 @@ public sealed class ChecklistHubTests(ApiFactory factory) : IClassFixture<ApiFac
         );
 
         var tcs = new TaskCompletionSource<(Guid GroupId, Item Item)>();
-        connection.On<Guid, Item>(
-            "ItemCreated",
-            (groupId, item) => tcs.TrySetResult((groupId, item))
+        connection.On<Guid, Item>("ItemCreated", (groupId, item) =>
+            tcs.TrySetResult((groupId, item))
         );
 
         // Act — create item via HTTP
@@ -167,9 +166,8 @@ public sealed class ChecklistHubTests(ApiFactory factory) : IClassFixture<ApiFac
         );
 
         var tcs = new TaskCompletionSource<(Guid GroupId, Item Item)>();
-        connection.On<Guid, Item>(
-            "ItemUpdated",
-            (groupId, item) => tcs.TrySetResult((groupId, item))
+        connection.On<Guid, Item>("ItemUpdated", (groupId, item) =>
+            tcs.TrySetResult((groupId, item))
         );
 
         // Act
@@ -234,9 +232,8 @@ public sealed class ChecklistHubTests(ApiFactory factory) : IClassFixture<ApiFac
         );
 
         var tcs = new TaskCompletionSource<(Guid GroupId, Guid ItemId)>();
-        connection.On<Guid, Guid>(
-            "ItemDeleted",
-            (groupId, deletedItemId) => tcs.TrySetResult((groupId, deletedItemId))
+        connection.On<Guid, Guid>("ItemDeleted", (groupId, deletedItemId) =>
+            tcs.TrySetResult((groupId, deletedItemId))
         );
 
         // Act
@@ -282,9 +279,8 @@ public sealed class ChecklistHubTests(ApiFactory factory) : IClassFixture<ApiFac
         );
 
         var tcs = new TaskCompletionSource<(Guid GroupId, string Name)>();
-        connection.On<Guid, string>(
-            "GroupRenamed",
-            (groupId, name) => tcs.TrySetResult((groupId, name))
+        connection.On<Guid, string>("GroupRenamed", (groupId, name) =>
+            tcs.TrySetResult((groupId, name))
         );
 
         // Act
@@ -331,9 +327,8 @@ public sealed class ChecklistHubTests(ApiFactory factory) : IClassFixture<ApiFac
         );
 
         var tcs = new TaskCompletionSource<(Guid GroupId, ItemGroupSettings Settings)>();
-        connection.On<Guid, ItemGroupSettings>(
-            "GroupSettingsChanged",
-            (groupId, settings) => tcs.TrySetResult((groupId, settings))
+        connection.On<Guid, ItemGroupSettings>("GroupSettingsChanged", (groupId, settings) =>
+            tcs.TrySetResult((groupId, settings))
         );
 
         // Act
@@ -427,9 +422,8 @@ public sealed class ChecklistHubTests(ApiFactory factory) : IClassFixture<ApiFac
         );
 
         var tcs = new TaskCompletionSource<(Guid GroupId, Guid MemberId)>();
-        connection.On<Guid, Guid>(
-            "MemberAdded",
-            (groupId, memberId) => tcs.TrySetResult((groupId, memberId))
+        connection.On<Guid, Guid>("MemberAdded", (groupId, memberId) =>
+            tcs.TrySetResult((groupId, memberId))
         );
 
         // Act
@@ -481,9 +475,8 @@ public sealed class ChecklistHubTests(ApiFactory factory) : IClassFixture<ApiFac
         );
 
         var tcs = new TaskCompletionSource<(Guid GroupId, Guid MemberId)>();
-        connection.On<Guid, Guid>(
-            "MemberRemoved",
-            (groupId, memberId) => tcs.TrySetResult((groupId, memberId))
+        connection.On<Guid, Guid>("MemberRemoved", (groupId, memberId) =>
+            tcs.TrySetResult((groupId, memberId))
         );
 
         // Act
@@ -578,9 +571,8 @@ public sealed class ChecklistHubTests(ApiFactory factory) : IClassFixture<ApiFac
         );
 
         var tcs = new TaskCompletionSource<(Guid GroupId, Guid MemberId)>();
-        removedMember.On<Guid, Guid>(
-            "MemberRemoved",
-            (groupId, memberId) => tcs.TrySetResult((groupId, memberId))
+        removedMember.On<Guid, Guid>("MemberRemoved", (groupId, memberId) =>
+            tcs.TrySetResult((groupId, memberId))
         );
 
         // Act — another member removes them

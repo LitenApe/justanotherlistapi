@@ -196,14 +196,10 @@ app.MapScalarApiReference(opt =>
     if (!string.IsNullOrEmpty(authority))
     {
         opt.AddPreferredSecuritySchemes("OAuth2")
-            .AddClientCredentialsFlow(
-                "OAuth2",
-                flow =>
-                {
-                    flow.WithClientId("00000000-0000-0000-0000-000000000001")
-                        .WithClientSecret("dev");
-                }
-            );
+            .AddClientCredentialsFlow("OAuth2", flow =>
+            {
+                flow.WithClientId("00000000-0000-0000-0000-000000000001").WithClientSecret("dev");
+            });
     }
     else
     {

@@ -87,16 +87,14 @@ public sealed class RemoveMemberHttpTests(ApiFactory factory) : IClassFixture<Ap
             // The other request is refused: its target is now the last member (409), or its
             // caller was removed first (403).
             Assert.Single(responses, r => r.StatusCode == HttpStatusCode.NoContent);
-            Assert.All(
-                responses,
-                r =>
-                    Assert.True(
-                        r.StatusCode
-                            is HttpStatusCode.NoContent
-                                or HttpStatusCode.Conflict
-                                or HttpStatusCode.Forbidden,
-                        $"Unexpected status {r.StatusCode} in round {round}"
-                    )
+            Assert.All(responses, r =>
+                Assert.True(
+                    r.StatusCode
+                        is HttpStatusCode.NoContent
+                            or HttpStatusCode.Conflict
+                            or HttpStatusCode.Forbidden,
+                    $"Unexpected status {r.StatusCode} in round {round}"
+                )
             );
         }
     }

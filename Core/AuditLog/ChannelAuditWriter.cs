@@ -15,8 +15,7 @@ internal sealed partial class ChannelAuditWriter : IAuditWriter, IHostedService,
     public ChannelAuditWriter(IConfiguration configuration, ILogger<ChannelAuditWriter> logger)
     {
         this.logger = logger;
-        connectionString =
-            configuration.GetConnectionString("database")
+        connectionString = configuration.GetConnectionString("database")
             ?? throw new InvalidOperationException(
                 "Connection string 'database' is not configured."
             );

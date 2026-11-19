@@ -1,0 +1,3 @@
+# Claude Code keeps other checkouts of this repository (worktrees) under .claude/. They are
+# formatted on their own branches, so the build's `csharpier check .` must not judge them.
+.claude/

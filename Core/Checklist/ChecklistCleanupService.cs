@@ -17,8 +17,7 @@ internal sealed partial class ChecklistCleanupService(
 {
     private static readonly TimeSpan interval = TimeSpan.FromMinutes(1);
 
-    private readonly string connectionString =
-        configuration.GetConnectionString("database")
+    private readonly string connectionString = configuration.GetConnectionString("database")
         ?? throw new InvalidOperationException("Connection string 'database' is not configured.");
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
