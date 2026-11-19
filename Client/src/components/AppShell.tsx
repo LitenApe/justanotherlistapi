@@ -36,7 +36,7 @@ export function AppShell() {
             <span className={styles.logo} aria-hidden="true">
               <Icon name="check" size={18} />
             </span>
-            JustAnotherList
+            <span className={styles.brandName}>JustAnotherList</span>
           </Link>
           <div className={styles.headerActions}>
             <ThemeToggle />
