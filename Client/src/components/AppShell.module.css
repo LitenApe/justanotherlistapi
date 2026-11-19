@@ -12,9 +12,11 @@
   background: var(--color-surface);
 }
 
+/* One row at every width. When space runs out, the brand name gives way, down to an
+   ellipsis, instead of the buttons wrapping. How soon depends on the font: at 320px,
+   DejaVu Sans (common on Linux) needs about 20% more room than Segoe UI. */
 .headerInner {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
@@ -28,6 +30,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
   min-height: var(--target-size);
   color: var(--color-text);
   font-size: 1.125rem;
@@ -40,8 +43,15 @@
   color: var(--color-text);
 }
 
+.brandName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .logo {
   display: inline-grid;
+  flex-shrink: 0;
   place-items: center;
   width: 1.75rem;
   height: 1.75rem;
@@ -52,6 +62,7 @@
 
 .headerActions {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: var(--space-2);
   margin-left: auto;
