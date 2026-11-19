@@ -3,9 +3,9 @@ import { defineConfig } from "vite";
 
 // Aspire injects service discovery variables for referenced resources.
 // When running standalone, fall back to the default local ports.
-const coreUrl =
-  process.env.services__Core__https__0 ??
-  process.env.services__Core__http__0 ??
+const apiUrl =
+  process.env.services__Api__https__0 ??
+  process.env.services__Api__http__0 ??
   "http://localhost:5093";
 const oauthUrl = process.env.services__oauth__http__0 ?? "http://localhost:8080";
 
@@ -15,8 +15,8 @@ export default defineConfig({
     port: Number(process.env.PORT ?? 5173),
     strictPort: true,
     proxy: {
-      "/api": { target: coreUrl, changeOrigin: true, secure: false },
-      "/hubs": { target: coreUrl, changeOrigin: true, secure: false, ws: true },
+      "/api": { target: apiUrl, changeOrigin: true, secure: false },
+      "/hubs": { target: apiUrl, changeOrigin: true, secure: false, ws: true },
       "/default": { target: oauthUrl, changeOrigin: true },
     },
   },

@@ -1,0 +1,280 @@
+using System.Security.Claims;
+using Api.AuditLog;
+using Api.Checklist;
+using Dapper;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
+
+namespace Api.Tests.Checklist.ItemTests;
+
+public sealed class CreateItemTests
+{
+    [Fact]
+    public async Task Execute_CreatesItem_WhenUserIsMember()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var itemGroupId = Guid.NewGuid();
+        var request = new CreateItem.Request
+        {
+            Name = "Test Item",
+            Description = "Test Description",
+            IsComplete = false,
+        };
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        var notifier = new CapturingNotifier();
+
+        await using var db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
+
+        // Act
+        Results<Created<Item>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await CreateItem.Execute(
+                itemGroupId,
+                request,
+                claimsPrincipal,
+                db,
+                new AuditContext(),
+                notifier,
+                TestHelpers.CreateHttpRequest(),
+                TimeProvider.System,
+                TestContext.Current.CancellationToken
+            );
+
+        // Assert
+        Created<Item> created = Assert.IsType<Created<Item>>(result.Result);
+        Item? item = created.Value;
+        Assert.NotNull(item);
+        Assert.Equal(request.Name, item.Name);
+        Assert.Equal(request.Description, item.Description);
+        Assert.Equal(request.IsComplete, item.IsComplete);
+        Assert.Equal(itemGroupId, item.ItemGroupId);
+
+        // Confirm DB write
+        Item? dbItem = await db.QueryFirstOrDefaultAsync<Item>(
+            "SELECT Id, Name, Description, IsComplete, ItemGroupId FROM Items WHERE Id = @Id",
+            new { item.Id }
+        );
+        Assert.NotNull(dbItem);
+
+        // Confirm notification
+        object notification = Assert.Single(notifier.Notifications);
+        CapturingNotifier.ItemCreatedNotification itemCreated =
+            Assert.IsType<CapturingNotifier.ItemCreatedNotification>(notification);
+        Assert.Equal(itemGroupId, itemCreated.GroupId);
+        Assert.Equal(item.Id, itemCreated.Item.Id);
+        Assert.Null(itemCreated.ExcludeConnectionId);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task CreateData_SetsCompletedAt_OnlyForCompletedItems(bool isComplete)
+    {
+        // Arrange
+        var itemGroupId = Guid.NewGuid();
+        var now = new DateTimeOffset(2026, 10, 19, 12, 0, 0, TimeSpan.Zero);
+
+        await using var db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+
+        // Act
+        Item item = await CreateItem.CreateData(
+            itemGroupId,
+            new CreateItem.Request { Name = "Milk", IsComplete = isComplete },
+            now,
+            db,
+            TestContext.Current.CancellationToken
+        );
+
+        // Assert
+        DateTimeOffset? expected = isComplete ? now : null;
+        Assert.Equal(expected, item.CompletedAt);
+        Assert.Equal(
+            expected,
+            await db.ExecuteScalarAsync<DateTimeOffset?>(
+                "SELECT CompletedAt FROM Items WHERE Id = @Id",
+                new { item.Id }
+            )
+        );
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Execute_ReturnsBadRequest_WhenNameIsEmptyOrWhitespace(string name)
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var itemGroupId = Guid.NewGuid();
+        var request = new CreateItem.Request
+        {
+            Name = name,
+            Description = "Test Description",
+            IsComplete = false,
+        };
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+
+        await using var db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
+
+        // Act
+        Results<Created<Item>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await CreateItem.Execute(
+                itemGroupId,
+                request,
+                claimsPrincipal,
+                db,
+                new AuditContext(),
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest(),
+                TimeProvider.System,
+                TestContext.Current.CancellationToken
+            );
+
+        // Assert
+        Assert.IsType<BadRequest>(result.Result);
+    }
+
+    [Fact]
+    public async Task Execute_ReturnsUnauthorized_WhenUserIsNull()
+    {
+        // Arrange
+        var itemGroupId = Guid.NewGuid();
+        var request = new CreateItem.Request
+        {
+            Name = "Test Item",
+            Description = "Test Description",
+            IsComplete = false,
+        };
+
+        var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
+
+        await using var db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+
+        // Act
+        Results<Created<Item>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await CreateItem.Execute(
+                itemGroupId,
+                request,
+                claimsPrincipal,
+                db,
+                new AuditContext(),
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest(),
+                TimeProvider.System,
+                TestContext.Current.CancellationToken
+            );
+
+        // Assert
+        Assert.IsType<UnauthorizedHttpResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Execute_ReturnsForbid_WhenUserIsNotMember()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var itemGroupId = Guid.NewGuid();
+        var request = new CreateItem.Request
+        {
+            Name = "Test Item",
+            Description = "Test Description",
+            IsComplete = false,
+        };
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+
+        await using var db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        // No member for this user
+
+        // Act
+        Results<Created<Item>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> result =
+            await CreateItem.Execute(
+                itemGroupId,
+                request,
+                claimsPrincipal,
+                db,
+                new AuditContext(),
+                new CapturingNotifier(),
+                TestHelpers.CreateHttpRequest(),
+                TimeProvider.System,
+                TestContext.Current.CancellationToken
+            );
+
+        // Assert
+        Assert.IsType<ForbidHttpResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Execute_PassesSignalRConnectionId_WhenHeaderIsPresent()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var itemGroupId = Guid.NewGuid();
+        var request = new CreateItem.Request
+        {
+            Name = "Test Item",
+            Description = null,
+            IsComplete = false,
+        };
+        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        var notifier = new CapturingNotifier();
+
+        await using var db = await TestDatabase.CreateAsync();
+        await db.ExecuteAsync(
+            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
+            new { Id = itemGroupId, Name = "Group" }
+        );
+        await db.ExecuteAsync(
+            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
+            new { MemberId = userId, ItemGroupId = itemGroupId }
+        );
+
+        HttpRequest httpRequest = TestHelpers.CreateHttpRequest();
+        httpRequest.Headers["X-SignalR-Connection-Id"] = "conn-abc-123";
+
+        // Act
+        await CreateItem.Execute(
+            itemGroupId,
+            request,
+            claimsPrincipal,
+            db,
+            new AuditContext(),
+            notifier,
+            httpRequest,
+            TimeProvider.System,
+            TestContext.Current.CancellationToken
+        );
+
+        // Assert
+        object notification = Assert.Single(notifier.Notifications);
+        CapturingNotifier.ItemCreatedNotification itemCreated =
+            Assert.IsType<CapturingNotifier.ItemCreatedNotification>(notification);
+        Assert.Equal("conn-abc-123", itemCreated.ExcludeConnectionId);
+    }
+}

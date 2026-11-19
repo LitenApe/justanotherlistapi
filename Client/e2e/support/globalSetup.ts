@@ -10,7 +10,7 @@ export default async function globalSetup() {
   process.env.E2E_SQL_PASSWORD = stack.database.password;
   console.log(
     `End-to-end stack ready in ${Math.round((Date.now() - started) / 1000).toString()}s: ` +
-      `client ${stack.clientUrl}, Core ${stack.coreUrl}, OAuth ${stack.oauthUrl}`,
+      `client ${stack.clientUrl}, Api ${stack.apiUrl}, OAuth ${stack.oauthUrl}`,
   );
   return stack.stop;
 }

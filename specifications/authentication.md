@@ -25,7 +25,7 @@ The API does not issue tokens itself. It accepts JWT Bearer access tokens and va
 
 ## Current Implementation
 
-Authentication and authorization are configured in `Core/Program.cs`:
+Authentication and authorization are configured in `Api/Program.cs`:
 
 - `AddAuthentication().AddJwtBearer(...)` is registered.
 - `AddAuthorization()` is registered.
@@ -87,7 +87,7 @@ Authentication failures trigger `OnAuthenticationFailed`, which enqueues an audi
 
 ## Identity Resolution In Handlers
 
-After a token is accepted by JwtBearer middleware, handlers resolve the caller identity via `ClaimsPrincipal.GetUserId()` in `Core/Extensions/ClaimsPrincipalExtension.cs`.
+After a token is accepted by JwtBearer middleware, handlers resolve the caller identity via `ClaimsPrincipal.GetUserId()` in `Api/Extensions/ClaimsPrincipalExtension.cs`.
 
 Claim lookup order:
 

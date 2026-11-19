@@ -10,17 +10,17 @@
 | Format         | `dotnet csharpier .` (local tool; restore with `dotnet tool restore`)          |
 | Client check   | `cd Client && npm run check` (typecheck + ESLint + Prettier + all tests)      |
 | Client tests   | `npm run test:unit` / `test:browser` / `test:integration` in `Client/`         |
-| End-to-end     | `cd Client && npm run test:e2e` (Docker + .NET SDK; real Core, SQL, OAuth)     |
+| End-to-end     | `cd Client && npm run test:e2e` (Docker + .NET SDK; real Api, SQL, OAuth)      |
 | Client format  | `cd Client && npm run format`                                                  |
 
 ## Architecture
 
-- **Aspire/** — .NET Aspire AppHost; orchestrates SQL Server, mock OAuth container, Core backend and Vite client for local dev
-- **Core/** — ASP.NET Core 11 backend (Minimal APIs, Dapper, SQL Server, JWT Bearer auth)
-- **Core.Tests/** — xUnit tests against SQL Server via Testcontainers (requires Docker)
+- **Aspire/** — .NET Aspire AppHost; orchestrates SQL Server, mock OAuth container, Api backend and Vite client for local dev
+- **Api/** — ASP.NET Core 11 backend (Minimal APIs, Dapper, SQL Server, JWT Bearer auth)
+- **Api.Tests/** — xUnit tests against SQL Server via Testcontainers (requires Docker)
 - **Client/** — React 19 + TypeScript, React Router framework mode in SPA mode (`ssr: false`), SignalR; served at http://localhost:5173 under Aspire
 
-Backend features are organized as vertical slices under `Core/Checklist/`. Each endpoint is a static class with `MapEndpoint()` + `Execute()` methods. See [specifications/checklist.md](specifications/checklist.md) for the full domain model and API contract.
+Backend features are organized as vertical slices under `Api/Checklist/`. Each endpoint is a static class with `MapEndpoint()` + `Execute()` methods. See [specifications/checklist.md](specifications/checklist.md) for the full domain model and API contract.
 
 The client is organized by page (`lists/`, `list/`, `auth/`) with shared `api/`, `realtime/` and `components/`. Routes are declared in `src/routes.ts`; each page file is a route module. See [specifications/client.md](specifications/client.md).
 
@@ -67,7 +67,7 @@ The client is organized by page (`lists/`, `list/`, `auth/`) with shared `api/`,
   - **Unit** `src/**/*.unit.test.ts`: pure logic in Node, nothing faked
   - **Browser** `src/**/*.browser.test.tsx`: one component/module in real Chromium (`vitest-browser-react`, `page`/`userEvent` from `vitest/browser`); only prop callbacks and, if needed, timers are faked; `expectNoAxeViolations()` checks contrast too
   - **Integration** `integration/*.spec.ts`: Playwright against the production build; only the network (`FakeBackend`: REST, OAuth, SignalR over `routeWebSocket`) and timers may be faked. Use `app.signIn()`/`app.openList()`, `backend.as(OTHER)` for other members, `app.subscribed(id)` before their changes, `expectAccessible(page)` for new pages and dialogs
-  - **End-to-end** `e2e/*.spec.ts`: Playwright against the whole application started by `e2e/support/stack.ts` (SQL Server + mock OAuth in Testcontainers, real Core, production client via `vite preview`); nothing faked. Use `newUser()` (fresh random user in its own browser context) and its UI helpers, `receivingLiveUpdates(id)` before relying on another member's change, and `runSql()` only to arrange what the UI can't
+  - **End-to-end** `e2e/*.spec.ts`: Playwright against the whole application started by `e2e/support/stack.ts` (SQL Server + mock OAuth in Testcontainers, real Api, production client via `vite preview`); nothing faked. Use `newUser()` (fresh random user in its own browser context) and its UI helpers, `receivingLiveUpdates(id)` before relying on another member's change, and `runSql()` only to arrange what the UI can't
 - Query by role and accessible name, and assert focus, the way assistive technology sees the page
 
 ## Pitfalls

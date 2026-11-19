@@ -39,7 +39,7 @@
 
 The Checklist feature is a collaborative list management system. Users can create item groups (shared lists), add items to them, and invite other users as members. All members of a group have equal read and write access to the group and its items.
 
-The feature is implemented as a vertical slice under `Core/Checklist/` using ASP.NET Core Minimal APIs and Dapper for data access.
+The feature is implemented as a vertical slice under `Api/Checklist/` using ASP.NET Core Minimal APIs and Dapper for data access.
 
 ---
 

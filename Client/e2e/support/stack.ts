@@ -13,7 +13,7 @@ import { GenericContainer, Wait, type StartedTestContainer } from "testcontainer
 /**
  * The whole application, running locally for end-to-end tests: SQL Server and
  * the mock OAuth server in containers (the images Aspire/Program.cs uses), the
- * real Core backend, and the production client build behind the same proxy the
+ * real Api backend, and the production client build behind the same proxy the
  * dev server uses. Nothing is faked.
  */
 
@@ -28,11 +28,11 @@ export const CLIENT_PORT = 4174;
 const clientDir = join(import.meta.dirname, "..", "..");
 const repoDir = join(clientDir, "..");
 const logDir = join(clientDir, "test-results", "e2e-logs");
-const coreBuildDir = join(tmpdir(), "justanotherlist-e2e", "core");
+const apiBuildDir = join(tmpdir(), "justanotherlist-e2e", "api");
 
 export interface RunningStack {
   clientUrl: string;
-  coreUrl: string;
+  apiUrl: string;
   oauthUrl: string;
   /** For tests that arrange data the UI can't, like backdating a completion. */
   database: { containerId: string; user: string; password: string };
@@ -52,7 +52,7 @@ export async function startStack(): Promise<RunningStack> {
     const [sql, oauth] = await Promise.all([
       startSqlServer(),
       startOAuthServer(),
-      buildCore(),
+      buildApi(),
       run("client-build", process.execPath, [
         join(clientDir, "node_modules", "@react-router", "dev", "bin.cjs"),
         "build",
@@ -64,13 +64,13 @@ export async function startStack(): Promise<RunningStack> {
     );
 
     const oauthUrl = `http://${oauth.getHost()}:${oauth.getMappedPort(8080).toString()}`;
-    const coreUrl = `http://127.0.0.1:${(await freePort()).toString()}`;
+    const apiUrl = `http://127.0.0.1:${(await freePort()).toString()}`;
 
-    const core = startProcess("core", "dotnet", [join(coreBuildDir, "Core.dll")], {
-      cwd: coreBuildDir,
+    const api = startProcess("api", "dotnet", [join(apiBuildDir, "Api.dll")], {
+      cwd: apiBuildDir,
       env: {
         ASPNETCORE_ENVIRONMENT: "Production",
-        ASPNETCORE_URLS: coreUrl,
+        ASPNETCORE_URLS: apiUrl,
         ConnectionStrings__database: [
           `Server=${sql.getHost()},${sql.getPort().toString()}`,
           `Database=${DATABASE}`,
@@ -83,9 +83,9 @@ export async function startStack(): Promise<RunningStack> {
         OTEL_SDK_DISABLED: "true",
       },
     });
-    stoppers.push(() => stopProcess(core));
-    // Core creates its tables before it starts listening; 401 means it's ready.
-    await waitForStatus(`${coreUrl}/api/list`, 401, core);
+    stoppers.push(() => stopProcess(api));
+    // Api creates its tables before it starts listening; 401 means it's ready.
+    await waitForStatus(`${apiUrl}/api/list`, 401, api);
 
     const client = startProcess(
       "client",
@@ -100,18 +100,18 @@ export async function startStack(): Promise<RunningStack> {
       {
         cwd: clientDir,
         // vite.config.ts reads these, exactly as Aspire sets them.
-        env: { services__Core__http__0: coreUrl, services__oauth__http__0: oauthUrl },
-        unset: ["services__Core__https__0"],
+        env: { services__Api__http__0: apiUrl, services__oauth__http__0: oauthUrl },
+        unset: ["services__Api__https__0"],
       },
     );
     stoppers.push(() => stopProcess(client));
     const clientUrl = `http://localhost:${CLIENT_PORT.toString()}`;
-    // Through the client's proxy to Core: the pieces are connected.
+    // Through the client's proxy to Api: the pieces are connected.
     await waitForStatus(`${clientUrl}/api/list`, 401, client);
 
     return {
       clientUrl,
-      coreUrl,
+      apiUrl,
       oauthUrl,
       database: { containerId: sql.getId(), user: sql.getUsername(), password: sql.getPassword() },
       stop,
@@ -124,7 +124,7 @@ export async function startStack(): Promise<RunningStack> {
 
 async function startSqlServer(): Promise<StartedMSSQLServerContainer> {
   const sql = await new MSSQLServerContainer(SQL_SERVER_IMAGE).acceptLicense().start();
-  // Aspire creates the database for Core; do the same.
+  // Aspire creates the database for Api; do the same.
   const created = await sql.exec([
     SQLCMD,
     "-S",
@@ -150,16 +150,16 @@ function startOAuthServer(): Promise<StartedTestContainer> {
     .start();
 }
 
-async function buildCore(): Promise<void> {
-  await rm(coreBuildDir, { recursive: true, force: true });
-  // A separate output folder, so a running dev instance (which locks Core/bin) doesn't matter.
-  await run("core-build", "dotnet", [
+async function buildApi(): Promise<void> {
+  await rm(apiBuildDir, { recursive: true, force: true });
+  // A separate output folder, so a running dev instance (which locks Api/bin) doesn't matter.
+  await run("api-build", "dotnet", [
     "build",
-    join(repoDir, "Core", "Core.csproj"),
+    join(repoDir, "Api", "Api.csproj"),
     "--configuration",
     "Release",
     "--output",
-    coreBuildDir,
+    apiBuildDir,
     // The format check belongs to dotnet build in CI, not to test setup.
     "-p:CSharpierDisable=true",
   ]);
