@@ -16,7 +16,7 @@
 ## Architecture
 
 - **Aspire/** — .NET Aspire AppHost; orchestrates SQL Server, mock OAuth container, Core backend and Vite client for local dev
-- **Core/** — ASP.NET Core 10 backend (Minimal APIs, Dapper, SQL Server, JWT Bearer auth)
+- **Core/** — ASP.NET Core 11 backend (Minimal APIs, Dapper, SQL Server, JWT Bearer auth)
 - **Core.Tests/** — xUnit tests against SQL Server via Testcontainers (requires Docker)
 - **Client/** — React 19 + TypeScript, React Router framework mode in SPA mode (`ssr: false`), SignalR; served at http://localhost:5173 under Aspire
 

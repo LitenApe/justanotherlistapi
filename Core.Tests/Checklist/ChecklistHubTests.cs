@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using Core.Checklist;
 using Dapper;
 using Microsoft.AspNetCore.SignalR;

@@ -24,8 +24,8 @@ JustAnotherList is an open-source, minimalist app for organising life into share
 
 | Layer             | Technology                                                        |
 | ----------------- | ----------------------------------------------------------------- |
-| Runtime           | .NET 10                                                           |
-| Backend           | ASP.NET Core 10 (Minimal API)                                     |
+| Runtime           | .NET 11                                                           |
+| Backend           | ASP.NET Core 11 (Minimal API)                                     |
 | Data access       | Dapper + SQL Server                                               |
 | Authentication    | JWT Bearer — delegated to an external OAuth 2.0 / OIDC provider   |
 | API docs          | Scalar (OpenAPI)                                                  |
@@ -117,7 +117,7 @@ Design and architecture documents for planned and implemented features live in t
 
 ## Requirements
 
-- .NET SDK 10
+- .NET SDK 11
 - Docker (or another OCI-compatible runtime)
 - Node.js 24 (for the web client; Aspire runs `npm install` and the React Router dev server)
 
