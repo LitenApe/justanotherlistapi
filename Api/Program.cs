@@ -5,7 +5,6 @@ using Api.AuditLog;
 using Api.Checklist;
 using Api.DevSeed;
 using Api.Utility;
-using Checklist.Ports;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Data.SqlClient;
@@ -38,6 +37,9 @@ builder
 builder.AddSqlServerClient(connectionName: "database");
 builder.Services.AddScoped<IDbConnection>(sp => sp.GetRequiredService<SqlConnection>());
 
+// Checklist: the use cases, and the adapter behind each of their ports
+builder.Services.AddChecklist();
+
 // Audit Log
 builder.Services.AddScoped<AuditContext>();
 builder.Services.AddSingleton<ChannelAuditWriter>();
@@ -59,7 +61,6 @@ builder
             .JsonNamingPolicy
             .CamelCase;
     });
-builder.Services.AddSingleton<IChecklistNotifier, ChecklistNotifier>();
 
 // List settings
 builder.Services.AddSingleton(TimeProvider.System);

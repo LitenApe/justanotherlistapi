@@ -351,16 +351,16 @@ public sealed class AuditContext
 }
 ```
 
-**When `AuditContext` is needed:**
+**When `AuditContext` is needed.** In slices that follow [architecture.md](architecture.md) the endpoint adapter sets it, so use cases never see it:
 
 | Handler | Property set | Why |
 |---|---|---|
 | `CreateItemGroup` | `ResourceId` | The new group ID is generated inside the handler (`Guid.NewGuid()`). There is no `itemGroupId` route value on `POST /api/list`. |
 | `CreateItem` | `SubResourceId` | The new item ID is generated inside the handler. The `itemGroupId` is a route value but the item's ID is not. |
-| `AddMember` | `TargetUserId` | The `memberId` route value identifies the user being added. |
-| `RemoveMember` | `TargetUserId` | Same as `AddMember`. |
+| `AddMemberEndpoint` | `TargetUserId` | The `memberId` route value identifies the user being added. |
+| `RemoveMemberEndpoint` | `TargetUserId` | Same as `AddMemberEndpoint`. |
 
-**Handlers that do not take `AuditContext`** — `GetItemGroups`, `GetItemGroup`, `GetMembers`, `UpdateItemGroup`, `UpdateItem`, `DeleteItemGroup`, `DeleteItem`. The filter resolves all needed context for these handlers from route values or HTTP context without handler cooperation.
+**Handlers that do not take `AuditContext`** — `GetItemGroups`, `GetItemGroup`, `GetMembersEndpoint`, `UpdateItemGroup`, `UpdateItem`, `DeleteItemGroup`, `DeleteItem`. The filter resolves all needed context for these handlers from route values or HTTP context without handler cooperation.
 
 **Important**: `AuditContext.ResourceId` and `AuditContext.SubResourceId` are only set on the *successful* code path inside `CreateItemGroup` and `CreateItem` respectively. For early-exit paths (BadRequest, Unauthorized, Forbidden) the handler returns before setting these properties, so the filter records `NULL`. This is correct — when a create operation was not permitted, no resource was created.
 
@@ -429,15 +429,20 @@ app.MapChecklistApi()          // registers route group with AuditEndpointFilter
 
 Endpoints on the `/api/list` route group automatically receive an audit entry because `AuditEndpointFilter` is applied to the entire group. The following steps are all that is required.
 
-**1. Register the endpoint name with `.WithName()`**
+**1. Give the endpoint a name constant and register it with `.WithName()`**
 
 ```csharp
-builder
-    .MapGet("/{itemGroupId:guid}/something", Execute)
-    .WithName(nameof(GetSomething));   // ← must match the handler class name
+internal static class GetSomethingEndpoint
+{
+    /// <summary>The endpoint's name, stored in <c>AuditLog.Operation</c>: never change it.</summary>
+    internal const string Name = "GetSomething";
+
+    internal static void MapEndpoint(this IEndpointRouteBuilder builder) =>
+        builder.MapGet("/{itemGroupId:guid}/something", Handle).WithName(Name);
+}
 ```
 
-The filter uses this name as the `Operation` value. Without it, the filter logs a warning and exits without writing an entry.
+The filter uses this name as the `Operation` value. Without it, the filter logs a warning and exits without writing an entry. Endpoints not migrated to [architecture.md](architecture.md) yet still pass `nameof(...)` of their static class, which gives the same strings.
 
 **2. Add the operation to the `resourceTypes` dictionary in `AuditEndpointFilter`**
 
@@ -445,24 +450,25 @@ The filter uses this name as the `Operation` value. Without it, the filter logs 
 private static readonly Dictionary<string, string> resourceTypes = new(StringComparer.Ordinal)
 {
     // existing entries ...
-    [nameof(GetSomething)] = "ItemGroup",   // ← add here
+    [GetSomethingEndpoint.Name] = "ItemGroup",   // ← add here
 };
 ```
 
-**3. Inject `AuditContext` only if the handler generates IDs or affects another user**
+**3. Take `AuditContext` in the endpoint adapter only if the operation generates IDs or affects another user**
 
-If the handler generates a resource ID internally (not from route values) or affects a target user, add `AuditContext auditContext` to the handler parameters and set the relevant property before returning the success result:
+If the operation generates a resource ID (not from route values) or affects a target user, add `AuditContext auditContext` to the endpoint's `Handle` parameters and set the relevant property. The use case never sees it:
 
 ```csharp
-public static async Task<Results<Created<Thing>, ...>> Execute(
+private static async Task<Results<Created<Thing>, ...>> Handle(
     Guid itemGroupId,
     // ...
     AuditContext auditContext,
-    CancellationToken ct = default)
+    CreateThing useCase,
+    CancellationToken ct)
 {
     // ...
-    Thing thing = await CreateData(...);
-    auditContext.SubResourceId = thing.Id;   // only if ID is generated here
+    Thing thing = await useCase.Execute(caller, itemGroupId, ..., ct);
+    auditContext.SubResourceId = thing.Id;   // only if the ID is generated, and only on success
     return TypedResults.Created(...);
 }
 ```

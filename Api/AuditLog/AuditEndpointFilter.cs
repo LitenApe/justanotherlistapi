@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Api.Checklist;
+using Api.Http;
 
 namespace Api.AuditLog;
 
@@ -19,9 +20,9 @@ internal sealed partial class AuditEndpointFilter(
         [nameof(CreateItem)] = "Item",
         [nameof(UpdateItem)] = "Item",
         [nameof(DeleteItem)] = "Item",
-        [nameof(GetMembers)] = "ItemGroup",
-        [nameof(AddMember)] = "ItemGroup",
-        [nameof(RemoveMember)] = "ItemGroup",
+        [GetMembersEndpoint.Name] = "ItemGroup",
+        [AddMemberEndpoint.Name] = "ItemGroup",
+        [RemoveMemberEndpoint.Name] = "ItemGroup",
     };
 
     public async ValueTask<object?> InvokeAsync(

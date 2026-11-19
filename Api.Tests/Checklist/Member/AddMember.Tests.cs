@@ -1,205 +1,81 @@
-using System.Security.Claims;
-using Api.AuditLog;
-using Api.Checklist;
-using Dapper;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.HttpResults;
+using Api.Sql;
+using Checklist.Domain;
+using Checklist.UseCases;
+using Microsoft.Data.SqlClient;
 
 namespace Api.Tests.Checklist.MemberTests;
 
 public sealed class AddMemberTests
 {
     [Fact]
-    public async Task Execute_AddsMember_WhenUserIsMember()
+    public async Task Execute_AddsTheMember_AndTellsTheOtherMembers()
     {
-        // Arrange
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var newMemberId = Guid.NewGuid();
-        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
         var notifier = new CapturingNotifier();
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, userId);
 
-        await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync(
-            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
-            new { Id = itemGroupId, Name = "Group" }
+        AddMember.Outcome outcome = await new AddMember(new SqlMembership(db), notifier).Execute(
+            new Caller(userId, "conn-am-003"),
+            itemGroupId,
+            newMemberId,
+            TestContext.Current.CancellationToken
         );
-        await db.ExecuteAsync(
-            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
-            new { MemberId = userId, ItemGroupId = itemGroupId }
-        );
 
-        // Act
-        Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult, Conflict> result =
-            await AddMember.Execute(
-                itemGroupId,
-                newMemberId,
-                claimsPrincipal,
-                db,
-                new AuditContext(),
-                notifier,
-                TestHelpers.CreateHttpRequest(),
-                TestContext.Current.CancellationToken
-            );
-
-        // Assert
-        Assert.IsType<NoContent>(result.Result);
-
-        // Confirm DB write
-        Guid? added = await db.QueryFirstOrDefaultAsync<Guid?>(
-            "SELECT MemberId FROM Members WHERE ItemGroupId = @ItemGroupId AND MemberId = @MemberId",
-            new { ItemGroupId = itemGroupId, MemberId = newMemberId }
-        );
-        Assert.NotNull(added);
-
-        // Confirm notification
+        Assert.Equal(AddMember.Outcome.Added, outcome);
+        Assert.Contains(newMemberId, await db.LoadMembers(itemGroupId));
         object notification = Assert.Single(notifier.Notifications);
         CapturingNotifier.MemberAddedNotification memberAdded =
             Assert.IsType<CapturingNotifier.MemberAddedNotification>(notification);
         Assert.Equal(itemGroupId, memberAdded.GroupId);
         Assert.Equal(newMemberId, memberAdded.MemberId);
-        Assert.Null(memberAdded.ExcludeConnectionId);
+        // The caller's own connection is left out, so it doesn't get its change back.
+        Assert.Equal("conn-am-003", memberAdded.ExcludeConnectionId);
     }
 
     [Fact]
-    public async Task Execute_ReturnsUnauthorized_WhenUserIsNull()
+    public async Task Execute_ReturnsNotAMember_AndChangesNothing_WhenTheCallerIsNotAMember()
     {
-        // Arrange
         var itemGroupId = Guid.NewGuid();
+        var memberId = Guid.NewGuid();
         var newMemberId = Guid.NewGuid();
-        var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
-
-        await using var db = await TestDatabase.CreateAsync();
-
-        // Act
-        Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult, Conflict> result =
-            await AddMember.Execute(
-                itemGroupId,
-                newMemberId,
-                claimsPrincipal,
-                db,
-                new AuditContext(),
-                new CapturingNotifier(),
-                TestHelpers.CreateHttpRequest(),
-                TestContext.Current.CancellationToken
-            );
-
-        // Assert
-        Assert.IsType<UnauthorizedHttpResult>(result.Result);
-    }
-
-    [Fact]
-    public async Task Execute_ReturnsForbid_WhenUserIsNotMember()
-    {
-        // Arrange
-        var userId = Guid.NewGuid();
-        var itemGroupId = Guid.NewGuid();
-        var newMemberId = Guid.NewGuid();
-        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
-
-        await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync(
-            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
-            new { Id = itemGroupId, Name = "Group" }
-        );
-        // User is not a member
-
-        // Act
-        Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult, Conflict> result =
-            await AddMember.Execute(
-                itemGroupId,
-                newMemberId,
-                claimsPrincipal,
-                db,
-                new AuditContext(),
-                new CapturingNotifier(),
-                TestHelpers.CreateHttpRequest(),
-                TestContext.Current.CancellationToken
-            );
-
-        // Assert
-        Assert.IsType<ForbidHttpResult>(result.Result);
-    }
-
-    [Fact]
-    public async Task Execute_ReturnsConflict_WhenMemberAlreadyExists()
-    {
-        // Arrange
-        var userId = Guid.NewGuid();
-        var itemGroupId = Guid.NewGuid();
-        var existingMemberId = Guid.NewGuid();
-        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
-
-        await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync(
-            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
-            new { Id = itemGroupId, Name = "Group" }
-        );
-        await db.ExecuteAsync(
-            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
-            new { MemberId = userId, ItemGroupId = itemGroupId }
-        );
-        await db.ExecuteAsync(
-            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
-            new { MemberId = existingMemberId, ItemGroupId = itemGroupId }
-        );
-
-        // Act
-        Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult, Conflict> result =
-            await AddMember.Execute(
-                itemGroupId,
-                existingMemberId,
-                claimsPrincipal,
-                db,
-                new AuditContext(),
-                new CapturingNotifier(),
-                TestHelpers.CreateHttpRequest(),
-                TestContext.Current.CancellationToken
-            );
-
-        // Assert
-        Assert.IsType<Conflict>(result.Result);
-    }
-
-    [Fact]
-    public async Task Execute_PassesSignalRConnectionId_WhenHeaderIsPresent()
-    {
-        // Arrange
-        var userId = Guid.NewGuid();
-        var itemGroupId = Guid.NewGuid();
-        var newMemberId = Guid.NewGuid();
-        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
         var notifier = new CapturingNotifier();
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, memberId);
 
-        await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync(
-            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
-            new { Id = itemGroupId, Name = "Group" }
-        );
-        await db.ExecuteAsync(
-            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
-            new { MemberId = userId, ItemGroupId = itemGroupId }
-        );
-
-        HttpRequest httpRequest = TestHelpers.CreateHttpRequest();
-        httpRequest.Headers["X-SignalR-Connection-Id"] = "conn-am-003";
-
-        // Act
-        await AddMember.Execute(
+        AddMember.Outcome outcome = await new AddMember(new SqlMembership(db), notifier).Execute(
+            new Caller(Guid.NewGuid()),
             itemGroupId,
             newMemberId,
-            claimsPrincipal,
-            db,
-            new AuditContext(),
-            notifier,
-            httpRequest,
             TestContext.Current.CancellationToken
         );
 
-        // Assert
-        object notification = Assert.Single(notifier.Notifications);
-        CapturingNotifier.MemberAddedNotification memberAdded =
-            Assert.IsType<CapturingNotifier.MemberAddedNotification>(notification);
-        Assert.Equal("conn-am-003", memberAdded.ExcludeConnectionId);
+        Assert.Equal(AddMember.Outcome.NotAMember, outcome);
+        Assert.Equal(memberId, Assert.Single(await db.LoadMembers(itemGroupId)));
+        Assert.Empty(notifier.Notifications);
+    }
+
+    [Fact]
+    public async Task Execute_ReturnsAlreadyAMember_WhenTheUserAlreadyIsOne()
+    {
+        var userId = Guid.NewGuid();
+        var itemGroupId = Guid.NewGuid();
+        var existingMemberId = Guid.NewGuid();
+        var notifier = new CapturingNotifier();
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, userId, existingMemberId);
+
+        AddMember.Outcome outcome = await new AddMember(new SqlMembership(db), notifier).Execute(
+            new Caller(userId),
+            itemGroupId,
+            existingMemberId,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(AddMember.Outcome.AlreadyAMember, outcome);
+        Assert.Equal(2, (await db.LoadMembers(itemGroupId)).Count);
+        Assert.Empty(notifier.Notifications);
     }
 }
