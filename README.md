@@ -92,7 +92,8 @@ Api/                                - ASP.NET Core backend: the adapters around 
     BearerSecuritySchemeTransformer.cs  - Adds Bearer + OAuth2 security schemes to OpenAPI doc
 Api.Tests/                          - xUnit tests (SQL Server via Testcontainers, requires Docker)
   ApiFactory.cs                     - WebApplicationFactory<Program> on a test DB + TestAuthHandler (user picked per request)
-  Architecture.Tests.cs             - Dependency rules: Checklist uses only .NET, use cases take only ports, Api.Http no connection
+  Architecture.Tests.cs             - Dependency rules: Checklist uses only .NET, use cases take only ports, adapters only use cases
+  CompositionRoot.Tests.cs          - The app's container builds every use case
   FixedTimeProvider.cs              - TimeProvider that always returns the time it was given
   TestDatabase.cs                   - Starts shared SQL Server container; isolated DB per test
   TestHelpers.cs                    - CreatePrincipal, CreateHttpRequest, ValidName / ValidSettings, and Insert/Set/Load helpers for lists, items and members
