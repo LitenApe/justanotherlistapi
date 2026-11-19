@@ -92,7 +92,7 @@ The `OnAuthenticationFailed` JWT event short-circuits this flow — it fires bef
 ### File Structure
 
 ```
-Core/
+Api/
   AuditLog/
     AuditEntry.cs               ← immutable DTO written to the DB
     AuditContext.cs             ← scoped per-request bag populated by handlers
@@ -102,7 +102,7 @@ Core/
     AuditLogSchemaInitializer.cs← DDL for the AuditLog table (idempotent IF NOT EXISTS)
   Program.cs                    ← registers services; wires OnAuthenticationFailed
 
-Core.Tests/
+Api.Tests/
   AuditLog/
     AuditLog.Http.Tests.cs      ← integration tests for the outcome values and every endpoint's audit fields
     ChannelAuditWriter.Tests.cs ← unit tests for drain loop, batching, and error handling
@@ -237,7 +237,7 @@ Audit rows are stored indefinitely. Deletion is a manual administrative action o
 
 ### `AuditEntry`
 
-`AuditEntry` is an immutable positional record — a plain DTO that represents one row in the `AuditLog` table. It lives in `Core/AuditLog/AuditEntry.cs` and is `internal` to the `Core` project except where test infrastructure needs it.
+`AuditEntry` is an immutable positional record — a plain DTO that represents one row in the `AuditLog` table. It lives in `Api/AuditLog/AuditEntry.cs` and is `internal` to the `Api` project except where test infrastructure needs it.
 
 ```csharp
 public sealed record AuditEntry(

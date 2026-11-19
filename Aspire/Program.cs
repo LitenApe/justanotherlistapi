@@ -15,8 +15,8 @@ IResourceBuilder<ContainerResource> oauth = builder
     .WithLifetime(ContainerLifetime.Persistent);
 
 // The path is relative to this AppHost's folder.
-IResourceBuilder<DotnetProjectResource> core = builder
-    .AddDotnetProject("Core", "../Core/Core.csproj")
+IResourceBuilder<DotnetProjectResource> api = builder
+    .AddDotnetProject("Api", "../Api/Api.csproj")
     .WaitFor(db)
     .WaitFor(oauth)
     .WithReference(db)
@@ -25,14 +25,14 @@ IResourceBuilder<DotnetProjectResource> core = builder
         ReferenceExpression.Create($"{oauth.GetEndpoint("http")}/default")
     );
 
-// The Vite dev server proxies /api and /hubs to Core and /default to the mock OAuth server.
+// The Vite dev server proxies /api and /hubs to Api and /default to the mock OAuth server.
 // A fixed port keeps the origin stable, so browser storage survives restarts.
 builder
     .AddViteApp("client", "../Client")
     .WithEndpoint("http", endpoint => endpoint.Port = 5173)
-    .WithReference(core)
+    .WithReference(api)
     .WithReference(oauth.GetEndpoint("http"))
-    .WaitFor(core)
+    .WaitFor(api)
     .WaitFor(oauth);
 
 builder.Build().Run();

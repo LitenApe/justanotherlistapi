@@ -38,7 +38,7 @@ JustAnotherList is an open-source, minimalist app for organising life into share
 
 ```
 Aspire/                             - .NET Aspire AppHost — wires all services for local development
-  Program.cs                        - Registers SQL Server, mock OAuth container, Core project and Vite client
+  Program.cs                        - Registers SQL Server, mock OAuth container, Api project and Vite client
 Client/                             - React Router (framework mode, SPA) web client — see specifications/client.md
   src/root.tsx, src/routes.ts       - HTML document + app shell, and the route config
   src/api/                          - fetch wrapper and one function per API endpoint
@@ -50,7 +50,7 @@ Client/                             - React Router (framework mode, SPA) web cli
   src/theme/                        - Light/dark theme (dark by default) with a header toggle
   src/styles/global.css             - Design tokens per theme (WCAG AA contrast) and base styles
   src/test/                         - Fake API, fake SignalR connection, axe helper
-Core/                               - ASP.NET Core backend
+Api/                                - ASP.NET Core backend
   Program.cs                        - App composition root: DI, middleware, auth, OpenAPI, DB init
   DatabaseInitializer.cs            - Runs idempotent CREATE TABLE + CREATE INDEX at startup
   AuditLog/
@@ -77,7 +77,7 @@ Core/                               - ASP.NET Core backend
     ClaimsPrincipalExtension.cs     - GetUserId(): reads sub / NameIdentifier / user_id claim → Guid?
   Utility/
     BearerSecuritySchemeTransformer.cs  - Adds Bearer + OAuth2 security schemes to OpenAPI doc
-Core.Tests/                         - xUnit tests (SQL Server via Testcontainers, requires Docker)
+Api.Tests/                          - xUnit tests (SQL Server via Testcontainers, requires Docker)
   ApiFactory.cs                     - WebApplicationFactory<Program> on a test DB + TestAuthHandler (user picked per request)
   TestDatabase.cs                   - Starts shared SQL Server container; isolated DB per test
   TestHelpers.cs                    - CreatePrincipal(Guid): builds a ClaimsPrincipal for unit tests
@@ -148,7 +148,7 @@ Docker is required because Aspire spins up SQL Server and the OAuth mock server 
 
    Both containers are **persistent** — data and the OAuth server survive restarts. The backend waits for both to be healthy before starting. Database tables are created automatically on first boot.
 
-3. Open the web client at **http://localhost:5173** (see [Using the web client](#using-the-web-client)), or open the Aspire dashboard URL printed in the console to reach the `Core` service and its Scalar UI at `/scalar/v1`.
+3. Open the web client at **http://localhost:5173** (see [Using the web client](#using-the-web-client)), or open the Aspire dashboard URL printed in the console to reach the `Api` service and its Scalar UI at `/scalar/v1`.
 
 ## Using the web client
 
@@ -162,7 +162,7 @@ The client signs in against the local mock OAuth server. Your **user ID** (a GUI
 
 The client is built to WCAG 2.2 AA (keyboard and screen reader support, visible focus, sufficient contrast in light and dark mode) and works from 320px phone screens up to desktop. Details are in [specifications/client.md](specifications/client.md).
 
-To work on the client without Aspire, start Core and the OAuth server, then run `npm install` and `npm run dev` in `Client/`.
+To work on the client without Aspire, start Api and the OAuth server, then run `npm install` and `npm run dev` in `Client/`.
 
 ## Getting a token locally
 
@@ -180,7 +180,7 @@ Copy the returned `access_token` and supply it as a `Bearer` token in any HTTP c
 
 ## Running without Aspire (alternative setup)
 
-If you prefer a local SQL Server install or an external endpoint, configure the connection string and OAuth authority directly in `Core/appsettings.Development.json` (this file is gitignored):
+If you prefer a local SQL Server install or an external endpoint, configure the connection string and OAuth authority directly in `Api/appsettings.Development.json` (this file is gitignored):
 
 ```json
 {
@@ -196,14 +196,14 @@ If you prefer a local SQL Server install or an external endpoint, configure the 
 Then run the backend directly:
 
 ```bash
-dotnet run --project Core
+dotnet run --project Api
 ```
 
 The database tables are created automatically on first startup.
 
 ## Configuration reference
 
-All runtime configuration for `Core` is resolved from `appsettings.json`, environment variables, and Aspire-injected values.
+All runtime configuration for `Api` is resolved from `appsettings.json`, environment variables, and Aspire-injected values.
 
 | Key                          | Required | Description                                                                                                                                    |
 | ---------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -237,7 +237,7 @@ The value must parse as a valid `Guid`; otherwise `null` is returned and the req
 
 ## Database schema
 
-The schema is managed without a migration framework. `DatabaseInitializer` runs idempotent SQL on every startup — safe against an existing database, no CLI tooling required. To change the schema, edit `Core/DatabaseInitializer.cs` directly.
+The schema is managed without a migration framework. `DatabaseInitializer` runs idempotent SQL on every startup — safe against an existing database, no CLI tooling required. To change the schema, edit `Api/DatabaseInitializer.cs` directly.
 
 Four tables exist: `ItemGroups`, `Items`, `Members`, and `AuditLog`. Deleting an `ItemGroup` cascades and removes all related `Items` and `Members` rows. The `AuditLog` table is managed by `AuditLogSchemaInitializer` and records every API operation with its outcome, resource identifiers, and OpenTelemetry trace ID.
 
@@ -307,22 +307,22 @@ Tests use xUnit against a real SQL Server started by [Testcontainers](https://do
 dotnet test
 ```
 
-Client tests come in four kinds: **unit** tests of pure logic (Vitest in Node), **browser** tests of components in real Chromium (Vitest browser mode), **integration** tests of the production build in Playwright with only the network (REST, OAuth and the SignalR WebSocket) faked, and **end-to-end** tests of the whole application with nothing faked. The end-to-end setup starts SQL Server and the mock OAuth server in Docker, runs the real Core and serves the client build, and the tests check collaboration between real users through the backend and SignalR. Pages, dialogs and both themes are checked with axe-core, colour contrast included. See [specifications/client.md](specifications/client.md#testing).
+Client tests come in four kinds: **unit** tests of pure logic (Vitest in Node), **browser** tests of components in real Chromium (Vitest browser mode), **integration** tests of the production build in Playwright with only the network (REST, OAuth and the SignalR WebSocket) faked, and **end-to-end** tests of the whole application with nothing faked. The end-to-end setup starts SQL Server and the mock OAuth server in Docker, runs the real Api and serves the client build, and the tests check collaboration between real users through the backend and SignalR. Pages, dialogs and both themes are checked with axe-core, colour contrast included. See [specifications/client.md](specifications/client.md#testing).
 
 ```bash
 cd Client
 npx playwright install chromium   # once
 npm run check      # typecheck + lint + format check + unit, browser and integration tests
-npm run test:e2e   # end-to-end: real Core, SQL Server and OAuth server (needs Docker)
+npm run test:e2e   # end-to-end: real Api, SQL Server and OAuth server (needs Docker)
 ```
 
 ### How tests work
 
-`Core.Tests` contains two kinds of tests:
+`Api.Tests` contains two kinds of tests:
 
 **Unit tests** call handler `Execute()` methods directly against a SQL Server test database.
 
-- `Core.Tests` references `Core` internals via `InternalsVisibleTo`, so individual handler `Execute()` methods are called directly — no HTTP server is spun up.
+- `Api.Tests` references `Api` internals via `InternalsVisibleTo`, so individual handler `Execute()` methods are called directly — no HTTP server is spun up.
 - `TestDatabase` lazily starts one `mcr.microsoft.com/mssql/server:2025-latest` container per test run, creates a uniquely named database for each `CreateAsync()` call, and applies the production schema via `ChecklistSchemaInitializer` and `AuditLogSchemaInitializer`.
 - `TestHelpers.CreatePrincipal(Guid)` builds a `ClaimsPrincipal` with a `ClaimTypes.NameIdentifier` claim for the given user ID.
 

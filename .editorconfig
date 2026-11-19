@@ -249,8 +249,8 @@ indent_size = 2
 trim_trailing_whitespace = false
 
 # Test projects: allow underscore-separated names in test method names (e.g., Method_State_Expected)
-# Use **.cs (not **/*.cs) so the pattern matches files at the root of Core.Tests as well as subdirectories
-[Core.Tests/**.cs]
+# Use **.cs (not **/*.cs) so the pattern matches files at the root of Api.Tests as well as subdirectories
+[Api.Tests/**.cs]
 dotnet_diagnostic.CA1707.severity = none
 # MA0048: test files intentionally use the Foo.Tests.cs convention (dot-suffix) while the class is FooTests
 dotnet_diagnostic.MA0048.severity = none

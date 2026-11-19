@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 import { CLIENT_PORT } from "./e2e/support/stack";
 
 /**
- * End-to-end tests: the real client, the real Core backend, SQL Server and the
+ * End-to-end tests: the real client, the real Api backend, SQL Server and the
  * mock OAuth server, all started locally by e2e/support/globalSetup.ts.
  * Needs Docker and the .NET SDK.
  */

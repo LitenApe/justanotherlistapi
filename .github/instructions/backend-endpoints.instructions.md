@@ -1,6 +1,6 @@
 ---
-description: "Use when creating or modifying backend API endpoints, handlers, or Checklist feature files in Core/"
-applyTo: "Core/Checklist/**/*.cs"
+description: "Use when creating or modifying backend API endpoints, handlers, or Checklist feature files in Api/"
+applyTo: "Api/Checklist/**/*.cs"
 ---
 
 # Backend Endpoint Conventions

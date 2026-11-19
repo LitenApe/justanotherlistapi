@@ -50,7 +50,7 @@ There are no UI component or icon libraries. Interactive widgets use native elem
 ```
 Client/
   react-router.config.ts     - Framework config: appDirectory "src", SPA mode (ssr: false)
-  vite.config.ts             - React Router plugin, dev proxy (/api, /hubs → Core; /default → mock OAuth)
+  vite.config.ts             - React Router plugin, dev proxy (/api, /hubs → Api; /default → mock OAuth)
   vitest.config.ts           - Unit (Node) and browser (Chromium) test projects
   playwright.config.ts       - Integration tests against the production build
   integration/               - Integration specs; support/ has the fake backend, fixtures and static server
@@ -99,17 +99,17 @@ Client/
 
 ## Running The Client
 
-`dotnet run --project Aspire` starts the client together with SQL Server, the mock OAuth server and Core. Aspire runs `npm install` and `npm run dev` (`react-router dev`), then serves the client at **http://localhost:5173**. The port is fixed so that browser storage (which is per origin) survives restarts.
+`dotnet run --project Aspire` starts the client together with SQL Server, the mock OAuth server and Api. Aspire runs `npm install` and `npm run dev` (`react-router dev`), then serves the client at **http://localhost:5173**. The port is fixed so that browser storage (which is per origin) survives restarts.
 
 The dev server proxies:
 
 | Path       | Target                                          |
 | ---------- | ----------------------------------------------- |
-| `/api`     | Core (`services__Core__https__0` / `__http__0`) |
-| `/hubs`    | Core, WebSocket upgrade enabled                 |
+| `/api`     | Api (`services__Api__https__0` / `__http__0`)   |
+| `/hubs`    | Api, WebSocket upgrade enabled                  |
 | `/default` | Mock OAuth server (`services__oauth__http__0`)  |
 
-Without Aspire, start Core and the OAuth server yourself and run `npm run dev` in `Client/`. The proxy falls back to `http://localhost:5093` and `http://localhost:8080`.
+Without Aspire, start Api and the OAuth server yourself and run `npm run dev` in `Client/`. The proxy falls back to `http://localhost:5093` and `http://localhost:8080`.
 
 | Script              | Purpose                                                                  |
 | ------------------- | ------------------------------------------------------------------------ |
@@ -381,11 +381,11 @@ Projects: `desktop` runs everything except `@mobile` tests; `mobile` (Pixel 7) r
 The whole application runs locally and nothing is faked. `e2e/support/globalSetup.ts` calls `startStack()` (`e2e/support/stack.ts`) once per run:
 
 1. **Containers:** SQL Server and the mock OAuth server, using the images from `Aspire/Program.cs`, started with Testcontainers on random ports and removed afterwards. The database is created the way Aspire would.
-2. **Backend:** Core is built into a temporary folder (so a running dev instance doesn't matter) and started in Production mode on a free port, with the connection string and `OAuth__Authority` Aspire would pass.
-3. **Client:** the production build is served with `vite preview` on port 4174, using the same proxy as the dev server, with the `services__…` variables pointed at the test containers and Core. The browser reaches Core and OAuth only through it, as in local development.
-4. Setup waits until `/api/list` answers 401, first from Core and then through the client's proxy, so the pieces are connected before tests start. The containers and builds start in parallel; the whole stack is ready in about 15 seconds.
+2. **Backend:** Api is built into a temporary folder (so a running dev instance doesn't matter) and started in Production mode on a free port, with the connection string and `OAuth__Authority` Aspire would pass.
+3. **Client:** the production build is served with `vite preview` on port 4174, using the same proxy as the dev server, with the `services__…` variables pointed at the test containers and Api. The browser reaches Api and OAuth only through it, as in local development.
+4. Setup waits until `/api/list` answers 401, first from Api and then through the client's proxy, so the pieces are connected before tests start. The containers and builds start in parallel; the whole stack is ready in about 15 seconds.
 
-Container, Core and client output goes to `test-results/e2e-logs/`.
+Container, Api and client output goes to `test-results/e2e-logs/`.
 
 Fixtures (`e2e/support/test.ts`):
 
