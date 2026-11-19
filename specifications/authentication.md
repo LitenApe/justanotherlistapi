@@ -87,7 +87,7 @@ Authentication failures trigger `OnAuthenticationFailed`, which enqueues an audi
 
 ## Identity Resolution In Handlers
 
-After a token is accepted by JwtBearer middleware, handlers resolve the caller identity via `ClaimsPrincipal.GetUserId()` in `Api/Extensions/ClaimsPrincipalExtension.cs`.
+After a token is accepted by JwtBearer middleware, the driving adapters resolve the caller identity via `ClaimsPrincipal.GetUserId()` in `Api/Extensions/ClaimsPrincipalExtension.cs`: endpoint adapters through `ToCaller()` (`Api/Http/CallerExtensions.cs`), which also reads the `X-SignalR-Connection-Id` header into a `Caller`, and `ChecklistHub` directly.
 
 Claim lookup order:
 
@@ -100,7 +100,7 @@ The value must parse as a `Guid`.
 - If claim is missing: returns `null`
 - If claim is present but not a valid `Guid`: returns `null`
 
-Handlers treat `null` as unauthorized and return `401 Unauthorized`.
+Endpoint adapters treat `null` as unauthorized and return `401 Unauthorized`; the hub refuses `JoinGroup`.
 
 ---
 
@@ -110,12 +110,12 @@ Authentication and authorization are separate checks in request flow:
 
 1. Authentication (JwtBearer): token validity.
 2. Authorization (`RequireAuthorization`): endpoint requires authenticated principal.
-3. Domain access checks in handlers: group membership (`IsMember(...)`) for group/item/member operations.
+3. Access checks in the use cases: group membership through the `IMembership` port for group, item and member operations (see [architecture.md](architecture.md)).
 
 Typical result:
 
 - Authenticated but not a member of the target group -> `403 Forbidden`
-- Authenticated and member -> handler continues
+- Authenticated and member -> the use case continues
 
 ---
 
@@ -125,11 +125,11 @@ Current behavior in this codebase:
 
 - `401 Unauthorized`
   - Missing/invalid Bearer token (authentication middleware)
-  - Valid authenticated principal but missing/invalid GUID user identifier claim (handler check via `GetUserId()`)
+  - Valid authenticated principal but missing/invalid GUID user identifier claim (endpoint check via `ToCaller()`)
 - `403 Forbidden`
   - Authenticated caller is not a member of the requested group
 
-Audit logging distinguishes JWT validation failure (`AuthenticationFailed`) from handler-level missing claim (`MissingClaim` outcome mapping in the audit feature).
+Audit logging distinguishes JWT validation failure (`AuthenticationFailed`) from the endpoint-level missing claim (`MissingClaim` outcome mapping in the audit feature).
 
 ---
 

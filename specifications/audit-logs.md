@@ -66,7 +66,7 @@ AuditEndpointFilter.InvokeAsync
     │  registers Response.OnStarting callback
     │
     ▼
-Handler executes
+Endpoint adapter executes (parses the request, runs the use case)
     │  sets AuditContext properties if needed (ResourceId, SubResourceId, TargetUserId)
     │  returns IResult
     │
@@ -343,7 +343,7 @@ The entire operation (context extraction + callback registration) is wrapped in 
 
 ### `AuditContext`
 
-`AuditContext` is a scoped DI service that handlers use to pass information to `AuditEndpointFilter` that cannot be derived from route values alone. It is registered as `services.AddScoped<AuditContext>()` and injected into handler method parameters — ASP.NET Core's Minimal API parameter binding resolves it from DI automatically.
+`AuditContext` is a scoped DI service that endpoint adapters use to pass information to `AuditEndpointFilter` that cannot be derived from route values alone. It is registered as `services.AddScoped<AuditContext>()` and injected into the adapters' `Handle` parameters — ASP.NET Core's Minimal API parameter binding resolves it from DI automatically.
 
 ```csharp
 public sealed class AuditContext

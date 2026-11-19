@@ -1,28 +1,28 @@
 namespace Api.AuditLog;
 
 /// <summary>
-/// Scoped per-request bag that handlers populate with semantic context the endpoint filter
-/// cannot derive from route values alone. The filter reads this after the handler returns.
+/// Scoped per-request bag that endpoint adapters fill in with what the audit filter can't read
+/// from the route. The filter reads it after the endpoint returns.
 /// </summary>
 public sealed class AuditContext
 {
     /// <summary>
-    /// Primary resource ID generated inside the handler. Set by CreateItemGroup after a
-    /// successful insert so the filter can record the new group's ID as ResourceId.
-    /// Leave null for all other handlers — the filter falls back to the itemGroupId route value.
+    /// The ID of a resource the request created. <c>CreateItemGroupEndpoint</c> sets it to the new
+    /// list's ID, on success only. Leave it null elsewhere: the filter falls back to the
+    /// <c>itemGroupId</c> route value.
     /// </summary>
     public Guid? ResourceId { get; set; }
 
     /// <summary>
-    /// Secondary resource ID generated inside the handler. Set by CreateItem after a
-    /// successful insert so the filter can record the new item's ID as SubResourceId.
-    /// Leave null for other handlers — the filter falls back to the itemId route value when present.
+    /// The ID of a sub-resource the request created. <c>CreateItemEndpoint</c> sets it to the new
+    /// item's ID, on success only. Leave it null elsewhere: the filter falls back to the
+    /// <c>itemId</c> route value when there is one.
     /// </summary>
     public Guid? SubResourceId { get; set; }
 
     /// <summary>
-    /// The user being affected by the operation. Set by AddMember and RemoveMember using
-    /// the memberId route value.
+    /// The user the operation affects. <c>AddMemberEndpoint</c> and <c>RemoveMemberEndpoint</c>
+    /// set it from the <c>memberId</c> route value before anything can refuse the request.
     /// </summary>
     public Guid? TargetUserId { get; set; }
 }

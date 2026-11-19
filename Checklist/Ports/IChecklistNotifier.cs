@@ -2,6 +2,11 @@ using Checklist.Domain;
 
 namespace Checklist.Ports;
 
+/// <summary>
+/// Tells a list's members about its changes as they happen. Use cases pass
+/// <see cref="Caller.ConnectionId"/> on as <c>excludeConnectionId</c> without reading it, so
+/// whoever made the change doesn't get it back; <see langword="null"/> tells every member.
+/// </summary>
 public interface IChecklistNotifier
 {
     Task NotifyItemCreated(Guid groupId, Item item, string? excludeConnectionId);

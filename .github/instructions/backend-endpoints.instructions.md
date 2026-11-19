@@ -30,7 +30,7 @@ internal static class VerbNounEndpoint
 }
 ```
 
-- Use cases take their ports in the constructor and return a nested `Outcome` enum (commands) or the data, `null` for non-members (queries). They never see `AuditContext` or manage transactions
+- Use cases take their ports in the constructor and return a nested `Outcome` enum (commands) or the data, `null` for non-members (queries, and commands whose result the endpoint returns). They never see `AuditContext` or manage transactions
 - Values with a rule, such as `Name` (never blank), live in `Checklist/Domain/` with a `TryCreate` that the endpoint calls. Use cases that need the current time take `TimeProvider` and pass `now` to the port
 - `Handle` parses the request into domain values first (such as `Name.TryCreate`; 400), then calls `user.ToCaller(httpRequest)` (401), runs the use case and maps its outcome to `TypedResults`. It sets `AuditContext` when the route doesn't carry an ID
 - Ports live in `Checklist/Ports/` and their SQL adapters in `Api/Sql/`. Keep rules that must hold under concurrency in one statement or one locked transaction
