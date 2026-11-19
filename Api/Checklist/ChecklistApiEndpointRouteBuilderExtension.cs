@@ -1,5 +1,4 @@
 using Api.AuditLog;
-using Api.Checklist;
 using Api.Http;
 
 namespace Api;
@@ -15,12 +14,12 @@ public static class ChecklistApiEndpointRouteBuilderExtension
             .AddEndpointFilter<AuditEndpointFilter>();
 
         // Item Group
-        GetItemGroup.MapEndpoint(checklistGroup);
-        GetItemGroups.MapEndpoint(checklistGroup);
-        CreateItemGroup.MapEndpoint(checklistGroup);
-        UpdateItemGroup.MapEndpoint(checklistGroup);
-        UpdateItemGroupSettings.MapEndpoint(checklistGroup);
-        DeleteItemGroup.MapEndpoint(checklistGroup);
+        GetItemGroupEndpoint.MapEndpoint(checklistGroup);
+        GetItemGroupsEndpoint.MapEndpoint(checklistGroup);
+        CreateItemGroupEndpoint.MapEndpoint(checklistGroup);
+        UpdateItemGroupEndpoint.MapEndpoint(checklistGroup);
+        UpdateItemGroupSettingsEndpoint.MapEndpoint(checklistGroup);
+        DeleteItemGroupEndpoint.MapEndpoint(checklistGroup);
 
         // Item
         CreateItemEndpoint.MapEndpoint(checklistGroup);

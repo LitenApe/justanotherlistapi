@@ -39,7 +39,7 @@
 
 The Checklist feature is a collaborative list management system. Users can create item groups (shared lists), add items to them, and invite other users as members. All members of a group have equal read and write access to the group and its items.
 
-The feature is implemented as a vertical slice under `Api/Checklist/` using ASP.NET Core Minimal APIs and Dapper for data access. Its domain records (`ItemGroup`, `ItemGroupSettings`, `Item`) and ports live in the `Checklist` project; see [architecture.md](architecture.md) for how the two projects divide the work.
+The feature's domain records, rules and use cases live in the `Checklist` project. The `Api` project wraps them in ASP.NET Core Minimal API endpoints, Dapper on SQL Server and SignalR; see [architecture.md](architecture.md) for how the two projects divide the work.
 
 ---
 
@@ -92,10 +92,10 @@ Membership is a join between a user (`MemberId: Guid`) and an item group (`ItemG
 
 All endpoints require a valid Bearer token. Authorization is membership-based — a user must be a member of an item group to perform any operation on it or its items. There are no roles or elevated permissions; all members have equal access.
 
-The authorization check order applied in every handler:
+The authorization check order applied in every operation (the endpoint adapter does step 1, the use case step 2):
 
 1. Extract `UserId` from JWT claims (`sub`, `user_id`, or `NameIdentifier`). If absent → `MissingClaim`
-2. Check membership: through the `IMembership` port in the slices that follow [architecture.md](architecture.md), with `ChecklistConnectionExtensions.IsMember` in the rest. If false → `Forbidden`
+2. Check membership: the use case asks the `IMembership` port (see [architecture.md](architecture.md)). If false → `Forbidden`
 
 The exception is `CreateItemGroup`, which has no membership pre-condition — any authenticated user can create a group and becomes its first member automatically.
 
@@ -596,7 +596,7 @@ Revokes a user's access to an item group. Any member can remove any other member
 
 ### Validation
 
-Name fields (`ItemGroup.Name`, `Item.Name`) must not be blank. Item endpoints parse the name into the `Name` domain value (`Name.TryCreate`), which refuses blank names; the ItemGroup handlers, not migrated yet, check `string.IsNullOrWhiteSpace`. Either way, the check runs before the authentication and membership checks so that `400 Bad Request` is always returned for invalid input regardless of auth status.
+Name fields (`ItemGroup.Name`, `Item.Name`) must not be blank: endpoints parse them into the `Name` domain value (`Name.TryCreate`), which refuses blank names. List settings are parsed the same way, into `ItemGroupSettingsInput`. Parsing runs before the authentication and membership checks so that `400 Bad Request` is always returned for invalid input regardless of auth status.
 
 ### Idempotent Deletes and Updates
 
@@ -604,7 +604,7 @@ Name fields (`ItemGroup.Name`, `Item.Name`) must not be blank. Item endpoints pa
 
 ### Membership Check Helper
 
-Migrated use cases ask the `IMembership` port, which `SqlMembership` implements; so does `ChecklistHub`, through the `SubscribeToItemGroup` use case. The handlers not migrated yet call `ChecklistConnectionExtensions.IsMember(itemGroupId, userId)`, which returns `false` immediately if `userId` is null, otherwise queries the `Members` table.
+Use cases ask the `IMembership` port, which `SqlMembership` implements on the `Members` table; so does `ChecklistHub`, through the `SubscribeToItemGroup` use case. Endpoints turn the signed-in user into a `Caller` first, and answer `401 Unauthorized` when the token has no user ID claim.
 
 The last-member check lives in `SqlMembership.RemoveUnlessLast`, inside the transaction that keeps it true (see [RemoveMember](#delete-apilistitemgroupidmembermemberid--removemember)).
 
@@ -646,7 +646,7 @@ Each list has two optional settings, stored on `ItemGroups` and shared by every 
 
 ### Auto-Delete
 
-`ChecklistCleanupService`, a hosted `BackgroundService`, runs `AutoDeleteItemGroups` once a minute on its own `SqlConnection` (the request-scoped one isn't available outside a request). A single statement deletes every group that:
+`ChecklistCleanupService`, a hosted `BackgroundService`, runs the `AutoDeleteItemGroups` use case once a minute, in a DI scope of its own that gives it its own `SqlConnection`. A single statement in `SqlItemGroupStore.DeleteDueForAutoDelete` deletes every group that:
 
 - has `AutoDeleteAfterMinutes` set,
 - has at least one item, and no open items, and
@@ -676,20 +676,12 @@ Consequences of this rule:
 - Deleting the last open item makes the list done as of its most recent completion, which may already be past the delay. The list is then deleted on the next run.
 - `OUTPUT DELETED.Id` returns each deleted group exactly once, so several app instances can run the job without duplicate notifications.
 
-For each deleted group, `AutoDeleteItemGroups` enqueues an `AutoDeleteItemGroup` audit entry (see [audit-logs.md](audit-logs.md#checklist--itemgroup)) and sends `GroupDeleted` to all members. The current time comes from the injected `TimeProvider`, and tests call `AutoDeleteItemGroups` directly with a fixed time. The test factories remove `ChecklistCleanupService`, since it would connect with the app's connection string.
+For each deleted group, `AutoDeleteItemGroups` records an `AutoDeleteItemGroup` audit entry through the `IAuditTrail` port (see [audit-logs.md](audit-logs.md#checklist--itemgroup)) and sends `GroupDeleted` to all members. The current time comes from the injected `TimeProvider`, and tests run the use case directly with a `FixedTimeProvider`. The test factories remove `ChecklistCleanupService`, whose timer tests can't control.
 
 ---
 
 ## Structural Conventions
 
-The Member slice (`GetMembers`, `AddMember`, `RemoveMember`) and the Item slice (`CreateItem`, `UpdateItem`, `DeleteItem`) follow the ports-and-adapters layout in [architecture.md](architecture.md): a use case in `Checklist/UseCases/`, an endpoint adapter in `Api/Http/` and its SQL in `Api/Sql/`. The ItemGroup operations still use the structure below until they're migrated.
-
-Each of those operations is a standalone `static` class following the same structure:
-
-- `MapEndpoint(IEndpointRouteBuilder)` — registers the route with summary, description, tag, and name
-- `Execute(...)` — the handler method bound by Minimal API. Contains validation, auth checks, and delegates to data methods. `CreateItemGroup`, which takes part in audit logging, also accepts an `AuditContext` parameter and sets the new list's ID before returning.
-- `CreateData` / `UpdateData` / `RemoveData` / `DeleteData` / `LoadData` — `internal static` data access methods, made internal for direct testing without the HTTP stack. Delete operations use `RemoveData` (`DeleteItemGroup`) or `DeleteData` (`AutoDeleteItemGroups`).
-- `Request` record — nested inside the handler class where a request body is required
-- Handlers that need the current time (`UpdateItemGroupSettings`) take a `TimeProvider` and pass `now` into their data methods, so tests control the clock. The migrated `CreateItem` and `UpdateItem` use cases do the same with their port
+Every operation follows the ports-and-adapters layout in [architecture.md](architecture.md): a use case in `Checklist/UseCases/<Slice>/`, an endpoint adapter in `Api/Http/<Slice>/` with its request record nested inside, and the SQL in a port adapter in `Api/Sql/`. Use cases that need the current time take a `TimeProvider` and pass `now` to their port, so tests control the clock.
 
 All endpoints are registered in `ChecklistApiEndpointRouteBuilderExtension.MapChecklistApi()` on a single route group, which applies `.RequireAuthorization()` and `.AddEndpointFilter<AuditEndpointFilter>()` uniformly. The `AuditEndpointFilter` runs after every handler and enqueues an `AuditEntry` based on the HTTP outcome.

@@ -1,25 +1,18 @@
-using Api.AuditLog;
-using Checklist.Ports;
-using Microsoft.Data.SqlClient;
+using Checklist.UseCases;
 
 namespace Api.Checklist;
 
 /// <summary>
-/// Runs <see cref="AutoDeleteItemGroups"/> once a minute. Uses its own connection because the
-/// request-scoped one isn't available outside a request.
+/// Runs the <see cref="AutoDeleteItemGroups"/> use case once a minute. Each run gets a DI scope of
+/// its own, and so its own SQL connection, the way a request does.
 /// </summary>
 internal sealed partial class ChecklistCleanupService(
-    IConfiguration configuration,
-    IChecklistNotifier notifier,
-    IAuditWriter auditWriter,
+    IServiceScopeFactory scopeFactory,
     TimeProvider timeProvider,
     ILogger<ChecklistCleanupService> logger
 ) : BackgroundService
 {
     private static readonly TimeSpan interval = TimeSpan.FromMinutes(1);
-
-    private readonly string connectionString = configuration.GetConnectionString("database")
-        ?? throw new InvalidOperationException("Connection string 'database' is not configured.");
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -28,14 +21,10 @@ internal sealed partial class ChecklistCleanupService(
         {
             try
             {
-                await using var connection = new SqlConnection(connectionString);
-                IReadOnlyList<Guid> deleted = await AutoDeleteItemGroups.Execute(
-                    connection,
-                    notifier,
-                    auditWriter,
-                    timeProvider.GetUtcNow(),
-                    stoppingToken
-                );
+                await using AsyncServiceScope scope = scopeFactory.CreateAsyncScope();
+                IReadOnlyList<Guid> deleted = await scope
+                    .ServiceProvider.GetRequiredService<AutoDeleteItemGroups>()
+                    .Execute(stoppingToken);
                 if (deleted.Count > 0)
                 {
                     LogDeleted(logger, deleted.Count);

@@ -1,6 +1,5 @@
 using System.Data;
 using System.Security.Claims;
-using Api.Checklist;
 using Bogus;
 using Dapper;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -161,16 +160,13 @@ public static class DevSeedEndpoint
         CancellationToken ct = default
     )
     {
-        return await claimsPrincipal.ExecuteAsAuthenticatedUser<
-            Results<NoContent, UnauthorizedHttpResult>
-        >(
-            async userId =>
-            {
-                await SeedData(userId, db, ct);
-                return TypedResults.NoContent();
-            },
-            TypedResults.Unauthorized()
-        );
+        if (claimsPrincipal.GetUserId() is not { } userId)
+        {
+            return TypedResults.Unauthorized();
+        }
+
+        await SeedData(userId, db, ct);
+        return TypedResults.NoContent();
     }
 
     internal static async Task SeedData(Guid userId, IDbConnection db, CancellationToken ct)

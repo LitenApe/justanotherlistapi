@@ -51,9 +51,10 @@ Client/                             - React Router (framework mode, SPA) web cli
   src/styles/global.css             - Design tokens per theme (WCAG AA contrast) and base styles
   src/test/                         - Fake API, fake SignalR connection, axe helper
 Checklist/                          - The inside of the hexagon, no packages — see specifications/architecture.md
-  Domain/                           - ItemGroup, ItemGroupSettings, Item records (also the JSON and SignalR payloads), Caller, Name, ItemInput
-  Ports/                            - IMembership (who belongs to which list), IItemStore (the items in each list), IChecklistNotifier (realtime updates)
+  Domain/                           - ItemGroup, ItemGroupSettings, Item records (also the JSON and SignalR payloads), Caller, Name, ItemInput, ItemGroupSettingsInput
+  Ports/                            - IMembership (who belongs to which list), IItemGroupStore (the lists), IItemStore (their items), IChecklistNotifier (realtime updates), IAuditTrail (audit entries without a request)
   UseCases/Item/                    - CreateItem, UpdateItem, DeleteItem
+  UseCases/ItemGroup/               - GetItemGroups, GetItemGroup, CreateItemGroup, UpdateItemGroup, UpdateItemGroupSettings, DeleteItemGroup, AutoDeleteItemGroups
   UseCases/Member/                  - GetMembers, AddMember, RemoveMember, SubscribeToItemGroup (for the hub)
 Api/                                - ASP.NET Core backend: the adapters around Checklist
   Program.cs                        - App composition root: DI, middleware, auth, OpenAPI, DB init
@@ -64,25 +65,25 @@ Api/                                - ASP.NET Core backend: the adapters around 
     AuditEndpointFilter.cs          - IEndpointFilter that enqueues an AuditEntry after every request
     AuditEntry.cs                   - Immutable record representing a single audited event
     AuditLogSchemaInitializer.cs    - Idempotent DDL for the AuditLog table and its indexes
+    AuditTrail.cs                   - IAuditTrail on the audit log: entries no request is behind (auto-delete)
     ChannelAuditWriter.cs           - IAuditWriter + IHostedService: batches entries via a bounded Channel
     IAuditWriter.cs                 - Enqueue(AuditEntry) abstraction consumed by handlers and the filter
   Checklist/
     ChecklistApiEndpointRouteBuilderExtension.cs  - Maps all routes under /api/list
-    ChecklistAuthorizationExtensions.cs           - ExecuteAsItemGroupMember/ExecuteAsAuthenticatedUser helpers
-    ChecklistCleanupService.cs      - BackgroundService that runs AutoDeleteItemGroups once a minute
-    ChecklistConnectionExtensions.cs              - IDbConnection.IsMember() shared helper
+    ChecklistCleanupService.cs      - BackgroundService that runs the AutoDeleteItemGroups use case once a minute, in a scope of its own
     ChecklistHub.cs                 - SignalR hub at /hubs/checklist — JoinGroup (membership-gated) and LeaveGroup
     ChecklistNotifier.cs            - IChecklistNotifier impl: broadcasts via IHubContext with optional caller exclusion
     IChecklistClient.cs             - Typed client interface (ItemCreated, ItemUpdated, etc.)
-    ItemGroup/                      - GetItemGroups, GetItemGroup, CreateItemGroup, UpdateItemGroup,
-    |                                 UpdateItemGroupSettings, DeleteItemGroup handlers, AutoDeleteItemGroups
   Extensions/
     ClaimsPrincipalExtension.cs     - GetUserId(): reads sub / NameIdentifier / user_id claim → Guid?
   Http/
     CallerExtensions.cs             - ToCaller(): the signed-in user and SignalR connection behind a request
     Item/                           - Endpoint adapters: CreateItem, UpdateItem, DeleteItem
+    ItemGroup/                      - Endpoint adapters: GetItemGroups, GetItemGroup, CreateItemGroup, UpdateItemGroup, UpdateItemGroupSettings, DeleteItemGroup
     Member/                         - Endpoint adapters: GetMembers, AddMember, RemoveMember
   Sql/
+    ItemGroupRow.cs                 - Flat ItemGroups row for Dapper, turned into an ItemGroup
+    SqlItemGroupStore.cs            - IItemGroupStore on the ItemGroups table; settings and auto-delete in one statement each
     SqlItemStore.cs                 - IItemStore on the Items table; editing a completed item keeps its completion time
     SqlMembership.cs                - IMembership on the Members table, with race-safe add and last-member removal
   Utility/
@@ -91,7 +92,7 @@ Api.Tests/                          - xUnit tests (SQL Server via Testcontainers
   ApiFactory.cs                     - WebApplicationFactory<Program> on a test DB + TestAuthHandler (user picked per request)
   FixedTimeProvider.cs              - TimeProvider that always returns the time it was given
   TestDatabase.cs                   - Starts shared SQL Server container; isolated DB per test
-  TestHelpers.cs                    - CreatePrincipal, CreateHttpRequest, ValidName, and Insert/Load helpers for lists, items and members
+  TestHelpers.cs                    - CreatePrincipal, CreateHttpRequest, ValidName / ValidSettings, and Insert/Set/Load helpers for lists, items and members
   AuditLog/
     AuditLog.Http.Tests.cs          - HTTP integration tests verifying audit entries are captured per operation
     CapturingAuditWriter.cs         - In-memory IAuditWriter that accumulates entries for assertion
@@ -100,13 +101,14 @@ Api.Tests/                          - xUnit tests (SQL Server via Testcontainers
   Checklist/
     CapturingNotifier.cs            - In-memory IChecklistNotifier that records notifications for assertion
     ChecklistHubTests.cs            - SignalR hub auth tests + full end-to-end notification pipeline tests
-    Domain/                         - Tests for domain values such as Name
+    Domain/                         - Tests for the domain values Name and ItemGroupSettingsInput
     Item/                           - Use-case + HTTP tests for the Item slice
-    ItemGroup/                      - Unit + HTTP tests for ItemGroup endpoints
+    ItemGroup/                      - Use-case + HTTP tests for the ItemGroup slice
     Member/                         - Use-case + HTTP tests for the Member slice
   Http/
     CallerExtensions.Tests.cs       - ToCaller(): user ID and connection ID from a request
   Sql/
+    SqlItemGroupStore.Tests.cs      - IItemGroupStore against SQL Server, including the auto-delete rules
     SqlItemStore.Tests.cs           - IItemStore against SQL Server, including completion times
     SqlMembership.Tests.cs          - IMembership against SQL Server, one method at a time
 Directory.Build.props               - Solution-wide MSBuild settings and analyzer packages

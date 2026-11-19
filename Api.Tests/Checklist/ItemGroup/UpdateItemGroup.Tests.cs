@@ -1,197 +1,60 @@
-using System.Security.Claims;
-using Api.Checklist;
+using Api.Sql;
 using Checklist.Domain;
-using Dapper;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.HttpResults;
+using Checklist.UseCases;
+using Microsoft.Data.SqlClient;
 
 namespace Api.Tests.Checklist.ItemGroupTests;
 
 public sealed class UpdateItemGroupTests
 {
     [Fact]
-    public async Task Execute_UpdatesItemGroup_WhenUserIsMember()
+    public async Task Execute_RenamesTheList_AndTellsTheOtherMembers()
     {
-        // Arrange
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-        string oldName = "Old Name";
-        string newName = "New Name";
-        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
         var notifier = new CapturingNotifier();
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, userId);
 
-        await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync(
-            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
-            new { Id = itemGroupId, Name = oldName }
-        );
-        await db.ExecuteAsync(
-            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
-            new { MemberId = userId, ItemGroupId = itemGroupId }
-        );
-
-        var request = new UpdateItemGroup.Request { Name = newName };
-
-        // Act
-        Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await UpdateItemGroup.Execute(
+        UpdateItemGroup.Outcome outcome = await UpdateUseCase(db, notifier)
+            .Execute(
+                new Caller(userId, "conn-rename-001"),
                 itemGroupId,
-                request,
-                claimsPrincipal,
-                db,
-                notifier,
-                TestHelpers.CreateHttpRequest(),
+                TestHelpers.ValidName("Groceries"),
                 TestContext.Current.CancellationToken
             );
 
-        // Assert
-        Assert.IsType<NoContent>(result.Result);
-
-        // Confirm DB update
-        ItemGroup? updated = await db.QueryFirstOrDefaultAsync<ItemGroup>(
-            "SELECT Id, Name FROM ItemGroups WHERE Id = @Id",
-            new { Id = itemGroupId }
-        );
-        Assert.NotNull(updated);
-        Assert.Equal(newName, updated.Name);
-
-        // Confirm notification
+        Assert.Equal(UpdateItemGroup.Outcome.Updated, outcome);
+        Assert.Equal("Groceries", await db.LoadItemGroupName(itemGroupId));
         object notification = Assert.Single(notifier.Notifications);
-        CapturingNotifier.GroupRenamedNotification groupRenamed =
+        CapturingNotifier.GroupRenamedNotification renamed =
             Assert.IsType<CapturingNotifier.GroupRenamedNotification>(notification);
-        Assert.Equal(itemGroupId, groupRenamed.GroupId);
-        Assert.Equal(newName, groupRenamed.Name);
-        Assert.Null(groupRenamed.ExcludeConnectionId);
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("   ")]
-    public async Task Execute_ReturnsBadRequest_WhenNameIsEmptyOrWhitespace(string name)
-    {
-        // Arrange
-        var userId = Guid.NewGuid();
-        var itemGroupId = Guid.NewGuid();
-        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
-
-        await using var db = await TestDatabase.CreateAsync();
-
-        var request = new UpdateItemGroup.Request { Name = name };
-
-        // Act
-        Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await UpdateItemGroup.Execute(
-                itemGroupId,
-                request,
-                claimsPrincipal,
-                db,
-                new CapturingNotifier(),
-                TestHelpers.CreateHttpRequest(),
-                TestContext.Current.CancellationToken
-            );
-
-        // Assert
-        Assert.IsType<BadRequest>(result.Result);
+        Assert.Equal(itemGroupId, renamed.GroupId);
+        Assert.Equal("Groceries", renamed.Name);
+        Assert.Equal("conn-rename-001", renamed.ExcludeConnectionId);
     }
 
     [Fact]
-    public async Task Execute_ReturnsUnauthorized_WhenUserIsNull()
+    public async Task Execute_ReturnsNotAMember_AndKeepsTheName_WhenTheCallerIsNotAMember()
     {
-        // Arrange
         var itemGroupId = Guid.NewGuid();
-        var request = new UpdateItemGroup.Request { Name = "Any Name" };
-        var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
-
-        await using var db = await TestDatabase.CreateAsync();
-
-        // Act
-        Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await UpdateItemGroup.Execute(
-                itemGroupId,
-                request,
-                claimsPrincipal,
-                db,
-                new CapturingNotifier(),
-                TestHelpers.CreateHttpRequest(),
-                TestContext.Current.CancellationToken
-            );
-
-        // Assert
-        Assert.IsType<UnauthorizedHttpResult>(result.Result);
-    }
-
-    [Fact]
-    public async Task Execute_ReturnsForbid_WhenUserIsNotMember()
-    {
-        // Arrange
-        var userId = Guid.NewGuid();
-        var itemGroupId = Guid.NewGuid();
-        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
-
-        await using var db = await TestDatabase.CreateAsync();
-        // Add ItemGroup but not Member
-        await db.ExecuteAsync(
-            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
-            new { Id = itemGroupId, Name = "Old Name" }
-        );
-
-        var request = new UpdateItemGroup.Request { Name = "New Name" };
-
-        // Act
-        Results<NoContent, BadRequest, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await UpdateItemGroup.Execute(
-                itemGroupId,
-                request,
-                claimsPrincipal,
-                db,
-                new CapturingNotifier(),
-                TestHelpers.CreateHttpRequest(),
-                TestContext.Current.CancellationToken
-            );
-
-        // Assert
-        Assert.IsType<ForbidHttpResult>(result.Result);
-    }
-
-    [Fact]
-    public async Task Execute_PassesSignalRConnectionId_WhenHeaderIsPresent()
-    {
-        // Arrange
-        var userId = Guid.NewGuid();
-        var itemGroupId = Guid.NewGuid();
-        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
         var notifier = new CapturingNotifier();
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, Guid.NewGuid());
 
-        await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync(
-            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
-            new { Id = itemGroupId, Name = "Old" }
-        );
-        await db.ExecuteAsync(
-            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
-            new { MemberId = userId, ItemGroupId = itemGroupId }
-        );
+        UpdateItemGroup.Outcome outcome = await UpdateUseCase(db, notifier)
+            .Execute(
+                new Caller(Guid.NewGuid()),
+                itemGroupId,
+                TestHelpers.ValidName("Groceries"),
+                TestContext.Current.CancellationToken
+            );
 
-        var request = new UpdateItemGroup.Request { Name = "New" };
-
-        HttpRequest httpRequest = TestHelpers.CreateHttpRequest();
-        httpRequest.Headers["X-SignalR-Connection-Id"] = "conn-ug-001";
-
-        // Act
-        await UpdateItemGroup.Execute(
-            itemGroupId,
-            request,
-            claimsPrincipal,
-            db,
-            notifier,
-            httpRequest,
-            TestContext.Current.CancellationToken
-        );
-
-        // Assert
-        object notification = Assert.Single(notifier.Notifications);
-        CapturingNotifier.GroupRenamedNotification groupRenamed =
-            Assert.IsType<CapturingNotifier.GroupRenamedNotification>(notification);
-        Assert.Equal("conn-ug-001", groupRenamed.ExcludeConnectionId);
+        Assert.Equal(UpdateItemGroup.Outcome.NotAMember, outcome);
+        Assert.Equal("Group", await db.LoadItemGroupName(itemGroupId));
+        Assert.Empty(notifier.Notifications);
     }
+
+    private static UpdateItemGroup UpdateUseCase(SqlConnection db, CapturingNotifier notifier) =>
+        new(new SqlMembership(db), new SqlItemGroupStore(db), notifier);
 }

@@ -53,6 +53,19 @@ internal static class TestHelpers
             ? name
             : throw new ArgumentException("Names can't be blank.", nameof(value));
 
+    /// <summary>An <see cref="ItemGroupSettingsInput"/> for arranging tests; both must be in range.</summary>
+    public static ItemGroupSettingsInput ValidSettings(
+        int? autoDeleteAfterMinutes,
+        int? hideCompletedAfterMinutes
+    ) =>
+        ItemGroupSettingsInput.TryCreate(
+            autoDeleteAfterMinutes,
+            hideCompletedAfterMinutes,
+            out ItemGroupSettingsInput? settings
+        )
+            ? settings
+            : throw new ArgumentException("Settings out of range.", nameof(autoDeleteAfterMinutes));
+
     /// <summary>Inserts an item; it's complete when it has a <paramref name="completedAt"/>.</summary>
     public static async Task InsertItem(
         this SqlConnection db,
@@ -81,6 +94,48 @@ internal static class TestHelpers
             new { Id = itemId }
         );
 
+    /// <summary>Stores <paramref name="settings"/> on the list as they are, timestamp included.</summary>
+    public static async Task SetItemGroupSettings(
+        this SqlConnection db,
+        Guid itemGroupId,
+        ItemGroupSettings settings
+    ) =>
+        await db.ExecuteAsync(
+            """
+            UPDATE ItemGroups
+            SET AutoDeleteAfterMinutes = @AutoDeleteAfterMinutes,
+                HideCompletedAfterMinutes = @HideCompletedAfterMinutes,
+                AutoDeleteUpdatedAt = @AutoDeleteUpdatedAt
+            WHERE Id = @Id
+            """,
+            new
+            {
+                Id = itemGroupId,
+                settings.AutoDeleteAfterMinutes,
+                settings.HideCompletedAfterMinutes,
+                settings.AutoDeleteUpdatedAt,
+            }
+        );
+
+    /// <summary>The list's name, or <see langword="null"/> when the list doesn't exist.</summary>
+    public static Task<string?> LoadItemGroupName(this SqlConnection db, Guid itemGroupId) =>
+        db.QuerySingleOrDefaultAsync<string>(
+            "SELECT Name FROM ItemGroups WHERE Id = @Id",
+            new { Id = itemGroupId }
+        );
+
+    public static Task<ItemGroupSettings?> LoadSettings(this SqlConnection db, Guid itemGroupId) =>
+        db.QuerySingleOrDefaultAsync<ItemGroupSettings>(
+            "SELECT AutoDeleteAfterMinutes, HideCompletedAfterMinutes, AutoDeleteUpdatedAt FROM ItemGroups WHERE Id = @Id",
+            new { Id = itemGroupId }
+        );
+
+    public static Task<int> CountItems(this SqlConnection db, Guid itemGroupId) =>
+        db.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM Items WHERE ItemGroupId = @ItemGroupId",
+            new { ItemGroupId = itemGroupId }
+        );
+
     public static async Task<IReadOnlyList<Guid>> LoadMembers(
         this SqlConnection db,
         Guid itemGroupId
@@ -94,7 +149,8 @@ internal static class TestHelpers
 
     /// <summary>
     /// The cleanup service deletes due lists on its own timer, which tests can't control.
-    /// Tests call <see cref="AutoDeleteItemGroups"/> directly with a fixed time instead.
+    /// Tests run the <see cref="global::Checklist.UseCases.AutoDeleteItemGroups"/> use case
+    /// directly, with a <see cref="FixedTimeProvider"/>, instead.
     /// </summary>
     public static void RemoveChecklistCleanupService(this IServiceCollection services)
     {

@@ -207,7 +207,7 @@ Audit rows are stored indefinitely. Deletion is a manual administrative action o
 | `DeleteItemGroup` | `'ItemGroup'` | `itemGroupId` | NULL | NULL |
 | `AutoDeleteItemGroup` | `'ItemGroup'` | `itemGroupId` | NULL | NULL |
 
-`AutoDeleteItemGroup` has no request behind it. `ChecklistCleanupService` deletes completed lists on a timer (see [checklist.md](checklist.md#auto-delete)), and `AutoDeleteItemGroups` enqueues one entry per deleted list itself, with `UserId`, `IpAddress` and `TraceId` set to NULL and `Outcome` set to `'Success'`.
+`AutoDeleteItemGroup` has no request behind it. `ChecklistCleanupService` deletes completed lists on a timer (see [checklist.md](checklist.md#auto-delete)), and the `AutoDeleteItemGroups` use case records one entry per deleted list through the `IAuditTrail` port. Its adapter, `AuditTrail`, enqueues the entry on the same `IAuditWriter`, with `UserId`, `IpAddress` and `TraceId` set to NULL and `Outcome` set to `'Success'`.
 
 ### Checklist — Item
 
@@ -351,18 +351,18 @@ public sealed class AuditContext
 }
 ```
 
-**When `AuditContext` is needed.** In slices that follow [architecture.md](architecture.md) the endpoint adapter sets it, so use cases never see it:
+**When `AuditContext` is needed.** The endpoint adapter sets it, so use cases never see it:
 
 | Handler | Property set | Why |
 |---|---|---|
-| `CreateItemGroup` | `ResourceId` | The new group ID is generated inside the handler (`Guid.NewGuid()`). There is no `itemGroupId` route value on `POST /api/list`. |
+| `CreateItemGroupEndpoint` | `ResourceId` | The `CreateItemGroup` use case generates the new list's ID. There is no `itemGroupId` route value on `POST /api/list`. |
 | `CreateItemEndpoint` | `SubResourceId` | The `CreateItem` use case generates the new item's ID. The `itemGroupId` is a route value but the item's ID is not. |
 | `AddMemberEndpoint` | `TargetUserId` | The `memberId` route value identifies the user being added. |
 | `RemoveMemberEndpoint` | `TargetUserId` | Same as `AddMemberEndpoint`. |
 
-**Handlers that do not take `AuditContext`** — `GetItemGroups`, `GetItemGroup`, `GetMembersEndpoint`, `UpdateItemGroup`, `UpdateItemEndpoint`, `DeleteItemGroup`, `DeleteItemEndpoint`. The filter resolves all needed context for these handlers from route values or HTTP context without handler cooperation.
+**Endpoint adapters that do not take `AuditContext`** — `GetItemGroupsEndpoint`, `GetItemGroupEndpoint`, `UpdateItemGroupEndpoint`, `UpdateItemGroupSettingsEndpoint`, `DeleteItemGroupEndpoint`, `UpdateItemEndpoint`, `DeleteItemEndpoint`, `GetMembersEndpoint`. The filter resolves all needed context for these handlers from route values or HTTP context without handler cooperation.
 
-**Important**: `AuditContext.ResourceId` and `AuditContext.SubResourceId` are only set on the *successful* code path inside `CreateItemGroup` and `CreateItemEndpoint` respectively. For early-exit paths (BadRequest, Unauthorized, Forbidden) the handler returns before setting these properties, so the filter records `NULL`. This is correct — when a create operation was not permitted, no resource was created.
+**Important**: `AuditContext.ResourceId` and `AuditContext.SubResourceId` are only set on the *successful* code path inside `CreateItemGroupEndpoint` and `CreateItemEndpoint` respectively. For early-exit paths (BadRequest, Unauthorized, Forbidden) the handler returns before setting these properties, so the filter records `NULL`. This is correct — when a create operation was not permitted, no resource was created.
 
 ### JWT `OnAuthenticationFailed` Event
 
@@ -442,7 +442,7 @@ internal static class GetSomethingEndpoint
 }
 ```
 
-The filter uses this name as the `Operation` value. Without it, the filter logs a warning and exits without writing an entry. Endpoints not migrated to [architecture.md](architecture.md) yet still pass `nameof(...)` of their static class, which gives the same strings.
+The filter uses this name as the `Operation` value. Without it, the filter logs a warning and exits without writing an entry.
 
 **2. Add the operation to the `resourceTypes` dictionary in `AuditEndpointFilter`**
 

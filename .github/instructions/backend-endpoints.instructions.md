@@ -5,9 +5,9 @@ applyTo: "Api/**/*.cs,Checklist/**/*.cs"
 
 # Backend Endpoint Conventions
 
-The backend is moving to ports and adapters one slice at a time; see [specifications/architecture.md](../../specifications/architecture.md) for the layout and the migration status. New and migrated operations use the new layout. The slices not migrated yet keep the old one until their turn.
+The backend uses ports and adapters; see [specifications/architecture.md](../../specifications/architecture.md) for the layout and where each rule lives.
 
-## New layout (Member and Item slices so far)
+## Layout
 
 ```csharp
 // Checklist/UseCases/<Slice>/VerbNoun.cs: no HTTP types, no SQL
@@ -36,11 +36,7 @@ internal static class VerbNounEndpoint
 - Ports live in `Checklist/Ports/` and their SQL adapters in `Api/Sql/`. Keep rules that must hold under concurrency in one statement or one locked transaction
 - Register use cases and adapters in `AddChecklist()`, map the endpoint in `MapChecklistApi()`, and add its name to `AuditEndpointFilter` and to `auditedEndpoints` in `AuditLog.Http.Tests.cs`
 
-## Old layout (ItemGroup slice, until migrated)
-
-Each endpoint is a single static class with `MapEndpoint`, an `Execute` handler taking `ClaimsPrincipal`, `IDbConnection` and `AuditContext`, `internal static` `CreateData`/`LoadData` methods, and a nested `Request` record. Authorize via `db.ExecuteAsItemGroupMember<T>(...)` or `claimsPrincipal.ExecuteAsAuthenticatedUser<T>(...)`.
-
-## Both
+## Every endpoint
 
 - Return `Results<...>` typed results; never throw for expected failures
 - Use `CommandDefinition` with `CancellationToken` for all Dapper queries

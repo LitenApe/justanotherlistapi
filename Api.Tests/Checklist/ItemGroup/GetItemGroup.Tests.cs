@@ -1,164 +1,58 @@
-using System.Security.Claims;
-using Api.Checklist;
+using Api.Sql;
 using Checklist.Domain;
-using Dapper;
-using Microsoft.AspNetCore.Http.HttpResults;
+using Checklist.UseCases;
+using Microsoft.Data.SqlClient;
 
 namespace Api.Tests.Checklist.ItemGroupTests;
 
 public sealed class GetItemGroupTests
 {
     [Fact]
-    public async Task Execute_ReturnsOk_WhenUserIsMember_AndItemGroupExists()
+    public async Task Execute_ReturnsTheList_WithAllItemsAndMembers()
     {
-        // Arrange
         var userId = Guid.NewGuid();
+        var otherMemberId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, userId, otherMemberId);
+        await db.InsertItem(itemGroupId, Guid.NewGuid(), "Open");
+        await db.InsertItem(itemGroupId, Guid.NewGuid(), "Done", DateTimeOffset.UnixEpoch);
 
-        await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync(
-            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
-            new { Id = itemGroupId, Name = "My Group" }
+        ItemGroup? itemGroup = await GetUseCase(db)
+            .Execute(new Caller(userId), itemGroupId, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(itemGroup);
+        Assert.Equal(itemGroupId, itemGroup.Id);
+        Assert.Equal("Group", itemGroup.Name);
+        Assert.Equal(2, itemGroup.Items.Count);
+        Assert.Contains(itemGroup.Items, item =>
+            string.Equals(item.Name, "Open", StringComparison.Ordinal)
         );
-        await db.ExecuteAsync(
-            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
-            new { MemberId = userId, ItemGroupId = itemGroupId }
+        Assert.Contains(itemGroup.Items, item =>
+            string.Equals(item.Name, "Done", StringComparison.Ordinal)
         );
-
-        // Act
-        Results<Ok<ItemGroup>, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await GetItemGroup.Execute(
-                itemGroupId,
-                claimsPrincipal,
-                db,
-                TestContext.Current.CancellationToken
-            );
-
-        // Assert
-        Ok<ItemGroup> ok = Assert.IsType<Ok<ItemGroup>>(result.Result);
-        Assert.NotNull(ok.Value);
-        Assert.Equal(itemGroupId, ok.Value.Id);
-        Assert.Equal("My Group", ok.Value.Name);
+        Assert.Equal(2, itemGroup.Members.Count);
+        Assert.Contains(userId, itemGroup.Members);
+        Assert.Contains(otherMemberId, itemGroup.Members);
     }
 
     [Fact]
-    public async Task Execute_ReturnsAllItemsAndMembers_ForItemGroup()
+    public async Task Execute_ReturnsNull_WhenTheCallerIsNotAMember()
     {
-        // Arrange
-        var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-        var item1Id = Guid.NewGuid();
-        var item2Id = Guid.NewGuid();
-        var member2Id = Guid.NewGuid();
-        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, Guid.NewGuid());
 
-        await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync(
-            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
-            new { Id = itemGroupId, Name = "Group" }
-        );
-        await db.ExecuteAsync(
-            "INSERT INTO Items (Id, Name, IsComplete, ItemGroupId) VALUES (@Id, @Name, @IsComplete, @ItemGroupId)",
-            new
-            {
-                Id = item1Id,
-                Name = "Item 1",
-                IsComplete = false,
-                ItemGroupId = itemGroupId,
-            }
-        );
-        await db.ExecuteAsync(
-            "INSERT INTO Items (Id, Name, IsComplete, ItemGroupId) VALUES (@Id, @Name, @IsComplete, @ItemGroupId)",
-            new
-            {
-                Id = item2Id,
-                Name = "Item 2",
-                IsComplete = false,
-                ItemGroupId = itemGroupId,
-            }
-        );
-        await db.ExecuteAsync(
-            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
-            new { MemberId = userId, ItemGroupId = itemGroupId }
-        );
-        await db.ExecuteAsync(
-            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
-            new { MemberId = member2Id, ItemGroupId = itemGroupId }
-        );
-
-        // Act
-        Results<Ok<ItemGroup>, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await GetItemGroup.Execute(
+        ItemGroup? itemGroup = await GetUseCase(db)
+            .Execute(
+                new Caller(Guid.NewGuid()),
                 itemGroupId,
-                claimsPrincipal,
-                db,
                 TestContext.Current.CancellationToken
             );
 
-        // Assert
-        Ok<ItemGroup> ok = Assert.IsType<Ok<ItemGroup>>(result.Result);
-        ItemGroup? returnedGroup = ok.Value;
-        Assert.NotNull(returnedGroup);
-        Assert.Equal(2, returnedGroup.Items.Count);
-        Assert.Contains(returnedGroup.Items, i =>
-            string.Equals(i.Name, "Item 1", StringComparison.Ordinal)
-        );
-        Assert.Contains(returnedGroup.Items, i =>
-            string.Equals(i.Name, "Item 2", StringComparison.Ordinal)
-        );
-        Assert.Equal(2, returnedGroup.Members.Count);
-        Assert.Contains(returnedGroup.Members, m => m == userId);
-        Assert.Contains(returnedGroup.Members, m => m == member2Id);
+        Assert.Null(itemGroup);
     }
 
-    [Fact]
-    public async Task Execute_ReturnsUnauthorized_WhenUserIsNull()
-    {
-        // Arrange
-        var itemGroupId = Guid.NewGuid();
-        var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
-
-        await using var db = await TestDatabase.CreateAsync();
-
-        // Act
-        Results<Ok<ItemGroup>, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await GetItemGroup.Execute(
-                itemGroupId,
-                claimsPrincipal,
-                db,
-                TestContext.Current.CancellationToken
-            );
-
-        // Assert
-        Assert.IsType<UnauthorizedHttpResult>(result.Result);
-    }
-
-    [Fact]
-    public async Task Execute_ReturnsForbid_WhenUserIsNotMember()
-    {
-        // Arrange
-        var userId = Guid.NewGuid();
-        var itemGroupId = Guid.NewGuid();
-        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
-
-        await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync(
-            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
-            new { Id = itemGroupId, Name = "My Group" }
-        );
-        // No member for this user
-
-        // Act
-        Results<Ok<ItemGroup>, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await GetItemGroup.Execute(
-                itemGroupId,
-                claimsPrincipal,
-                db,
-                TestContext.Current.CancellationToken
-            );
-
-        // Assert
-        Assert.IsType<ForbidHttpResult>(result.Result);
-    }
+    private static GetItemGroup GetUseCase(SqlConnection db) =>
+        new(new SqlMembership(db), new SqlItemGroupStore(db));
 }
