@@ -20,6 +20,12 @@ public sealed class ArchitectureTests
 
     private static readonly Assembly inside = typeof(Caller).Assembly;
     private static readonly Assembly outside = typeof(CallerExtensions).Assembly;
+    private static readonly string[] drivingAdapters =
+    [
+        "Api.Http",
+        "Api.Realtime",
+        "Api.Background",
+    ];
 
     [Fact]
     public void Checklist_ReferencesNothingButDotNet()
@@ -44,11 +50,7 @@ public sealed class ArchitectureTests
                     parameter.ParameterType != typeof(TimeProvider)
                     && !(
                         parameter.ParameterType.IsInterface
-                        && string.Equals(
-                            parameter.ParameterType.Namespace,
-                            "Checklist.Ports",
-                            StringComparison.Ordinal
-                        )
+                        && IsIn(parameter.ParameterType, "Checklist.Ports")
                     )
                 )
                 .Select(Describe),
@@ -57,29 +59,37 @@ public sealed class ArchitectureTests
         Assert.Empty(others);
     }
 
+    // The endpoints, the hub and the cleanup job run use cases. Taking a port, a SQL adapter or a
+    // connection instead would skip the membership check and the rules the use cases apply.
     [Fact]
-    public void HttpAdapters_NeverTakeADatabaseConnection()
+    public void DrivingAdapters_ReachTheInsideOnlyThroughUseCases()
     {
-        string[] connections =
+        string[] shortcuts =
         [
-            .. InNamespace(outside, "Api.Http")
+            .. drivingAdapters
+                .SelectMany(ns => InNamespace(outside, ns))
                 .SelectMany(type =>
                     type.GetMethods(Declared)
                         .Cast<MethodBase>()
                         .Concat(type.GetConstructors(Declared))
                 )
                 .SelectMany(method => method.GetParameters())
-                .Where(parameter => typeof(IDbConnection).IsAssignableFrom(parameter.ParameterType))
+                .Where(parameter =>
+                    typeof(IDbConnection).IsAssignableFrom(parameter.ParameterType)
+                    || IsIn(parameter.ParameterType, "Checklist.Ports")
+                    || IsIn(parameter.ParameterType, "Api.Sql")
+                )
                 .Select(Describe),
         ];
 
-        Assert.Empty(connections);
+        Assert.Empty(shortcuts);
     }
 
     private static IEnumerable<Type> InNamespace(Assembly assembly, string ns) =>
-        assembly
-            .GetTypes()
-            .Where(type => string.Equals(type.Namespace, ns, StringComparison.Ordinal));
+        assembly.GetTypes().Where(type => IsIn(type, ns));
+
+    private static bool IsIn(Type type, string ns) =>
+        string.Equals(type.Namespace, ns, StringComparison.Ordinal);
 
     private static string Describe(ParameterInfo parameter) =>
         $"{parameter.Member.DeclaringType?.Name}.{parameter.Member.Name}({parameter.ParameterType.Name} {parameter.Name})";
