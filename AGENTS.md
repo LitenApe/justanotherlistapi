@@ -31,23 +31,37 @@ The client is organized by page (`lists/`, `list/`, `auth/`) with shared `api/`,
 
 ### Backend endpoints
 
+New and migrated operations (the Member slice so far) follow [specifications/architecture.md](specifications/architecture.md):
+
+- Use case in `Checklist/UseCases/<Slice>/`: ports in the constructor, one `Execute(Caller caller, …, CancellationToken ct)` returning a nested `Outcome` enum (commands) or the data, `null` for non-members (queries). No HTTP types, SQL, transactions or `AuditContext`
+- Endpoint adapter in `Api/Http/<Slice>/<Operation>Endpoint.cs`: `internal const string Name` for `.WithName()` (stored in `AuditLog.Operation`, never change it); `Handle` parses the request (400), calls `user.ToCaller(httpRequest)` (401), runs the use case, maps its outcome to `TypedResults` and sets `AuditContext`
+- SQL in a port adapter in `Api/Sql/`. Rules that must hold under concurrency go in one statement or one locked transaction
+- Register use cases and adapters in `AddChecklist()` (`ChecklistServiceCollectionExtensions`)
+
+The slices not migrated yet (Item, ItemGroup) still use the old pattern:
+
 - One static class per endpoint (e.g., `CreateItem.cs`) with `MapEndpoint` and `Execute` methods
 - Use `Results<Ok<T>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult>` typed results
 - Authorization via `db.ExecuteAsItemGroupMember<T>(...)` or `db.ExecuteAsAuthenticatedUser<T>(...)` extension methods
 - Separate internal `CreateData`/`LoadData` methods for testable data logic
 - Audit context: set `auditContext.SubResourceId` in handlers when a sub-resource is created
-- All Dapper queries use `CommandDefinition` with `CancellationToken`
-- SignalR notifications: inject `IChecklistNotifier` and call `NotifyXxx()` after mutations
 - Read `X-SignalR-Connection-Id` from `httpRequest.Headers` and pass as `excludeConnectionId`
-- Hub at `/hubs/checklist`: `ChecklistHub` validates membership in `JoinGroup`, uses SignalR groups by `groupId.ToString()`
-- Current time: take `TimeProvider` in `Execute` and pass `now` into data methods; don't use `SYSDATETIMEOFFSET()` or `DateTimeOffset.UtcNow`
+
+Both:
+
+- All Dapper queries use `CommandDefinition` with `CancellationToken`
+- SignalR notifications: call `IChecklistNotifier.NotifyXxx()` after mutations
+- Hub at `/hubs/checklist`: `ChecklistHub.JoinGroup` admits only members (through `SubscribeToItemGroup`), uses SignalR groups by `groupId.ToString()`
+- Current time: take `TimeProvider` and pass `now` on; don't use `SYSDATETIMEOFFSET()` or `DateTimeOffset.UtcNow`
 - Schema changes: add columns to the `CREATE TABLE` and an `IF COL_LENGTH(...) IS NULL ALTER TABLE ... ADD` block in `ChecklistSchemaInitializer` so existing databases upgrade
 
 ### Tests
 
 - HTTP integration and SignalR tests: class implements `IClassFixture<ApiFactory>`, uses `factory.CreateClient()` / `factory.CreateHubConnection()`
 - `ApiFactory` runs the app on its own scoped `SqlConnection` to an isolated test database (as in production); `factory.Connection` is a separate open connection for arranging and asserting. It keeps the real `ChecklistNotifier` + hub
-- Unit tests for data logic: call internal static methods directly with a `TestDatabase.CreateAsync()` connection
+- Use-case tests (migrated slices): build the use case with the real SQL adapters on a `TestDatabase.CreateAsync()` connection and `CapturingNotifier`, and call `Execute` with a `Caller`. Arrange with `db.InsertItemGroup(id, memberIds…)` and check with `db.LoadMembers(id)` from `TestHelpers`
+- SQL adapter tests go in `Api.Tests/Sql/`, one port method at a time
+- Unit tests for data logic (slices not migrated yet): call internal static methods directly with a `TestDatabase.CreateAsync()` connection
 - File naming: `*.Http.Tests.cs` (integration) vs `*.Tests.cs` (unit)
 - Test auth: `TestAuthHandler` signs requests in as `TestAuthHandler.UserId` (insert a matching `Members` row); act as someone else with `factory.CreateClientFor(userId)` / `factory.CreateHubConnection(userId)`, or as no one with `factory.CreateAnonymousClient()`
 - Notification assertions: use `CapturingNotifier` in unit tests, assert on `Notifications` list (type + data + `ExcludeConnectionId`)

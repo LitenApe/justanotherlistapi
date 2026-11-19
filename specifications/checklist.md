@@ -95,7 +95,7 @@ All endpoints require a valid Bearer token. Authorization is membership-based �
 The authorization check order applied in every handler:
 
 1. Extract `UserId` from JWT claims (`sub`, `user_id`, or `NameIdentifier`). If absent → `MissingClaim`
-2. Check membership via `IsMember(itemGroupId, userId)`. If false → `Forbidden`
+2. Check membership: through the `IMembership` port in the slices that follow [architecture.md](architecture.md), with `ChecklistConnectionExtensions.IsMember` in the rest. If false → `Forbidden`
 
 The exception is `CreateItemGroup`, which has no membership pre-condition — any authenticated user can create a group and becomes its first member automatically.
 
@@ -564,6 +564,8 @@ Grants another user access to an item group by adding them as a member. The auth
 | `403 Forbidden`    | Authenticated user is not a member          |
 | `409 Conflict`     | `memberId` is already a member of the group |
 
+Adding is one conditional insert whose existence check holds its locks until the insert (`SqlMembership.Add`). When two members add the same user at the same moment, one gets `204` and the other `409`; neither gets a server error from the primary key.
+
 ---
 
 #### `DELETE /api/list/{itemGroupId}/member/{memberId}` — RemoveMember
@@ -586,7 +588,7 @@ Revokes a user's access to an item group. Any member can remove any other member
 | `403 Forbidden`    | Authenticated user is not a member                                                                                |
 | `409 Conflict`     | `memberId` is the last remaining member of the group. Removing them would leave the group permanently unreachable |
 
-**Orphan prevention rule:** A group must always have at least one member. Attempting to remove the last member returns `409 Conflict`. The check is a single query that verifies the group has exactly one member and that member is the target `memberId`. It runs in the same transaction as the delete, after taking an update lock on the group's `ItemGroups` row, so removals from one group take turns. Without the lock, two members removing each other (or themselves) at the same moment could both pass the check and leave the group with no members.
+**Orphan prevention rule:** A group must always have at least one member. Attempting to remove the last member returns `409 Conflict`. The check (in `SqlMembership.RemoveUnlessLast`) is a single query that verifies the group has exactly one member and that member is the target `memberId`. It runs in the same transaction as the delete, after taking an update lock on the group's `ItemGroups` row, so removals from one group take turns. Without the lock, two members removing each other (or themselves) at the same moment could both pass the check and leave the group with no members.
 
 ---
 
@@ -602,9 +604,9 @@ Name fields (`ItemGroup.Name`, `Item.Name`) are validated with `string.IsNullOrW
 
 ### Membership Check Helper
 
-`ChecklistConnectionExtensions.IsMember(itemGroupId, userId)` is the membership query shared by every handler and `ChecklistHub`. It returns `false` immediately if `userId` is null, otherwise queries the `Members` table.
+Migrated use cases ask the `IMembership` port, which `SqlMembership` implements; so does `ChecklistHub`, through the `SubscribeToItemGroup` use case. The handlers not migrated yet call `ChecklistConnectionExtensions.IsMember(itemGroupId, userId)`, which returns `false` immediately if `userId` is null, otherwise queries the `Members` table.
 
-The last-member check lives in `RemoveMember.RemoveData`, inside the transaction that keeps it true (see [RemoveMember](#delete-apilistitemgroupidmembermemberid--removemember)).
+The last-member check lives in `SqlMembership.RemoveUnlessLast`, inside the transaction that keeps it true (see [RemoveMember](#delete-apilistitemgroupidmembermemberid--removemember)).
 
 ---
 
@@ -614,7 +616,7 @@ Checklist mutations are broadcast to group members in real time via SignalR.
 
 ### Architecture
 
-- **Hub**: `ChecklistHub` at `/hubs/checklist` — authenticated, validates group membership on `JoinGroup`/`LeaveGroup`
+- **Hub**: `ChecklistHub` at `/hubs/checklist` — authenticated. `JoinGroup` admits only members, asking the `SubscribeToItemGroup` use case; `LeaveGroup` always succeeds
 - **Client interface**: `IChecklistClient` — typed server→client messages (`ItemCreated`, `ItemUpdated`, `ItemDeleted`, `MemberAdded`, `MemberRemoved`, `GroupRenamed`, `GroupSettingsChanged`, `GroupDeleted`)
 - **Notifier port**: `IChecklistNotifier` (in `Checklist/Ports/`), implemented by `ChecklistNotifier` around `IHubContext<ChecklistHub, IChecklistClient>`. Tests swap in `CapturingNotifier`
 - **Caller exclusion**: Mutations send an `X-SignalR-Connection-Id` header; the notifier uses `GroupExcept` to skip the caller. Clients learn their connection ID from the negotiate response (and a new one on every reconnect), so they must not skip negotiation
@@ -680,11 +682,13 @@ For each deleted group, `AutoDeleteItemGroups` enqueues an `AutoDeleteItemGroup`
 
 ## Structural Conventions
 
-Each operation is a standalone `static` class following the same structure:
+The Member slice (`GetMembers`, `AddMember`, `RemoveMember`) follows the ports-and-adapters layout in [architecture.md](architecture.md): a use case in `Checklist/UseCases/`, an endpoint adapter in `Api/Http/` and its SQL in `Api/Sql/`. The other operations still use the structure below until they're migrated.
+
+Each of those operations is a standalone `static` class following the same structure:
 
 - `MapEndpoint(IEndpointRouteBuilder)` — registers the route with summary, description, tag, and name
-- `Execute(...)` — the handler method bound by Minimal API. Contains validation, auth checks, and delegates to data methods. Handlers that participate in audit logging (`CreateItemGroup`, `CreateItem`, `AddMember`, `RemoveMember`) also accept an `AuditContext` parameter and populate the relevant ID fields before returning.
-- `CreateData` / `UpdateData` / `RemoveData` / `DeleteData` / `LoadData` — `internal static` data access methods, made internal for direct testing without the HTTP stack. Delete operations use `RemoveData` (member/group/item-group handlers) or `DeleteData` (`DeleteItem`).
+- `Execute(...)` — the handler method bound by Minimal API. Contains validation, auth checks, and delegates to data methods. Handlers that participate in audit logging (`CreateItemGroup`, `CreateItem`) also accept an `AuditContext` parameter and populate the relevant ID fields before returning.
+- `CreateData` / `UpdateData` / `RemoveData` / `DeleteData` / `LoadData` — `internal static` data access methods, made internal for direct testing without the HTTP stack. Delete operations use `RemoveData` (`DeleteItemGroup`) or `DeleteData` (`DeleteItem`).
 - `Request` record — nested inside the handler class where a request body is required
 - Handlers that need the current time (`CreateItem`, `UpdateItem`, `UpdateItemGroupSettings`) take a `TimeProvider` and pass `now` into their data methods, so tests control the clock
 

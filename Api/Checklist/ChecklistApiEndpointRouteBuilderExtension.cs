@@ -1,5 +1,6 @@
 using Api.AuditLog;
 using Api.Checklist;
+using Api.Http;
 
 namespace Api;
 
@@ -27,9 +28,9 @@ public static class ChecklistApiEndpointRouteBuilderExtension
         DeleteItem.MapEndpoint(checklistGroup);
 
         // Member
-        GetMembers.MapEndpoint(checklistGroup);
-        AddMember.MapEndpoint(checklistGroup);
-        RemoveMember.MapEndpoint(checklistGroup);
+        GetMembersEndpoint.MapEndpoint(checklistGroup);
+        AddMemberEndpoint.MapEndpoint(checklistGroup);
+        RemoveMemberEndpoint.MapEndpoint(checklistGroup);
 
         return app;
     }

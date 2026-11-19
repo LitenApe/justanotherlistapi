@@ -51,10 +51,12 @@ Client/                             - React Router (framework mode, SPA) web cli
   src/styles/global.css             - Design tokens per theme (WCAG AA contrast) and base styles
   src/test/                         - Fake API, fake SignalR connection, axe helper
 Checklist/                          - The inside of the hexagon, no packages — see specifications/architecture.md
-  Domain/                           - ItemGroup, ItemGroupSettings, Item records (also the JSON and SignalR payloads)
-  Ports/                            - IChecklistNotifier: broadcasting changes to a list's members
+  Domain/                           - ItemGroup, ItemGroupSettings, Item records (also the JSON and SignalR payloads), Caller
+  Ports/                            - IMembership (who belongs to which list), IChecklistNotifier (realtime updates)
+  UseCases/Member/                  - GetMembers, AddMember, RemoveMember, SubscribeToItemGroup (for the hub)
 Api/                                - ASP.NET Core backend: the adapters around Checklist
   Program.cs                        - App composition root: DI, middleware, auth, OpenAPI, DB init
+  ChecklistServiceCollectionExtensions.cs  - AddChecklist(): registers use cases, plugs adapters into ports
   DatabaseInitializer.cs            - Runs idempotent CREATE TABLE + CREATE INDEX at startup
   AuditLog/
     AuditContext.cs                 - Scoped per-request bag handlers use to pass resource IDs to the filter
@@ -74,15 +76,19 @@ Api/                                - ASP.NET Core backend: the adapters around 
     Item/                           - CreateItem, UpdateItem, DeleteItem handlers
     ItemGroup/                      - GetItemGroups, GetItemGroup, CreateItemGroup, UpdateItemGroup,
     |                                 UpdateItemGroupSettings, DeleteItemGroup handlers, AutoDeleteItemGroups
-    Member/                         - GetMembers, AddMember, RemoveMember handlers
   Extensions/
     ClaimsPrincipalExtension.cs     - GetUserId(): reads sub / NameIdentifier / user_id claim → Guid?
+  Http/
+    CallerExtensions.cs             - ToCaller(): the signed-in user and SignalR connection behind a request
+    Member/                         - Endpoint adapters: GetMembers, AddMember, RemoveMember
+  Sql/
+    SqlMembership.cs                - IMembership on the Members table, with race-safe add and last-member removal
   Utility/
     BearerSecuritySchemeTransformer.cs  - Adds Bearer + OAuth2 security schemes to OpenAPI doc
 Api.Tests/                          - xUnit tests (SQL Server via Testcontainers, requires Docker)
   ApiFactory.cs                     - WebApplicationFactory<Program> on a test DB + TestAuthHandler (user picked per request)
   TestDatabase.cs                   - Starts shared SQL Server container; isolated DB per test
-  TestHelpers.cs                    - CreatePrincipal(Guid): builds a ClaimsPrincipal for unit tests
+  TestHelpers.cs                    - CreatePrincipal, CreateHttpRequest, and InsertItemGroup / LoadMembers for arranging data
   AuditLog/
     AuditLog.Http.Tests.cs          - HTTP integration tests verifying audit entries are captured per operation
     CapturingAuditWriter.cs         - In-memory IAuditWriter that accumulates entries for assertion
@@ -93,13 +99,18 @@ Api.Tests/                          - xUnit tests (SQL Server via Testcontainers
     ChecklistHubTests.cs            - SignalR hub auth tests + full end-to-end notification pipeline tests
     Item/                           - Unit + HTTP tests for Item endpoints
     ItemGroup/                      - Unit + HTTP tests for ItemGroup endpoints
-    Member/                         - Unit + HTTP tests for Member endpoints
+    Member/                         - Use-case + HTTP tests for the Member slice
+  Http/
+    CallerExtensions.Tests.cs       - ToCaller(): user ID and connection ID from a request
+  Sql/
+    SqlMembership.Tests.cs          - IMembership against SQL Server, one method at a time
 Directory.Build.props               - Solution-wide MSBuild settings and analyzer packages
 Directory.Build.targets             - CSharpier format check wired into every CLI build
 dotnet-tools.json                   - Pins CSharpier version for local tool restore
 global.json                         - Opts `dotnet test` into Microsoft.Testing.Platform
 coverage.config                     - Code coverage settings used by CI
 specifications/                     - Design and architecture specifications
+  architecture.md                   - Backend layout: ports and adapters, where rules live, migration status
   checklist.md                      - Checklist feature: domain model, endpoints, DB schema
   audit-logs.md                     - Audit log feature: schema, implementation design
   authentication.md                 - Authentication: JWT setup, claim resolution
@@ -112,6 +123,7 @@ Design and architecture documents for planned and implemented features live in t
 
 | Document                                              | Description                                                                                                                                        |
 | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [architecture.md](specifications/architecture.md)     | Backend architecture — the ports-and-adapters layout, where each kind of code and rule belongs, how to add an operation, and the migration status |
 | [checklist.md](specifications/checklist.md)           | Checklist feature — domain model, authorization model, database schema, all API endpoints with request/response shapes, and structural conventions |
 | [audit-logs.md](specifications/audit-logs.md)         | Audit Log feature — database schema, per-operation audit data, implementation design, and future extensibility                                     |
 | [authentication.md](specifications/authentication.md) | Authentication feature — JWT Bearer setup, token validation behavior, user identity claim resolution, and how users authenticate against the API   |

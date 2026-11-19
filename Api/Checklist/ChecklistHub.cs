@@ -1,23 +1,27 @@
-using System.Data;
+using Checklist.Domain;
+using Checklist.UseCases;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
 namespace Api.Checklist;
 
 [Authorize]
-public sealed class ChecklistHub(IDbConnection db) : Hub<IChecklistClient>
+public sealed class ChecklistHub(SubscribeToItemGroup subscribe) : Hub<IChecklistClient>
 {
     public async Task JoinGroup(Guid groupId)
     {
         Guid? userId = Context.User?.GetUserId();
-        if (userId is not null)
+        if (
+            userId is not null
+            && await subscribe.Execute(
+                new Caller(userId.Value, Context.ConnectionId),
+                groupId,
+                Context.ConnectionAborted
+            )
+        )
         {
-            bool isMember = await db.IsMember(groupId, userId, Context.ConnectionAborted);
-            if (isMember)
-            {
-                await Groups.AddToGroupAsync(Context.ConnectionId, groupId.ToString());
-                return;
-            }
+            await Groups.AddToGroupAsync(Context.ConnectionId, groupId.ToString());
+            return;
         }
 
         throw new HubException("Forbidden");

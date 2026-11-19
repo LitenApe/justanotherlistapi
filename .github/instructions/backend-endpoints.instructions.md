@@ -1,39 +1,48 @@
 ---
-description: "Use when creating or modifying backend API endpoints, handlers, or Checklist feature files in Api/"
-applyTo: "Api/Checklist/**/*.cs"
+description: "Use when creating or modifying backend API endpoints, use cases, ports or adapters in Api/ or Checklist/"
+applyTo: "Api/**/*.cs,Checklist/**/*.cs"
 ---
 
 # Backend Endpoint Conventions
 
-Each endpoint is a single static class with this structure:
+The backend is moving to ports and adapters one slice at a time; see [specifications/architecture.md](../../specifications/architecture.md) for the layout and the migration status. New and migrated operations use the new layout. The slices not migrated yet keep the old one until their turn.
+
+## New layout (Member slice so far)
 
 ```csharp
-public static class VerbNoun
+// Checklist/UseCases/<Slice>/VerbNoun.cs: no HTTP types, no SQL
+public sealed class VerbNoun(IMembership membership, IChecklistNotifier notifier)
 {
-    public static void MapEndpoint(this IEndpointRouteBuilder builder) { ... }
+    public enum Outcome { Done, NotAMember }
 
-    public static async Task<Results<Ok<T>, BadRequest, UnauthorizedHttpResult, ForbidHttpResult>> Execute(
-        Guid itemGroupId,
-        Request request,
-        ClaimsPrincipal claimsPrincipal,
-        IDbConnection db,
-        AuditContext auditContext,
-        CancellationToken ct = default) { ... }
+    public async Task<Outcome> Execute(Caller caller, Guid itemGroupId, CancellationToken ct) { ... }
+}
 
-    internal static async Task<T> CreateData(...) { ... }  // or LoadData
+// Api/Http/<Slice>/VerbNounEndpoint.cs
+internal static class VerbNounEndpoint
+{
+    internal const string Name = "VerbNoun"; // stored in AuditLog.Operation: never change it
 
-    public record Request { ... }
+    internal static void MapEndpoint(this IEndpointRouteBuilder builder) { ... .WithName(Name); }
+
+    private static async Task<Results<NoContent, UnauthorizedHttpResult, ForbidHttpResult>> Handle(
+        Guid itemGroupId, ClaimsPrincipal user, HttpRequest httpRequest, VerbNoun useCase, CancellationToken ct) { ... }
 }
 ```
 
-## Rules
+- Use cases take their ports in the constructor and return a nested `Outcome` enum (commands) or the data, `null` for non-members (queries). They never see `AuditContext` or manage transactions
+- `Handle` parses the request into domain values first (400), then calls `user.ToCaller(httpRequest)` (401), runs the use case and maps its outcome to `TypedResults`. It sets `AuditContext` when the route doesn't carry an ID
+- Ports live in `Checklist/Ports/` and their SQL adapters in `Api/Sql/`. Keep rules that must hold under concurrency in one statement or one locked transaction
+- Register use cases and adapters in `AddChecklist()`, map the endpoint in `MapChecklistApi()`, and add its name to `AuditEndpointFilter` and to `auditedEndpoints` in `AuditLog.Http.Tests.cs`
 
-- Return `Results<...>` typed results — never throw for expected failures
-- Authorize via `db.ExecuteAsItemGroupMember<T>(...)` or `db.ExecuteAsAuthenticatedUser<T>(...)`
-- Set `auditContext.SubResourceId` when creating a sub-resource
+## Old layout (Item and ItemGroup slices, until migrated)
+
+Each endpoint is a single static class with `MapEndpoint`, an `Execute` handler taking `ClaimsPrincipal`, `IDbConnection` and `AuditContext`, `internal static` `CreateData`/`LoadData` methods, and a nested `Request` record. Authorize via `db.ExecuteAsItemGroupMember<T>(...)` or `claimsPrincipal.ExecuteAsAuthenticatedUser<T>(...)`.
+
+## Both
+
+- Return `Results<...>` typed results; never throw for expected failures
 - Use `CommandDefinition` with `CancellationToken` for all Dapper queries
-- Validate inputs at the top of `Execute`; return `TypedResults.BadRequest()` on failure
-- Keep data access in a separate `internal static` method for unit testability
 - Add `.WithSummary()`, `.WithDescription()`, `.WithTags()`, `.WithName()` to route registration
 
 See [specifications/checklist.md](../../specifications/checklist.md) for the full API contract.

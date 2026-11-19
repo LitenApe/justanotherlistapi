@@ -1,47 +1,28 @@
-using System.Security.Claims;
-using Api.Checklist;
+using Api.Sql;
+using Checklist.Domain;
+using Checklist.UseCases;
 using Dapper;
-using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Data.SqlClient;
 
 namespace Api.Tests.Checklist.MemberTests;
 
 public sealed class GetMembersTests
 {
     [Fact]
-    public async Task Execute_ReturnsAllMemberIds_WhenUserIsMember()
+    public async Task Execute_ReturnsEveryMember_WhenTheCallerIsAMember()
     {
-        // Arrange
         var userId = Guid.NewGuid();
         var otherUserId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, userId, otherUserId);
 
-        await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync(
-            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
-            new { Id = itemGroupId, Name = "Group" }
-        );
-        await db.ExecuteAsync(
-            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
-            new { MemberId = userId, ItemGroupId = itemGroupId }
-        );
-        await db.ExecuteAsync(
-            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
-            new { MemberId = otherUserId, ItemGroupId = itemGroupId }
+        IReadOnlyList<Guid>? members = await new GetMembers(new SqlMembership(db)).Execute(
+            new Caller(userId),
+            itemGroupId,
+            TestContext.Current.CancellationToken
         );
 
-        // Act
-        Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await GetMembers.Execute(
-                itemGroupId,
-                claimsPrincipal,
-                db,
-                TestContext.Current.CancellationToken
-            );
-
-        // Assert
-        Ok<List<Guid>> ok = Assert.IsType<Ok<List<Guid>>>(result.Result);
-        List<Guid>? members = ok.Value;
         Assert.NotNull(members);
         Assert.Equal(2, members.Count);
         Assert.Contains(userId, members);
@@ -49,88 +30,39 @@ public sealed class GetMembersTests
     }
 
     [Fact]
-    public async Task Execute_ReturnsUnauthorized_WhenUserIsNull()
+    public async Task Execute_ReturnsNull_WhenTheCallerIsNotAMember()
     {
-        // Arrange
         var itemGroupId = Guid.NewGuid();
-        var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, Guid.NewGuid());
 
-        await using var db = await TestDatabase.CreateAsync();
+        IReadOnlyList<Guid>? members = await new GetMembers(new SqlMembership(db)).Execute(
+            new Caller(Guid.NewGuid()),
+            itemGroupId,
+            TestContext.Current.CancellationToken
+        );
 
-        // Act
-        Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await GetMembers.Execute(
-                itemGroupId,
-                claimsPrincipal,
-                db,
-                TestContext.Current.CancellationToken
-            );
-
-        // Assert
-        Assert.IsType<UnauthorizedHttpResult>(result.Result);
+        Assert.Null(members);
     }
 
     [Fact]
-    public async Task Execute_ReturnsForbid_WhenUserIsNotMember()
+    public async Task Execute_ReturnsNull_WhenTheCallersMembershipWasRevoked()
     {
-        // Arrange
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
-        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
-
-        await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync(
-            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
-            new { Id = itemGroupId, Name = "Group" }
-        );
-        // No member for this user
-
-        // Act
-        Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await GetMembers.Execute(
-                itemGroupId,
-                claimsPrincipal,
-                db,
-                TestContext.Current.CancellationToken
-            );
-
-        // Assert
-        Assert.IsType<ForbidHttpResult>(result.Result);
-    }
-
-    [Fact]
-    public async Task Execute_ReturnsForbid_WhenUserMembershipIsRevoked()
-    {
-        // Arrange
-        var userId = Guid.NewGuid();
-        var itemGroupId = Guid.NewGuid();
-        ClaimsPrincipal claimsPrincipal = TestHelpers.CreatePrincipal(userId);
-
-        await using var db = await TestDatabase.CreateAsync();
-        await db.ExecuteAsync(
-            "INSERT INTO ItemGroups (Id, Name) VALUES (@Id, @Name)",
-            new { Id = itemGroupId, Name = "Group" }
-        );
-        await db.ExecuteAsync(
-            "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
-            new { MemberId = userId, ItemGroupId = itemGroupId }
-        );
-        // Remove all members to simulate revoked membership
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, userId);
         await db.ExecuteAsync(
             "DELETE FROM Members WHERE ItemGroupId = @ItemGroupId",
             new { ItemGroupId = itemGroupId }
         );
 
-        // Act
-        Results<Ok<List<Guid>>, UnauthorizedHttpResult, ForbidHttpResult> result =
-            await GetMembers.Execute(
-                itemGroupId,
-                claimsPrincipal,
-                db,
-                TestContext.Current.CancellationToken
-            );
+        IReadOnlyList<Guid>? members = await new GetMembers(new SqlMembership(db)).Execute(
+            new Caller(userId),
+            itemGroupId,
+            TestContext.Current.CancellationToken
+        );
 
-        // Assert
-        Assert.IsType<ForbidHttpResult>(result.Result);
+        Assert.Null(members);
     }
 }
