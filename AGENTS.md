@@ -31,7 +31,7 @@ The client is organized by page (`lists/`, `list/`, `auth/`) with shared `api/`,
 
 Every operation follows [specifications/architecture.md](specifications/architecture.md):
 
-- Use case in `Checklist/UseCases/<Slice>/`: ports in the constructor, one `Execute(Caller caller, …, CancellationToken ct)` returning a nested `Outcome` enum (commands) or the data, `null` for non-members (queries). No HTTP types, SQL, transactions or `AuditContext`
+- Use case in `Checklist/UseCases/<Slice>/`: ports in the constructor, one `Execute(Caller caller, …, CancellationToken ct)` returning a nested `Outcome` enum (commands) or the data, `null` for non-members (queries, and commands whose result the endpoint returns). No HTTP types, SQL, transactions or `AuditContext`
 - Values with a rule (`Name`, `ItemGroupSettingsInput`) live in `Checklist/Domain/` with a `TryCreate` that the endpoint adapter calls
 - Endpoint adapter in `Api/Http/<Slice>/<Operation>Endpoint.cs`: `internal const string Operation` for `.WithName()` (stored in `AuditLog.Operation`, never change it); `Handle` parses the request (400), calls `user.ToCaller(httpRequest)` (401), runs the use case, maps its outcome to `TypedResults` and sets `AuditContext`
 - SQL in a port adapter in `Api/Sql/`. Rules that must hold under concurrency go in one statement or one locked transaction

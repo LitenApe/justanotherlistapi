@@ -88,7 +88,7 @@ Each port is named after what the inside needs, and each method covers one atomi
 ### Use Cases
 
 - A sealed class per operation, with its ports in the constructor and one method: `Execute(Caller caller, …, CancellationToken ct)`.
-- Commands return a nested `Outcome` enum, such as `RemoveMember.Outcome.LastMember`. Queries return the data, or `null` when the caller isn't a member.
+- Commands return a nested `Outcome` enum, such as `RemoveMember.Outcome.LastMember`. Queries return the data, or `null` when the caller isn't a member, and so do the commands whose result the endpoint sends back (`CreateItem`, `CreateItemGroup`, `UpdateItemGroupSettings`).
 - Membership comes first, through `IMembership.IsMember`.
 - Notifications go out after the change, with `caller.ConnectionId` as the connection to leave out.
 - The current time comes from `TimeProvider`, which is part of .NET, and goes to ports as `now`.

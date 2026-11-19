@@ -22,11 +22,6 @@ internal static class TestHelpers
         return new DefaultHttpContext().Request;
     }
 
-    public static CapturingNotifier CreateNotifier()
-    {
-        return new CapturingNotifier();
-    }
-
     /// <summary>Inserts a list called "Group" with the given members (none by default).</summary>
     public static async Task InsertItemGroup(
         this SqlConnection db,
