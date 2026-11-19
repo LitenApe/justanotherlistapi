@@ -100,13 +100,11 @@ public sealed class GetItemGroupTests
         ItemGroup? returnedGroup = ok.Value;
         Assert.NotNull(returnedGroup);
         Assert.Equal(2, returnedGroup.Items.Count);
-        Assert.Contains(
-            returnedGroup.Items,
-            i => string.Equals(i.Name, "Item 1", StringComparison.Ordinal)
+        Assert.Contains(returnedGroup.Items, i =>
+            string.Equals(i.Name, "Item 1", StringComparison.Ordinal)
         );
-        Assert.Contains(
-            returnedGroup.Items,
-            i => string.Equals(i.Name, "Item 2", StringComparison.Ordinal)
+        Assert.Contains(returnedGroup.Items, i =>
+            string.Equals(i.Name, "Item 2", StringComparison.Ordinal)
         );
         Assert.Equal(2, returnedGroup.Members.Count);
         Assert.Contains(returnedGroup.Members, m => m == userId);

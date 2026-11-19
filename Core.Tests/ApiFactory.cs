@@ -51,14 +51,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     public HubConnection CreateHubConnection(Guid? userId = null)
     {
         return new HubConnectionBuilder()
-            .WithUrl(
-                $"{Server.BaseAddress}hubs/checklist",
-                options =>
-                {
-                    options.HttpMessageHandlerFactory = _ => Server.CreateHandler();
-                    options.Headers[TestAuthHandler.UserHeader] = (userId ?? TestUserId).ToString();
-                }
-            )
+            .WithUrl($"{Server.BaseAddress}hubs/checklist", options =>
+            {
+                options.HttpMessageHandlerFactory = _ => Server.CreateHandler();
+                options.Headers[TestAuthHandler.UserHeader] = (userId ?? TestUserId).ToString();
+            })
             .Build();
     }
 
