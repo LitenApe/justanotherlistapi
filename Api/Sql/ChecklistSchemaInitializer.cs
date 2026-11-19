@@ -1,7 +1,7 @@
 using Dapper;
 using Microsoft.Data.SqlClient;
 
-namespace Api.Checklist;
+namespace Api.Sql;
 
 internal static class ChecklistSchemaInitializer
 {

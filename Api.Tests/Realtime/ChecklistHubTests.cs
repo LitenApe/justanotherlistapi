@@ -3,7 +3,7 @@ using Dapper;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
 
-namespace Api.Tests.Checklist;
+namespace Api.Tests.Realtime;
 
 public sealed class ChecklistHubTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {

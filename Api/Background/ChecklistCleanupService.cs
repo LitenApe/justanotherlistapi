@@ -1,6 +1,6 @@
 using Checklist.UseCases;
 
-namespace Api.Checklist;
+namespace Api.Background;
 
 /// <summary>
 /// Runs the <see cref="AutoDeleteItemGroups"/> use case once a minute. Each run gets a DI scope of

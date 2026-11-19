@@ -59,7 +59,6 @@ Checklist/                          - The inside of the hexagon, no packages —
 Api/                                - ASP.NET Core backend: the adapters around Checklist
   Program.cs                        - App composition root: DI, middleware, auth, OpenAPI, DB init
   ChecklistServiceCollectionExtensions.cs  - AddChecklist(): registers use cases, plugs adapters into ports
-  DatabaseInitializer.cs            - Runs idempotent CREATE TABLE + CREATE INDEX at startup
   AuditLog/
     AuditContext.cs                 - Scoped per-request bag handlers use to pass resource IDs to the filter
     AuditEndpointFilter.cs          - IEndpointFilter that enqueues an AuditEntry after every request
@@ -68,20 +67,23 @@ Api/                                - ASP.NET Core backend: the adapters around 
     AuditTrail.cs                   - IAuditTrail on the audit log: entries no request is behind (auto-delete)
     ChannelAuditWriter.cs           - IAuditWriter + IHostedService: batches entries via a bounded Channel
     IAuditWriter.cs                 - Enqueue(AuditEntry) abstraction consumed by handlers and the filter
-  Checklist/
-    ChecklistApiEndpointRouteBuilderExtension.cs  - Maps all routes under /api/list
+  Background/
     ChecklistCleanupService.cs      - BackgroundService that runs the AutoDeleteItemGroups use case once a minute, in a scope of its own
-    ChecklistHub.cs                 - SignalR hub at /hubs/checklist — JoinGroup (membership-gated) and LeaveGroup
-    ChecklistNotifier.cs            - IChecklistNotifier impl: broadcasts via IHubContext with optional caller exclusion
-    IChecklistClient.cs             - Typed client interface (ItemCreated, ItemUpdated, etc.)
   Extensions/
     ClaimsPrincipalExtension.cs     - GetUserId(): reads sub / NameIdentifier / user_id claim → Guid?
   Http/
     CallerExtensions.cs             - ToCaller(): the signed-in user and SignalR connection behind a request
+    ChecklistApiEndpointRouteBuilderExtension.cs  - MapChecklistApi(): maps all routes under /api/list
     Item/                           - Endpoint adapters: CreateItem, UpdateItem, DeleteItem
     ItemGroup/                      - Endpoint adapters: GetItemGroups, GetItemGroup, CreateItemGroup, UpdateItemGroup, UpdateItemGroupSettings, DeleteItemGroup
     Member/                         - Endpoint adapters: GetMembers, AddMember, RemoveMember
+  Realtime/
+    ChecklistHub.cs                 - SignalR hub at /hubs/checklist — JoinGroup (membership-gated) and LeaveGroup
+    ChecklistNotifier.cs            - IChecklistNotifier impl: broadcasts via IHubContext with optional caller exclusion
+    IChecklistClient.cs             - Typed client interface (ItemCreated, ItemUpdated, etc.)
   Sql/
+    ChecklistSchemaInitializer.cs   - Idempotent DDL for ItemGroups, Items and Members, upgrading older databases in place
+    DatabaseInitializer.cs          - Runs both schema initializers at startup
     ItemGroupRow.cs                 - Flat ItemGroups row for Dapper, turned into an ItemGroup
     SqlItemGroupStore.cs            - IItemGroupStore on the ItemGroups table; settings and auto-delete in one statement each
     SqlItemStore.cs                 - IItemStore on the Items table; editing a completed item keeps its completion time
@@ -90,6 +92,7 @@ Api/                                - ASP.NET Core backend: the adapters around 
     BearerSecuritySchemeTransformer.cs  - Adds Bearer + OAuth2 security schemes to OpenAPI doc
 Api.Tests/                          - xUnit tests (SQL Server via Testcontainers, requires Docker)
   ApiFactory.cs                     - WebApplicationFactory<Program> on a test DB + TestAuthHandler (user picked per request)
+  Architecture.Tests.cs             - Dependency rules: Checklist uses only .NET, use cases take only ports, Api.Http no connection
   FixedTimeProvider.cs              - TimeProvider that always returns the time it was given
   TestDatabase.cs                   - Starts shared SQL Server container; isolated DB per test
   TestHelpers.cs                    - CreatePrincipal, CreateHttpRequest, ValidName / ValidSettings, and Insert/Set/Load helpers for lists, items and members
@@ -100,14 +103,16 @@ Api.Tests/                          - xUnit tests (SQL Server via Testcontainers
     NoOpAuditWriter.cs              - IAuditWriter that discards all entries (used to isolate other tests)
   Checklist/
     CapturingNotifier.cs            - In-memory IChecklistNotifier that records notifications for assertion
-    ChecklistHubTests.cs            - SignalR hub auth tests + full end-to-end notification pipeline tests
     Domain/                         - Tests for the domain values Name and ItemGroupSettingsInput
     Item/                           - Use-case + HTTP tests for the Item slice
     ItemGroup/                      - Use-case + HTTP tests for the ItemGroup slice
     Member/                         - Use-case + HTTP tests for the Member slice
   Http/
     CallerExtensions.Tests.cs       - ToCaller(): user ID and connection ID from a request
+  Realtime/
+    ChecklistHubTests.cs            - SignalR hub auth tests + full end-to-end notification pipeline tests
   Sql/
+    ChecklistSchemaInitializer.Tests.cs- Schema upgrades of databases created before newer columns
     SqlItemGroupStore.Tests.cs      - IItemGroupStore against SQL Server, including the auto-delete rules
     SqlItemStore.Tests.cs           - IItemStore against SQL Server, including completion times
     SqlMembership.Tests.cs          - IMembership against SQL Server, one method at a time
@@ -117,7 +122,7 @@ dotnet-tools.json                   - Pins CSharpier version for local tool rest
 global.json                         - Opts `dotnet test` into Microsoft.Testing.Platform
 coverage.config                     - Code coverage settings used by CI
 specifications/                     - Design and architecture specifications
-  architecture.md                   - Backend layout: ports and adapters, where rules live, migration status
+  architecture.md                   - Backend layout: ports and adapters, where rules live, adding an operation
   checklist.md                      - Checklist feature: domain model, endpoints, DB schema
   audit-logs.md                     - Audit log feature: schema, implementation design
   authentication.md                 - Authentication: JWT setup, claim resolution
@@ -130,7 +135,7 @@ Design and architecture documents for planned and implemented features live in t
 
 | Document                                              | Description                                                                                                                                        |
 | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [architecture.md](specifications/architecture.md)     | Backend architecture — the ports-and-adapters layout, where each kind of code and rule belongs, how to add an operation, and the migration status |
+| [architecture.md](specifications/architecture.md)     | Backend architecture — the ports-and-adapters layout, where each kind of code and rule belongs, and how to add an operation |
 | [checklist.md](specifications/checklist.md)           | Checklist feature — domain model, authorization model, database schema, all API endpoints with request/response shapes, and structural conventions |
 | [audit-logs.md](specifications/audit-logs.md)         | Audit Log feature — database schema, per-operation audit data, implementation design, and future extensibility                                     |
 | [authentication.md](specifications/authentication.md) | Authentication feature — JWT Bearer setup, token validation behavior, user identity claim resolution, and how users authenticate against the API   |
@@ -258,7 +263,7 @@ The value must parse as a valid `Guid`; otherwise `null` is returned and the req
 
 ## Database schema
 
-The schema is managed without a migration framework. `DatabaseInitializer` runs idempotent SQL on every startup — safe against an existing database, no CLI tooling required. To change the schema, edit `Api/DatabaseInitializer.cs` directly.
+The schema is managed without a migration framework. `DatabaseInitializer` runs idempotent SQL on every startup — safe against an existing database, no CLI tooling required. To change the schema, edit `ChecklistSchemaInitializer` (or `AuditLogSchemaInitializer`) directly; `Api/Sql/DatabaseInitializer.cs` runs both.
 
 Four tables exist: `ItemGroups`, `Items`, `Members`, and `AuditLog`. Deleting an `ItemGroup` cascades and removes all related `Items` and `Members` rows. The `AuditLog` table is managed by `AuditLogSchemaInitializer` and records every API operation with its outcome, resource identifiers, and OpenTelemetry trace ID.
 
