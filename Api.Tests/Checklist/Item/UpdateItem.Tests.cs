@@ -68,18 +68,20 @@ public sealed class UpdateItemTests
         Assert.Empty(notifier.Notifications);
     }
 
-    // Updating an item that doesn't exist succeeds without creating it, so a member editing an
-    // item someone else just deleted doesn't get an error.
+    // A member editing an item someone else just deleted gets no error, but the item stays
+    // deleted: nothing is created, and the others aren't told about an item that's gone (their
+    // clients would add it back).
     [Fact]
-    public async Task Execute_ReturnsUpdated_WithoutCreatingAnything_WhenTheItemDoesNotExist()
+    public async Task Execute_ReturnsUpdated_ButChangesAndAnnouncesNothing_WhenTheItemIsGone()
     {
         var userId = Guid.NewGuid();
         var itemGroupId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
+        var notifier = new CapturingNotifier();
         await using SqlConnection db = await TestDatabase.CreateAsync();
         await db.InsertItemGroup(itemGroupId, userId);
 
-        UpdateItem.Outcome outcome = await UpdateUseCase(db, new CapturingNotifier())
+        UpdateItem.Outcome outcome = await UpdateUseCase(db, notifier)
             .Execute(
                 new Caller(userId),
                 itemGroupId,
@@ -90,6 +92,7 @@ public sealed class UpdateItemTests
 
         Assert.Equal(UpdateItem.Outcome.Updated, outcome);
         Assert.Null(await db.LoadItem(itemId));
+        Assert.Empty(notifier.Notifications);
     }
 
     private static UpdateItem UpdateUseCase(SqlConnection db, CapturingNotifier notifier) =>

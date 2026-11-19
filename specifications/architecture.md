@@ -81,7 +81,7 @@ Each port is named after what the inside needs, and each method covers one atomi
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
 | `IMembership`        | `IsMember`, `ListMembers`, `Add` (false if already a member), `RemoveUnlessLast` (false for the last member)                                       | `SqlMembership`               |
 | `IItemGroupStore`    | `Create` (with its first member), `Load`, `ListForMember`, `Rename`, `UpdateSettings` (returns them as stored), `Delete`, `DeleteDueForAutoDelete` | `SqlItemGroupStore`           |
-| `IItemStore`         | `Create`, `Update` (returns the stored completion time), `Delete`; items in other lists are left alone                                             | `SqlItemStore`                |
+| `IItemStore`         | `Create`, `Update` (returns the item as stored, `null` when it's gone), `Delete`; items in other lists are left alone                              | `SqlItemStore`                |
 | `IChecklistNotifier` | `NotifyItemCreated` … `NotifyGroupDeleted`, each with the connection to leave out                                                                  | `ChecklistNotifier` (SignalR) |
 | `IAuditTrail`        | `ItemGroupAutoDeleted`: audit entries that no request is behind                                                                                    | `AuditTrail` (audit log)      |
 
@@ -148,7 +148,7 @@ SQL adapters in `Api/Sql/` implement the ports with Dapper, always through `Comm
 
 - `SqlMembership.Add` is one conditional insert whose existence check holds `UPDLOCK, HOLDLOCK` until the insert. Of two concurrent adds of the same member, the second waits, finds the row and returns `false`.
 - `SqlMembership.RemoveUnlessLast` takes an update lock on the list's `ItemGroups` row, then checks and deletes in the same transaction, so removals from one list take turns.
-- `SqlItemStore.Update` works out the completion time in the statement that writes the item: `COALESCE(CompletedAt, @Now)` keeps a time that's already stored, and `OUTPUT` returns it. So editing a completed item keeps its original time, and when two members complete an item at once, the first one's time stays.
+- `SqlItemStore.Update` works out the completion time in the statement that writes the item: `COALESCE(CompletedAt, @Now)` keeps a time that's already stored, and `OUTPUT` returns the item as stored. So editing a completed item keeps its original time, and when two members complete an item at once, the first one's time stays.
 - `SqlItemGroupStore.Create` inserts the list and its first member in one transaction, so a list never exists without a member.
 - `SqlItemGroupStore.UpdateSettings` compares the stored auto-delete delay as it writes (`IS DISTINCT FROM`), so only a real change restarts the countdown.
 - `SqlItemGroupStore.DeleteDueForAutoDelete` is one `DELETE … OUTPUT` statement. When several app instances run auto-delete at once, each list is deleted, and so audited and announced, by one of them only.
@@ -181,6 +181,7 @@ Moving such rules into C# would mean loading, changing and saving a row, with op
 | Settings stay in range                                                  | `ItemGroupSettingsInput.TryCreate`, likewise                        |
 | An item added as complete counts as completed now                       | `CreateItem`, with the time from `TimeProvider`                     |
 | Editing a completed item keeps its completion time; reopening clears it | `SqlItemStore.Update` (one statement)                               |
+| Editing an item that's gone changes nothing and tells no one            | `UpdateItem`, when `IItemStore.Update` returns `null`               |
 | Only a change to the auto-delete delay restarts its countdown           | `SqlItemGroupStore.UpdateSettings` (one statement)                  |
 | Which lists auto-delete deletes, and each one once                      | `SqlItemGroupStore.DeleteDueForAutoDelete` (one statement)          |
 | Every auto-delete is audited and announced to all members               | `AutoDeleteItemGroups`, through `IAuditTrail` and the notifier      |

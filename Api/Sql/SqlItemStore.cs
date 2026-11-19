@@ -32,14 +32,14 @@ internal sealed class SqlItemStore(IDbConnection db) : IItemStore
     /// One statement that reads the stored completion time as it writes, so two members
     /// completing the same item at once keep the first one's time.
     /// </remarks>
-    public Task<DateTimeOffset?> Update(
+    public Task<Item?> Update(
         Guid itemGroupId,
         Guid itemId,
         ItemInput input,
         DateTimeOffset now,
         CancellationToken ct
     ) =>
-        db.QuerySingleOrDefaultAsync<DateTimeOffset?>(
+        db.QuerySingleOrDefaultAsync<Item>(
             new CommandDefinition(
                 """
                 UPDATE Items
@@ -47,7 +47,8 @@ internal sealed class SqlItemStore(IDbConnection db) : IItemStore
                     Description = @Description,
                     IsComplete = @IsComplete,
                     CompletedAt = CASE WHEN @IsComplete = 1 THEN COALESCE(CompletedAt, @Now) END
-                OUTPUT INSERTED.CompletedAt
+                OUTPUT INSERTED.Id, INSERTED.Name, INSERTED.Description, INSERTED.IsComplete,
+                    INSERTED.CompletedAt, INSERTED.ItemGroupId
                 WHERE Id = @Id AND ItemGroupId = @ItemGroupId
                 """,
                 new
