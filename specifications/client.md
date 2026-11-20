@@ -195,6 +195,7 @@ For local development the client signs in against the mock OAuth server using th
 - `api/http.ts` adds `Authorization` and, for mutations, `X-SignalR-Connection-Id` so the server doesn't echo the change back to the sender.
 - Toggling an item is **optimistic**: the UI updates immediately and reverts with an error toast if the request fails. Edits, renames, deletes and reservations wait for the server before closing their dialog, so input is never lost.
 - `UpdateItem` is a full replacement, so the client always sends `name`, `description` and `isComplete` together, taken from the latest local state.
+- When a request returns, the page applies it to the item as it is by then (`latestItem` in `ListPage`): a saved edit changes only the name and notes, and a failed toggle undoes only the toggle. So whatever other members changed meanwhile, such as a reservation, stays, and an item they deleted stays deleted.
 - `completedAt` is set by the server and never sent. An optimistic toggle fills it in locally with the current time so auto-hide works straight away; other members receive the server's value through `ItemUpdated`.
 - The list page keeps state in `listReducer`. Local changes and realtime events dispatch the **same idempotent actions**, so receiving an event for a change already applied locally is harmless.
 - The API returns items in no particular order. The client keeps the order stable during a visit and puts new items at the top, next to the add form.

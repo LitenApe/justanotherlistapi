@@ -192,6 +192,12 @@ function ListPage({ list }: { list: ItemGroup }) {
   const focusIntent = useRef<FocusIntent | null>(null);
   const itemsHeadingRef = useRef<HTMLHeadingElement>(null);
 
+  /** The item as it is now, after any realtime changes; undefined once it's deleted. */
+  const latestItem = useCallback(
+    (itemId: string) => latest.current.state.items.find((item) => item.id === itemId),
+    [],
+  );
+
   /** Pass several IDs when items disappear together, so focus skips all of them. */
   /** Where focus should go if these items disappear; null if none of them holds focus. */
   const focusTargetAfterRemoval = useCallback(
@@ -283,11 +289,16 @@ function ListPage({ list }: { list: ItemGroup }) {
       }
       dispatch({ type: "itemUpserted", item: updated });
       checklistApi.updateItem(listId, item.id, toItemInput(updated)).catch((error: unknown) => {
-        dispatch({ type: "itemUpserted", item });
+        // Undo only the toggle: other members may have changed the item meanwhile.
+        const now = latestItem(item.id);
+        if (now) {
+          const { isComplete, completedAt } = item;
+          dispatch({ type: "itemUpserted", item: { ...now, isComplete, completedAt } });
+        }
         notify(`Couldn't update “${item.name}”. ${errorMessage(error)}`, "error");
       });
     },
-    [listId, announce, notify, isVisible, planFocusAfterRemoval],
+    [listId, announce, notify, isVisible, planFocusAfterRemoval, latestItem],
   );
 
   const openEditor = useCallback((item: Item) => {
@@ -323,7 +334,10 @@ function ListPage({ list }: { list: ItemGroup }) {
       notify(`Couldn't save “${current.name}”. ${errorMessage(error)}`, "error");
       throw error;
     }
-    dispatch({ type: "itemUpserted", item: updated });
+    // Apply the edit to the item as it is now: another member may have reserved
+    // it, or deleted it, while the request was on its way.
+    const now = latestItem(item.id);
+    if (now) dispatch({ type: "itemUpserted", item: { ...now, ...changes } });
     setEditingId(null);
     announce(`Saved “${updated.name}”.`);
   }
@@ -353,7 +367,7 @@ function ListPage({ list }: { list: ItemGroup }) {
       throw error;
     }
     // The item may have been deleted while the request was on its way.
-    const current = latest.current.state.items.find((existing) => existing.id === item.id);
+    const current = latestItem(item.id);
     if (current) {
       dispatch({
         type: "itemUpserted",
