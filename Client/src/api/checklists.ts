@@ -10,6 +10,8 @@ import type {
 const listPath = (listId: string) => `/api/list/${encodeURIComponent(listId)}`;
 const itemPath = (listId: string, itemId: string) =>
   `${listPath(listId)}/${encodeURIComponent(itemId)}`;
+const reservationPath = (listId: string, itemId: string) =>
+  `${itemPath(listId, itemId)}/reservation`;
 const memberPath = (listId: string, memberId: string) =>
   `${listPath(listId)}/member/${encodeURIComponent(memberId)}`;
 
@@ -38,6 +40,22 @@ export const checklistApi = {
 
   deleteItem: (listId: string, itemId: string) =>
     apiRequest<undefined>("DELETE", itemPath(listId, itemId)),
+
+  /**
+   * Reserves the item for a member. `replacing` is who it was reserved for when
+   * the user chose (null if free): if that has changed, the server answers 409.
+   */
+  reserveItem: (listId: string, itemId: string, memberId: string, replacing: string | null) =>
+    apiRequest<undefined>("PUT", reservationPath(listId, itemId), {
+      body: { memberId, replacing },
+    }),
+
+  /** Cancels the reservation the user saw, for `memberId`; 409 if it has changed. */
+  unreserveItem: (listId: string, itemId: string, memberId: string) =>
+    apiRequest<undefined>(
+      "DELETE",
+      `${reservationPath(listId, itemId)}?memberId=${encodeURIComponent(memberId)}`,
+    ),
 
   addMember: (listId: string, memberId: string) =>
     apiRequest<undefined>("POST", memberPath(listId, memberId)),

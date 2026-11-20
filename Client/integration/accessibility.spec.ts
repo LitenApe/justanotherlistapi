@@ -66,6 +66,10 @@ for (const theme of ["dark", "light"] as const) {
       await expectAccessible(page, "dialog[open]");
       await page.keyboard.press("Escape");
 
+      await page.getByRole("button", { name: "Change reservation for “Eggs”" }).click();
+      await expectAccessible(page, "dialog[open]");
+      await page.keyboard.press("Escape");
+
       backend.failNext("PUT", /\/api\/list\/.+\/.+/, 500);
       // click, not check(): the server rejects it, so the box flips back.
       await page.getByRole("checkbox", { name: "Eggs" }).click();

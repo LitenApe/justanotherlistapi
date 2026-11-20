@@ -65,8 +65,35 @@ export class User {
     expect((await saved).status()).toBe(204);
   }
 
+  /** An item's checkbox, whose description says who the item is reserved for. */
+  item(name: string) {
+    return this.page.getByRole("checkbox", { name, exact: true });
+  }
+
+  /**
+   * Reserves an item through its reservation dialog, for this user or another
+   * member (null cancels the reservation), and waits for the server to save it.
+   */
+  async reserve(itemName: string, forWhom: User | null): Promise<void> {
+    const row = this.page.getByRole("listitem").filter({ has: this.item(itemName) });
+    await row.getByRole("button", { name: /^(Reserve|Change reservation for) “/ }).click();
+    const dialog = this.page.getByRole("dialog", { name: `Reserve “${itemName}”` });
+    const choice = forWhom === null ? "Nobody" : forWhom === this ? "You" : forWhom.id;
+    await dialog.getByRole("radio", { name: choice, exact: true }).check();
+    const saved = this.page.waitForResponse((response) =>
+      new URL(response.url()).pathname.endsWith("/reservation"),
+    );
+    await dialog.getByRole("button", { name: "Save" }).click();
+    expect((await saved).status()).toBe(204);
+    await expect(dialog).toBeHidden();
+  }
+
   /** Changes the list's settings through the settings dialog. */
-  async saveSettings({ hideAfterMinutes, deleteAfterDays }: SettingsChange): Promise<void> {
+  async saveSettings({
+    hideAfterMinutes,
+    deleteAfterDays,
+    protectReservations,
+  }: SettingsChange): Promise<void> {
     await this.page.getByRole("button", { name: "Settings" }).click();
     const dialog = this.page.getByRole("dialog", { name: "List settings" });
     if (hideAfterMinutes !== undefined) {
@@ -82,6 +109,11 @@ export class User {
       const deleteAfter = dialog.getByRole("group", { name: "Delete after" });
       await deleteAfter.getByLabel("Amount").fill(deleteAfterDays.toString());
       await deleteAfter.getByLabel("Unit").selectOption("days");
+    }
+    if (protectReservations !== undefined) {
+      await dialog
+        .getByRole("checkbox", { name: "Protect reservations" })
+        .setChecked(protectReservations);
     }
     await dialog.getByRole("button", { name: "Save" }).click();
     await expect(dialog).toBeHidden();
@@ -142,6 +174,7 @@ export class User {
 interface SettingsChange {
   hideAfterMinutes?: number;
   deleteAfterDays?: number;
+  protectReservations?: boolean;
 }
 
 interface HubMessage {

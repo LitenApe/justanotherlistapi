@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ME, OTHER } from "../test/builders";
-import { memberLabel, reservationText } from "./reservations";
+import { canChangeReservation, memberLabel, reservationText } from "./reservations";
 
 const SAM = "5a3e9c71-2b4d-4e8f-9a01-b2c3d4e5f607";
 const members = [ME, OTHER, SAM];
@@ -9,6 +9,26 @@ describe("memberLabel", () => {
   it("calls you “you” and shortens everyone else's user ID", () => {
     expect(memberLabel(ME, ME)).toBe("you");
     expect(memberLabel(SAM, ME)).toBe("5a3e9c71…");
+  });
+});
+
+describe("canChangeReservation", () => {
+  const can = (reservedFor: string | null, reservedBy: string | null, protect: boolean) =>
+    canChangeReservation({ reservedFor, reservedBy }, ME, protect);
+
+  it("lets anyone reserve a free item", () => {
+    expect(can(null, null, false)).toBe(true);
+    expect(can(null, null, true)).toBe(true);
+  });
+
+  it("lets anyone change a reservation while the list doesn't protect them", () => {
+    expect(can(OTHER, SAM, false)).toBe(true);
+  });
+
+  it("lets only the people involved change a protected reservation", () => {
+    expect(can(OTHER, SAM, true)).toBe(false);
+    expect(can(ME, SAM, true)).toBe(true);
+    expect(can(OTHER, ME, true)).toBe(true);
   });
 });
 

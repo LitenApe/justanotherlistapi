@@ -23,7 +23,7 @@
 
 ## Overview
 
-`Client/` is a single-page web app for the checklist API. Users sign in, see their lists, open a list to check off, add, edit and delete items, rename or delete the list, and manage its members. Changes made by other members appear live through SignalR.
+`Client/` is a single-page web app for the checklist API. Users sign in, see their lists, open a list to check off, add, edit, delete and reserve items, rename or delete the list, and manage its members. Changes made by other members appear live through SignalR.
 
 The client targets **WCAG 2.2 level AA** and works from 320px wide phones up to desktop screens.
 
@@ -91,6 +91,7 @@ Client/
                                plus filtering, auto-hide and auto-delete time helpers
       ListSettingsDialog.tsx - Auto-hide, auto-delete and protected reservations; duration.ts converts minutes ↔ amount + unit
       reservations.ts        - How reservations read ("Reserved for you by 3fa85f64…") and member labels
+      ReservationDialog.tsx  - Who an item is reserved for: you, another member or nobody
       ItemRow.tsx, EditItemDialog.tsx, RenameListDialog.tsx, MembersPanel.tsx
     theme/theme.ts           - Light/dark theme store (dark default, saved in localStorage)
     styles/global.css        - Design tokens per theme, base styles, buttons, forms, utilities
@@ -192,7 +193,7 @@ For local development the client signs in against the mock OAuth server using th
 ## Data Flow
 
 - `api/http.ts` adds `Authorization` and, for mutations, `X-SignalR-Connection-Id` so the server doesn't echo the change back to the sender.
-- Toggling an item is **optimistic**: the UI updates immediately and reverts with an error toast if the request fails. Edits, renames and deletes wait for the server before closing their dialog, so input is never lost.
+- Toggling an item is **optimistic**: the UI updates immediately and reverts with an error toast if the request fails. Edits, renames, deletes and reservations wait for the server before closing their dialog, so input is never lost.
 - `UpdateItem` is a full replacement, so the client always sends `name`, `description` and `isComplete` together, taken from the latest local state.
 - `completedAt` is set by the server and never sent. An optimistic toggle fills it in locally with the current time so auto-hide works straight away; other members receive the server's value through `ItemUpdated`.
 - The list page keeps state in `listReducer`. Local changes and realtime events dispatch the **same idempotent actions**, so receiving an event for a change already applied locally is harmless.
@@ -212,7 +213,7 @@ For local development the client signs in against the mock OAuth server using th
 | Event                   | Overview page                      | List page                                                               |
 | ----------------------- | ---------------------------------- | ----------------------------------------------------------------------- |
 | `ItemCreated`/`Updated` | Update open-item count and preview | Upsert the item, reservation included                                   |
-| `ItemDeleted`           | Remove from preview                | Remove; close the edit dialog if it was open for that item              |
+| `ItemDeleted`           | Remove from preview                | Remove; close the edit or reservation dialog if it was open for that item |
 | `GroupRenamed`          | Rename the card                    | Update heading and document title                                       |
 | `GroupSettingsChanged`  | —                                  | Apply the settings and show "Another member changed…"                   |
 | `GroupDeleted`          | Remove the card                    | Return to the overview; the message says whether auto-delete removed it |
@@ -253,6 +254,12 @@ Items can be reserved for a member of the list to say who will do them; see [che
 - Each item row shows its reservation as a line under the name: "Reserved by you", "Reserved for you by 3fa85f64…", "Reserved for 3fa85f64… by you" (`reservationText` in `list/reservations.ts`). The line is part of the checkbox's description (`aria-describedby`), so screen readers hear it with the item.
 - Members have no names, so `memberLabel` shows "you" or the first eight characters of a user ID. When the member who made a reservation has left the list, the line only says who it's for.
 - When a member leaves or is removed, the server frees the items reserved for them and only announces `MemberRemoved`, so the reducer frees those items itself (`memberRemoved` in `listReducer`), for the event and after your own removal of someone.
+
+**Reserving.** Next to **Edit**, each row has a button named `Reserve “Tent”`, or `Change reservation for “Tent”` once the item is reserved. It's only there when you may change the reservation (`canChangeReservation`, mirroring the server): always for free items, and for reserved ones unless the list protects reservations and you're neither the member it's for nor whoever reserved it. It opens `ReservationDialog`:
+
+- A "Reserved for" fieldset of radios: **Nobody** (only while the item is reserved), **You**, then the other members by full user ID, as in the members panel. The current choice is checked and has the initial focus, so reserving a free item for yourself takes two clicks.
+- The dialog keeps who the item was reserved for when it opened, and **Save** sends that as `replacing` (`PUT …/reservation`), or as `memberId` when cancelling (`DELETE …/reservation?memberId=`). Saving the choice it opened with closes the dialog without a request.
+- On success the page applies the change locally (you as `reservedBy`) and announces it. A `409` means someone changed the reservation while you were choosing, or the list started protecting it: the dialog closes, an error toast says so, the page revalidates to show the reservation as it is, and focus moves to the item's checkbox. Other failures keep the dialog open, like the edit dialog.
 
 ---
 
@@ -358,7 +365,7 @@ Components and browser-API modules rendered on their own in a real browser (`vit
 - `CopyButton`: the real clipboard (permission granted in `vitest.config.ts`).
 - Theme store and boot script: real `localStorage`, computed colours.
 - Session store: real `sessionStorage`.
-- `EditItemDialog`, `ListSettingsDialog`, `MembersPanel`: validation, focus and accessible errors.
+- `EditItemDialog`, `ListSettingsDialog`, `MembersPanel`, `ReservationDialog`: validation, focus, accessible errors and what they save.
 
 `src/test/browserSetup.ts` loads `global.css`, so layout and colours are real. `expectNoAxeViolations()` (`src/test/axe.ts`) runs the WCAG 2.2 A/AA rules, **colour contrast included**, after waiting for running animations to finish.
 
@@ -403,11 +410,11 @@ Container, Api and client output goes to `test-results/e2e-logs/`.
 Fixtures (`e2e/support/test.ts`):
 
 - `newUser()` opens a browser context of its own (its own session) and signs in a fresh random user through the real sign-in page and OAuth server. Every test uses new users, so tests never see each other's lists although they share one database, and they run in parallel.
-- `User` has helpers that act through the UI: `createList`, `openList`, `addItem`, `toggle` (waits for the server to save, since the page updates first), `saveSettings`, `addMember`.
+- `User` has helpers that act through the UI: `createList`, `openList`, `addItem`, `toggle` (waits for the server to save, since the page updates first), `saveSettings`, `addMember`, `reserve` (through the reservation dialog, waiting for the server), and `item(name)`, an item's checkbox, whose description includes its reservation.
 - `receivingLiveUpdates(listId)` waits until the server has accepted the page's `JoinGroup`. With no fake backend to ask, it reads the page's real SignalR WebSocket frames, read-only.
 - Uncaught page errors fail the test.
 
-The specs cover sign-in and token validation, list and item changes surviving reloads (stored in SQL Server), sharing, live sync between members, caller exclusion (your own changes aren't reported back to you), removing, leaving and deleting, privacy (403 for non-members), and settings shared between members.
+The specs cover sign-in and token validation, list and item changes surviving reloads (stored in SQL Server), sharing, live sync between members, caller exclusion (your own changes aren't reported back to you), removing, leaving and deleting, privacy (403 for non-members), settings shared between members, and reservations: for yourself and others, taking one over, protected lists, and freeing a member's items when they leave or are removed.
 
 `autoDelete.spec.ts` checks the server's cleanup service end to end. Auto-delete waits at least a day, so `runSql()` (`e2e/support/database.ts`, using `docker exec` and `sqlcmd`) moves the completion back to a day minus 30 seconds. The list is due shortly after both pages reload and subscribe, and the service (which runs every minute) deletes it within about 90 seconds. Use `runSql()` only to arrange what the UI can't.
 

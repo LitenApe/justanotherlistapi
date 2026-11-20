@@ -42,7 +42,8 @@ import { ListSettingsDialog } from "./ListSettingsDialog";
 import { MembersPanel } from "./MembersPanel";
 import type { Route } from "./+types/ListPage";
 import { RenameListDialog } from "./RenameListDialog";
-import { reservationText } from "./reservations";
+import { ReservationDialog } from "./ReservationDialog";
+import { canChangeReservation, memberLabel, reservationText } from "./reservations";
 import styles from "./ListPage.module.css";
 
 type DialogState =
@@ -157,6 +158,7 @@ function ListPage({ list }: { list: ItemGroup }) {
   const [filter, setFilter] = useState<ItemFilter>("all");
   const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [reservingId, setReservingId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [dialogPending, setDialogPending] = useState(false);
   // Only moves forward when a done item reaches its auto-hide time (see below).
@@ -176,6 +178,7 @@ function ListPage({ list }: { list: ItemGroup }) {
   const hiddenCount = useMemo(() => items.filter(isHidden).length, [items, isHidden]);
   const deleteAt = useMemo(() => autoDeleteTime(items, settings), [items, settings]);
   const editingItem = items.find((item) => item.id === editingId) ?? null;
+  const reservingItem = items.find((item) => item.id === reservingId) ?? null;
   const listName = state.name;
 
   // ─── Focus management ──────────────────────────────────────────────────────
@@ -291,6 +294,10 @@ function ListPage({ list }: { list: ItemGroup }) {
     setEditingId(item.id);
   }, []);
 
+  const openReservation = useCallback((item: Item) => {
+    setReservingId(item.id);
+  }, []);
+
   async function addItem(name: string): Promise<string | null> {
     try {
       const item = await checklistApi.createItem(listId, {
@@ -319,6 +326,46 @@ function ListPage({ list }: { list: ItemGroup }) {
     dispatch({ type: "itemUpserted", item: updated });
     setEditingId(null);
     announce(`Saved “${updated.name}”.`);
+  }
+
+  /** `seen` is who the item was reserved for when the user chose; the server refuses if it changed. */
+  async function saveReservation(item: Item, memberId: string | null, seen: string | null) {
+    if (memberId === seen) {
+      setReservingId(null);
+      return;
+    }
+    try {
+      if (memberId !== null) await checklistApi.reserveItem(listId, item.id, memberId, seen);
+      else if (seen !== null) await checklistApi.unreserveItem(listId, item.id, seen);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        // Someone else got there first, or the list protects the reservation now.
+        focusIntent.current = { kind: "item", id: item.id };
+        setReservingId(null);
+        notify(
+          `Someone changed the reservation of “${item.name}” while you were choosing. Check it and try again.`,
+          "error",
+        );
+        void revalidate();
+        return;
+      }
+      notify(`Couldn't change the reservation of “${item.name}”. ${errorMessage(error)}`, "error");
+      throw error;
+    }
+    // The item may have been deleted while the request was on its way.
+    const current = latest.current.state.items.find((existing) => existing.id === item.id);
+    if (current) {
+      dispatch({
+        type: "itemUpserted",
+        item: { ...current, reservedFor: memberId, reservedBy: memberId === null ? null : userId },
+      });
+    }
+    setReservingId(null);
+    announce(
+      memberId === null
+        ? `“${item.name}” is free again.`
+        : `Reserved “${item.name}” for ${memberLabel(memberId, userId)}.`,
+    );
   }
 
   async function deleteItem(item: Item) {
@@ -439,6 +486,10 @@ function ListPage({ list }: { list: ItemGroup }) {
       if (itemId === editingId) {
         setEditingId(null);
         notify("The item you were editing was deleted by another member.", "error");
+      }
+      if (itemId === reservingId) {
+        setReservingId(null);
+        notify("The item you were reserving was deleted by another member.", "error");
       }
       dispatch({ type: "itemRemoved", itemId });
     },
@@ -622,8 +673,10 @@ function ListPage({ list }: { list: ItemGroup }) {
                   key={item.id}
                   item={item}
                   reservation={reservationText(item, userId, state.members)}
+                  canReserve={canChangeReservation(item, userId, settings.protectReservations)}
                   onToggle={toggle}
                   onEdit={openEditor}
+                  onReserve={openReservation}
                 />
               ))}
             </ul>
@@ -663,6 +716,16 @@ function ListPage({ list }: { list: ItemGroup }) {
         }}
         onClose={() => {
           setEditingId(null);
+        }}
+      />
+
+      <ReservationDialog
+        item={reservingItem}
+        userId={userId}
+        members={state.members}
+        onSave={saveReservation}
+        onClose={() => {
+          setReservingId(null);
         }}
       />
 

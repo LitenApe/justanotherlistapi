@@ -73,6 +73,103 @@ test.describe("reservations", () => {
     await expect(page.getByRole("checkbox", { name: "Tent" })).toHaveAccessibleDescription("");
   });
 
+  test("reserve a free item for yourself in two clicks", async ({ page, backend, app }) => {
+    const list = tripList();
+    await app.openList(list);
+
+    await page.getByRole("button", { name: "Reserve “Gas”" }).click();
+    const dialog = page.getByRole("dialog", { name: "Reserve “Gas”" });
+    await expect(dialog.getByRole("radio", { name: "You" })).toBeFocused();
+    await dialog.getByRole("button", { name: "Save" }).click();
+
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole("checkbox", { name: "Gas" })).toHaveAccessibleDescription(
+      "Reserved by you",
+    );
+    await expect(page.getByRole("button", { name: "Change reservation for “Gas”" })).toBeFocused();
+    const gas = backend.list(list.id)?.items.find((item) => item.name === "Gas");
+    expect(gas).toMatchObject({ reservedFor: ME, reservedBy: ME });
+  });
+
+  test("reserve an item for another member, then cancel it", async ({ page, app }) => {
+    await app.openList(tripList());
+
+    await page.getByRole("button", { name: "Reserve “Gas”" }).click();
+    const dialog = page.getByRole("dialog", { name: "Reserve “Gas”" });
+    await dialog.getByRole("radio", { name: SAM }).check();
+    await dialog.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByRole("checkbox", { name: "Gas" })).toHaveAccessibleDescription(
+      "Reserved for 5a3e9c71… by you",
+    );
+
+    await page.getByRole("button", { name: "Change reservation for “Gas”" }).click();
+    await dialog.getByRole("radio", { name: "Nobody" }).check();
+    await dialog.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByRole("checkbox", { name: "Gas" })).toHaveAccessibleDescription("");
+  });
+
+  test("take over another member's reservation in a list that doesn't protect them", async ({
+    page,
+    backend,
+    app,
+  }) => {
+    const list = tripList();
+    await app.openList(list);
+
+    await page.getByRole("button", { name: "Change reservation for “Tent”" }).click();
+    const dialog = page.getByRole("dialog", { name: "Reserve “Tent”" });
+    await expect(dialog.getByText("Reserved by 00000000….")).toBeVisible();
+    await dialog.getByRole("radio", { name: "You" }).check();
+    await dialog.getByRole("button", { name: "Save" }).click();
+
+    await expect(page.getByRole("checkbox", { name: "Tent" })).toHaveAccessibleDescription(
+      "Reserved by you",
+    );
+    const call = backend.calls.find((c) => c.method === "PUT" && c.path.endsWith("/reservation"));
+    expect(call?.body).toEqual({ memberId: ME, replacing: OTHER });
+  });
+
+  test("leave other people's reservations alone in a list that protects them", async ({
+    page,
+    app,
+  }) => {
+    const list = tripList();
+    list.settings.protectReservations = true;
+    await app.openList(list);
+
+    // OTHER reserved the tent for themselves; ME reserved the stove for OTHER.
+    await expect(page.getByRole("button", { name: "Change reservation for “Tent”" })).toHaveCount(
+      0,
+    );
+    await expect(
+      page.getByRole("button", { name: "Change reservation for “Stove”" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Change reservation for “Map”" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reserve “Gas”" })).toBeVisible();
+  });
+
+  test("say so when someone else reserved the item first", async ({ page, backend, app }) => {
+    const list = tripList();
+    await app.openList(list);
+    const gas = list.items[3];
+    if (!gas) throw new Error("missing item");
+
+    await page.getByRole("button", { name: "Reserve “Gas”" }).click();
+    const dialog = page.getByRole("dialog", { name: "Reserve “Gas”" });
+    backend.as(SAM).reserveItem(list.id, gas.id, SAM);
+    await dialog.getByRole("button", { name: "Save" }).click();
+
+    await expect(dialog).toBeHidden();
+    await expect(
+      page.getByRole("alert").filter({ hasText: "Someone changed the reservation of “Gas”" }),
+    ).toBeVisible();
+    await expect(page.getByRole("checkbox", { name: "Gas" })).toHaveAccessibleDescription(
+      "Reserved by 5a3e9c71…",
+    );
+    await expect(page.getByRole("checkbox", { name: "Gas" })).toBeFocused();
+    expect(backend.list(list.id)?.items[3]).toMatchObject({ reservedFor: SAM });
+  });
+
   test("free the items of a member you remove", async ({ page, app }) => {
     await app.openList(tripList());
 
