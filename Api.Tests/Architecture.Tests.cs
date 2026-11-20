@@ -1,5 +1,6 @@
 using System.Data;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using Api.Http;
 using Checklist.Domain;
 
@@ -27,14 +28,23 @@ public sealed class ArchitectureTests
         "Api.Background",
     ];
 
+    // ".NET" means the assemblies that ship with the runtime itself, not just names that start
+    // with "System.": code coverage in CI rewrites Checklist.dll and adds a reference to the
+    // runtime's netstandard facade. A package, a project or ASP.NET Core still fails this.
     [Fact]
     public void Checklist_ReferencesNothingButDotNet()
     {
-        string[] references = [.. inside.GetReferencedAssemblies().Select(a => a.Name ?? "")];
+        string runtime = RuntimeEnvironment.GetRuntimeDirectory();
 
-        Assert.All(references, name =>
-            Assert.StartsWith("System.", name, StringComparison.Ordinal)
-        );
+        string[] others =
+        [
+            .. inside
+                .GetReferencedAssemblies()
+                .Select(reference => reference.Name ?? "")
+                .Where(name => !File.Exists(Path.Combine(runtime, name + ".dll"))),
+        ];
+
+        Assert.Empty(others);
     }
 
     [Fact]
