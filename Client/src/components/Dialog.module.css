@@ -1,6 +1,9 @@
 .dialog {
   width: min(100% - 2 * var(--page-gutter), 32rem);
   max-height: calc(100dvh - 2 * var(--page-gutter));
+  /* Centres the modal in the viewport, as the browser's own styles do; the
+     reset in global.css sets every margin to 0. */
+  margin: auto;
   padding: 0;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-lg);
