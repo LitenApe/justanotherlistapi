@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import { expectNoAxeViolations } from "../test/axe";
@@ -49,6 +49,26 @@ function RenameExample({ onClose }: { onClose: () => void }) {
   );
 }
 
+/** Resizes the test page until the test ends. */
+async function resizeViewport(width: number, height: number) {
+  const { innerWidth, innerHeight } = window;
+  onTestFinished(() => page.viewport(innerWidth, innerHeight));
+  await page.viewport(width, height);
+}
+
+/** How far the element sits from each edge of the viewport once it has finished appearing. */
+async function spaceAround(element: Element) {
+  await Promise.all(element.getAnimations().map((animation) => animation.finished));
+  const box = element.getBoundingClientRect();
+  const { clientWidth, clientHeight } = document.documentElement;
+  return {
+    left: box.left,
+    right: clientWidth - box.right,
+    top: box.top,
+    bottom: clientHeight - box.bottom,
+  };
+}
+
 describe("Dialog", () => {
   it("opens as a modal, named and described, with focus on the marked field", async () => {
     const screen = await render(<RenameExample onClose={vi.fn()} />);
@@ -63,6 +83,25 @@ describe("Dialog", () => {
     await expect.element(page.getByLabelText("Name")).toHaveFocus();
     expect(dialog.element().matches(":modal")).toBe(true);
     await expectNoAxeViolations(dialog.element());
+  });
+
+  // The margin reset in global.css would otherwise pin it to the top-left corner.
+  it.for([
+    { device: "a desktop", width: 1280, height: 800 },
+    { device: "a 320px phone", width: 320, height: 640 },
+  ])("opens in the middle of the screen on $device", async ({ width, height }) => {
+    await resizeViewport(width, height);
+    const screen = await render(<RenameExample onClose={vi.fn()} />);
+
+    await screen.getByRole("button", { name: "Rename" }).click();
+
+    const dialog = page.getByRole("dialog", { name: "Rename list" });
+    await expect.element(dialog).toBeVisible();
+    const space = await spaceAround(dialog.element());
+    expect(space.left).toBeGreaterThan(0);
+    expect(space.left).toBeCloseTo(space.right, 0);
+    expect(space.top).toBeGreaterThan(0);
+    expect(space.top).toBeCloseTo(space.bottom, 0);
   });
 
   it("closes on Escape and returns focus to the button that opened it", async () => {

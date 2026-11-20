@@ -361,7 +361,7 @@ Pure functions with no browser APIs: the list reducer and its auto-hide/auto-del
 
 Components and browser-API modules rendered on their own in a real browser (`vitest-browser-react`), driven with real input through Playwright (`page`, `userEvent` from `vitest/browser`):
 
-- `Dialog`/`ConfirmDialog`: native `showModal()`, `:modal`, Escape, focus return and inert background.
+- `Dialog`/`ConfirmDialog`: native `showModal()`, `:modal`, centred on desktop and 320px screens (`page.viewport()`), Escape, focus return and inert background.
 - Toasts: live regions, auto-dismiss, pausing on hover.
 - `CopyButton`: the real clipboard (permission granted in `vitest.config.ts`).
 - Theme store and boot script: real `localStorage`, computed colours.
@@ -373,6 +373,7 @@ Components and browser-API modules rendered on their own in a real browser (`vit
 - Only fake the timers a test is about (`vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })`). axe-core itself uses `setTimeout`, so run axe with real timers.
 - Playwright won't click `aria-disabled` buttons. Use `click({ force: true })` when the point is that a click is ignored.
 - Give test harness markup the app's classes (`button`, `input`, `label`), or scope axe to the component, so unstyled harness elements don't fail contrast.
+- Tests run at 414×896. `page.viewport()` resizes the page for the rest of the file, not only the test, so set the size back when the test ends (`resizeViewport()` in `Dialog.browser.test.tsx` does).
 
 ### Integration tests
 
