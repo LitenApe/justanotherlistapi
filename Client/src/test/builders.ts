@@ -9,6 +9,7 @@ export const defaultSettings = (): ItemGroupSettings => ({
   autoDeleteAfterMinutes: null,
   hideCompletedAfterMinutes: null,
   autoDeleteUpdatedAt: null,
+  protectReservations: false,
 });
 
 export function makeItem(overrides: Partial<Item> & Pick<Item, "name" | "itemGroupId">): Item {
@@ -17,6 +18,8 @@ export function makeItem(overrides: Partial<Item> & Pick<Item, "name" | "itemGro
     description: null,
     isComplete: false,
     completedAt: overrides.isComplete ? new Date().toISOString() : null,
+    reservedFor: null,
+    reservedBy: null,
     ...overrides,
   };
 }

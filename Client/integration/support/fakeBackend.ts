@@ -131,7 +131,30 @@ export class FakeBackend {
       removeMember: (listId: string, memberId: string) => {
         this.removeMember(member(listId), memberId, null);
       },
+      /** Reserves the item for a member, replacing whatever reservation it has. */
+      reserveItem: (listId: string, itemId: string, memberId: string) => {
+        this.changeReservationAs(userId, member(listId), itemId, memberId);
+      },
+      /** Cancels the item's reservation, whoever it's for. */
+      unreserveItem: (listId: string, itemId: string) => {
+        this.changeReservationAs(userId, member(listId), itemId, null);
+      },
     };
+  }
+
+  /** Another member's reservation change, made on the reservation as it stands. */
+  private changeReservationAs(
+    userId: string,
+    list: ItemGroup,
+    itemId: string,
+    memberId: string | null,
+  ) {
+    const item = list.items.find((candidate) => candidate.id === itemId);
+    if (!item) throw new Error(`No item ${itemId} in ${list.name}.`);
+    const change = { callerId: userId, memberId, replacing: item.reservedFor };
+    if (this.changeReservation(list, itemId, change, null) !== 204) {
+      throw new Error(`${userId} may not change the reservation of ${item.name}.`);
+    }
   }
 
   // ─── OAuth ────────────────────────────────────────────────────────────────
@@ -299,6 +322,8 @@ export class FakeBackend {
       description: input.description,
       isComplete: input.isComplete,
       completedAt: input.isComplete ? new Date().toISOString() : null,
+      reservedFor: null,
+      reservedBy: null,
     };
     list.items.push(item);
     this.broadcast(list.id, "ItemCreated", [list.id, item], exclude);
@@ -359,8 +384,45 @@ export class FakeBackend {
 
   private removeMember(list: ItemGroup, memberId: string, exclude: string | null) {
     list.members = list.members.filter((id) => id !== memberId);
+    // Like the server, free their items without an ItemUpdated for each.
+    list.items = list.items.map((item) =>
+      item.reservedFor === memberId ? { ...item, reservedFor: null, reservedBy: null } : item,
+    );
     // The removed member's connections are still in the group, so they hear it too.
     this.broadcast(list.id, "MemberRemoved", [list.id, memberId], exclude);
+  }
+
+  /**
+   * The server's reservation rule (specifications/checklist.md#reservations):
+   * repeats are harmless, only members can have items, the reservation must be
+   * the one the caller saw, and a protected list only lets the member an item
+   * is reserved for, and whoever reserved it, change it. Returns the status.
+   */
+  private changeReservation(
+    list: ItemGroup,
+    itemId: string,
+    change: { callerId: string; memberId: string | null; replacing: string | null },
+    exclude: string | null,
+  ): 204 | 409 {
+    const { callerId, memberId, replacing } = change;
+    const index = list.items.findIndex((item) => item.id === itemId);
+    const item = list.items[index];
+    if (!item) return 204;
+    const { reservedFor, reservedBy } = item;
+    if (reservedFor === memberId && (memberId === null || reservedBy === callerId)) return 204;
+    if (memberId !== null && !list.members.includes(memberId)) return 409;
+    if (reservedFor !== replacing) return 409;
+    const involved = callerId === reservedFor || callerId === reservedBy;
+    if (list.settings.protectReservations && reservedFor !== null && !involved) return 409;
+
+    const updated: Item = {
+      ...item,
+      reservedFor: memberId,
+      reservedBy: memberId === null ? null : callerId,
+    };
+    list.items[index] = updated;
+    this.broadcast(list.id, "ItemUpdated", [list.id, updated], exclude);
+    return 204;
   }
 
   private requireMember(listId: string, userId: string): ItemGroup {

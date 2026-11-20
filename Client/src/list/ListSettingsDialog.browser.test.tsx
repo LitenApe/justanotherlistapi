@@ -13,7 +13,7 @@ async function renderDialog(settings: ItemGroupSettings = defaultSettings()) {
 }
 
 describe("ListSettingsDialog", () => {
-  it("starts with both settings off and focus on the first one", async () => {
+  it("starts with every setting off and focus on the first one", async () => {
     const { dialog } = await renderDialog();
 
     await expect
@@ -22,6 +22,9 @@ describe("ListSettingsDialog", () => {
     const hide = dialog.getByRole("checkbox", { name: "Hide done items" });
     await expect.element(hide).toHaveFocus();
     await expect.element(hide).not.toBeChecked();
+    await expect
+      .element(dialog.getByRole("checkbox", { name: "Protect reservations" }))
+      .not.toBeChecked();
     await expect.element(dialog.getByRole("group")).not.toBeInTheDocument();
     await expectNoAxeViolations(dialog.element());
   });
@@ -42,9 +45,9 @@ describe("ListSettingsDialog", () => {
 
   it("shows stored minutes in the largest unit that fits", async () => {
     const { dialog } = await renderDialog({
+      ...defaultSettings(),
       hideCompletedAfterMinutes: 90,
       autoDeleteAfterMinutes: 2 * 24 * 60,
-      autoDeleteUpdatedAt: null,
     });
 
     const hideAfter = dialog.getByRole("group", { name: "Hide after" });
@@ -81,7 +84,34 @@ describe("ListSettingsDialog", () => {
     expect(onSave).toHaveBeenCalledWith({
       hideCompletedAfterMinutes: 120,
       autoDeleteAfterMinutes: 12 * 24 * 60,
+      protectReservations: false,
     });
+  });
+
+  it("protects reservations when asked, and says what that means", async () => {
+    const { dialog, onSave } = await renderDialog();
+    const protect = dialog.getByRole("checkbox", { name: "Protect reservations" });
+    await expect
+      .element(protect)
+      .toHaveAccessibleDescription(/Only the person an item is reserved for/);
+
+    await protect.click();
+    await dialog.getByRole("button", { name: "Save" }).click();
+
+    expect(onSave).toHaveBeenCalledWith({
+      hideCompletedAfterMinutes: null,
+      autoDeleteAfterMinutes: null,
+      protectReservations: true,
+    });
+  });
+
+  it("shows whether reservations are protected now", async () => {
+    const { dialog } = await renderDialog({ ...defaultSettings(), protectReservations: true });
+
+    await expect
+      .element(dialog.getByRole("checkbox", { name: "Protect reservations" }))
+      .toBeChecked();
+    await expectNoAxeViolations(dialog.element());
   });
 
   it("rejects amounts that aren't whole numbers or exceed a year", async () => {

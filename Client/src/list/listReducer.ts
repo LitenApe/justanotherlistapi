@@ -47,8 +47,23 @@ export function listReducer(state: ListState, action: ListAction): ListState {
         ? state
         : { ...state, members: [...state.members, action.memberId] };
     case "memberRemoved":
-      return { ...state, members: state.members.filter((id) => id !== action.memberId) };
+      return {
+        ...state,
+        members: state.members.filter((id) => id !== action.memberId),
+        items: freeItemsReservedFor(state.items, action.memberId),
+      };
   }
+}
+
+/**
+ * The server frees every item reserved for a member who leaves or is removed,
+ * and only announces the removal, so clients free those items themselves.
+ */
+function freeItemsReservedFor(items: Item[], memberId: string): Item[] {
+  if (!items.some((item) => item.reservedFor === memberId)) return items;
+  return items.map((item) =>
+    item.reservedFor === memberId ? { ...item, reservedFor: null, reservedBy: null } : item,
+  );
 }
 
 export type ItemFilter = "all" | "open" | "done";

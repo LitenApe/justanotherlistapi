@@ -36,7 +36,26 @@ test.describe("list settings", () => {
     expect(backend.list(list.id)?.settings).toMatchObject({
       hideCompletedAfterMinutes: 120,
       autoDeleteAfterMinutes: 12 * 24 * 60,
+      protectReservations: false,
     });
+  });
+
+  test("protects reservations for everyone and says so", async ({ page, backend, app }) => {
+    const list = makeList("Trip", ["Tent"]);
+    await app.openList(list);
+
+    await page.getByRole("button", { name: "Settings" }).click();
+    const dialog = page.getByRole("dialog", { name: "List settings" });
+    await dialog.getByRole("checkbox", { name: "Protect reservations" }).check();
+    await dialog.getByRole("button", { name: "Save" }).click();
+
+    await expect(dialog).toBeHidden();
+    await expect(
+      page.getByText(
+        "Only the person an item is reserved for, and whoever reserved it, can change its reservation.",
+      ),
+    ).toBeVisible();
+    expect(backend.list(list.id)?.settings.protectReservations).toBe(true);
   });
 
   test("hides done items after the chosen time but keeps them under Done", async ({
@@ -108,8 +127,8 @@ test.describe("list settings", () => {
   test("says when the list will be deleted once every item is done", async ({ page, app }) => {
     const list = makeList("Groceries");
     list.settings = {
+      ...list.settings,
       autoDeleteAfterMinutes: 24 * 60,
-      hideCompletedAfterMinutes: null,
       autoDeleteUpdatedAt: ago(days(7)),
     };
     list.items = [
@@ -145,6 +164,7 @@ test.describe("list settings", () => {
     backend.as(OTHER).updateSettings(list.id, {
       autoDeleteAfterMinutes: 24 * 60,
       hideCompletedAfterMinutes: null,
+      protectReservations: false,
     });
     await expect(page.getByText("Another member changed the list settings.")).toBeVisible();
     await expect(page.getByText(/will be deleted on/)).toBeVisible();

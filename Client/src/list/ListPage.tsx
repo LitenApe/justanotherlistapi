@@ -42,6 +42,7 @@ import { ListSettingsDialog } from "./ListSettingsDialog";
 import { MembersPanel } from "./MembersPanel";
 import type { Route } from "./+types/ListPage";
 import { RenameListDialog } from "./RenameListDialog";
+import { reservationText } from "./reservations";
 import styles from "./ListPage.module.css";
 
 type DialogState =
@@ -617,7 +618,13 @@ function ListPage({ list }: { list: ItemGroup }) {
           {visibleItems.length > 0 ? (
             <ul className={styles.items} aria-labelledby="items-heading">
               {visibleItems.map((item) => (
-                <ItemRow key={item.id} item={item} onToggle={toggle} onEdit={openEditor} />
+                <ItemRow
+                  key={item.id}
+                  item={item}
+                  reservation={reservationText(item, userId, state.members)}
+                  onToggle={toggle}
+                  onEdit={openEditor}
+                />
               ))}
             </ul>
           ) : (
@@ -741,7 +748,11 @@ function SettingsSummary({
   settings: ItemGroupSettings;
   deleteAt: number | null;
 }) {
-  const { hideCompletedAfterMinutes: hide, autoDeleteAfterMinutes: autoDelete } = settings;
+  const {
+    hideCompletedAfterMinutes: hide,
+    autoDeleteAfterMinutes: autoDelete,
+    protectReservations,
+  } = settings;
   const rules = [
     hide === null
       ? null
@@ -751,6 +762,9 @@ function SettingsSummary({
     autoDelete === null
       ? null
       : `The list is deleted ${formatDuration(autoDelete)} after every item is done.`,
+    protectReservations
+      ? "Only the person an item is reserved for, and whoever reserved it, can change its reservation."
+      : null,
   ].filter((rule) => rule !== null);
 
   return (

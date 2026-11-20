@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Item, ItemGroupSettings } from "../api/types";
-import { makeItem, makeList, OTHER } from "../test/builders";
+import { defaultSettings, makeItem, makeList, ME, OTHER } from "../test/builders";
 import {
   autoDeleteTime,
   filterItems,
@@ -57,6 +57,30 @@ describe("listReducer", () => {
     next = listReducer(next, { type: "memberRemoved", memberId: OTHER });
     expect(next.members).toHaveLength(1);
   });
+
+  it("frees the items reserved for a member who leaves, keeping the ones they reserved for others", () => {
+    const list = makeList("Trip", [], [ME, OTHER]);
+    list.items = [
+      makeItem({ name: "Tent", itemGroupId: list.id, reservedFor: OTHER, reservedBy: OTHER }),
+      makeItem({ name: "Stove", itemGroupId: list.id, reservedFor: OTHER, reservedBy: ME }),
+      makeItem({ name: "Map", itemGroupId: list.id, reservedFor: ME, reservedBy: OTHER }),
+      makeItem({ name: "Gas", itemGroupId: list.id }),
+    ];
+    const state = listStateFrom(list);
+
+    const once = listReducer(state, { type: "memberRemoved", memberId: OTHER });
+    const twice = listReducer(once, { type: "memberRemoved", memberId: OTHER });
+
+    expect(once.items.map((i) => [i.name, i.reservedFor, i.reservedBy])).toEqual([
+      ["Tent", null, null],
+      ["Stove", null, null],
+      ["Map", ME, OTHER],
+      ["Gas", null, null],
+    ]);
+    expect(twice).toEqual(once);
+    // Items that stay as they were keep their identity, so their rows don't re-render.
+    expect(once.items[2]).toBe(state.items[2]);
+  });
 });
 
 describe("filterItems", () => {
@@ -91,9 +115,7 @@ describe("settings", () => {
     makeItem({ name, itemGroupId: "g", isComplete: true, completedAt: at(completedAtMinute) });
   const open = (name: string) => makeItem({ name, itemGroupId: "g" });
   const settings = (overrides: Partial<ItemGroupSettings>): ItemGroupSettings => ({
-    autoDeleteAfterMinutes: null,
-    hideCompletedAfterMinutes: null,
-    autoDeleteUpdatedAt: null,
+    ...defaultSettings(),
     ...overrides,
   });
 

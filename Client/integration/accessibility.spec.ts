@@ -13,8 +13,9 @@ import {
 function busyList() {
   const list = makeList("Groceries", ["Milk", "Eggs", "Bread"], [ME, OTHER]);
   list.items.push(makeItem({ name: "Coffee", itemGroupId: list.id, isComplete: true }));
-  const [milk] = list.items;
+  const [milk, eggs] = list.items;
   if (milk) milk.description = "Oat, 2 litres";
+  if (eggs) Object.assign(eggs, { reservedFor: OTHER, reservedBy: ME });
   list.settings.autoDeleteAfterMinutes = 7 * 24 * 60;
   return list;
 }

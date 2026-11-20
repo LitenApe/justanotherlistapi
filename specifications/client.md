@@ -12,6 +12,7 @@
 - [Data Flow](#data-flow)
 - [Real-Time Updates](#real-time-updates)
 - [List Settings](#list-settings)
+- [Reservations](#reservations)
 - [Accessibility](#accessibility)
 - [Themes](#themes)
 - [Responsive Design](#responsive-design)
@@ -88,7 +89,8 @@ Client/
       ListPage.tsx           - Route module: single list (items, filter/search, dialogs, focus management)
       listReducer.ts         - Pure, idempotent state transitions shared by local and realtime changes,
                                plus filtering, auto-hide and auto-delete time helpers
-      ListSettingsDialog.tsx - Auto-hide and auto-delete settings; duration.ts converts minutes ↔ amount + unit
+      ListSettingsDialog.tsx - Auto-hide, auto-delete and protected reservations; duration.ts converts minutes ↔ amount + unit
+      reservations.ts        - How reservations read ("Reserved for you by 3fa85f64…") and member labels
       ItemRow.tsx, EditItemDialog.tsx, RenameListDialog.tsx, MembersPanel.tsx
     theme/theme.ts           - Light/dark theme store (dark default, saved in localStorage)
     styles/global.css        - Design tokens per theme, base styles, buttons, forms, utilities
@@ -130,7 +132,7 @@ The first visit after dependencies change can fail with "504 Outdated Optimize D
 | ---------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | `/sign-in`       | Sign in    | Enter or generate a user ID. Shows a notice when the previous session expired                                                     |
 | `/`              | Your lists | Cards sorted by name with open item count and a preview. Create a list. Filter appears above 6 lists                              |
-| `/lists/:listId` | List       | Progress, add item, search, All / To do / Done filter, edit/delete items, rename/delete list, [settings](#list-settings), members |
+| `/lists/:listId` | List       | Progress, add item, search, All / To do / Done filter, edit/delete items, [reservations](#reservations), rename/delete list, [settings](#list-settings), members |
 | `*`              | Not found  | `/lists/<not-a-guid>` shows the list route's own "List not found"                                                                 |
 
 The overview mirrors `GET /api/list`, which only returns incomplete items. The list page loads `GET /api/list/{id}` and shows every item. Destructive actions (deleting a list or item, removing a member, leaving) ask for confirmation in a dialog whose initial focus is **Cancel**.
@@ -209,13 +211,13 @@ For local development the client signs in against the mock OAuth server using th
 
 | Event                   | Overview page                      | List page                                                               |
 | ----------------------- | ---------------------------------- | ----------------------------------------------------------------------- |
-| `ItemCreated`/`Updated` | Update open-item count and preview | Upsert the item                                                         |
+| `ItemCreated`/`Updated` | Update open-item count and preview | Upsert the item, reservation included                                   |
 | `ItemDeleted`           | Remove from preview                | Remove; close the edit dialog if it was open for that item              |
 | `GroupRenamed`          | Rename the card                    | Update heading and document title                                       |
 | `GroupSettingsChanged`  | —                                  | Apply the settings and show "Another member changed…"                   |
 | `GroupDeleted`          | Remove the card                    | Return to the overview; the message says whether auto-delete removed it |
 | `MemberAdded`           | —                                  | Add to members                                                          |
-| `MemberRemoved`         | Remove the card if it was you      | Remove; if it was you, return to the overview with a message            |
+| `MemberRemoved`         | Remove the card if it was you      | Remove, and free the items reserved for them; if it was you, return to the overview with a message |
 
 The overview also revalidates when the tab becomes visible again, to pick up lists that were shared with you while you were away.
 
@@ -223,23 +225,34 @@ The overview also revalidates when the tab becomes visible again, to pick up lis
 
 ## List Settings
 
-The **Settings** button on the list page opens `ListSettingsDialog`, which edits the two settings described in [checklist.md](checklist.md#list-settings). They apply to every member, and both are off by default.
+The **Settings** button on the list page opens `ListSettingsDialog`, which edits the settings described in [checklist.md](checklist.md#list-settings) and [checklist.md](checklist.md#reservations). They apply to every member, and all are off by default.
 
 **Dialog**
 
 - Each setting is a checkbox with a hint (`aria-describedby`). Checking it reveals a "Hide after" / "Delete after" fieldset with an **Amount** text field (`inputmode="numeric"`) and a **Unit** select (minutes, hours, days). The fields are shown rather than disabled, so nothing focusable is ever disabled.
 - Turning a setting on starts from 1 day (hide) or 7 days (delete). Stored minutes come back in the largest unit that divides them evenly.
 - Validation mirrors the server: a whole number, hiding from 0 up to 365 days, deleting from 1 day up to 365 days. Errors appear under the fieldset, are linked to the amount field, and move focus to it.
-- Saving sends `PUT /api/list/{id}/settings` and applies the returned settings, including `autoDeleteUpdatedAt`.
+- **Protect reservations** is a plain checkbox with a hint: only the person an item is reserved for, and whoever reserved it, can change or cancel the reservation.
+- Saving sends `PUT /api/list/{id}/settings` with all three settings and applies the returned settings, including `autoDeleteUpdatedAt`.
 
 **On the list page**
 
-- A hint under the heading summarises what's on, for example "Done items are hidden after 1 hour. The list is deleted 7 days after every item is done."
+- A hint under the heading summarises what's on, for example "Done items are hidden after 1 hour. The list is deleted 7 days after every item is done." Protected reservations add "Only the person an item is reserved for, and whoever reserved it, can change its reservation."
 - **Auto-hide**: done items whose hide time has passed drop out of "All" (and its count). "Done" still lists them. A line under the result count says how many are hidden and offers **Show done items**, which switches to "Done" and moves focus to that radio, since the button itself disappears. Progress still counts hidden items.
 - The page doesn't tick every second: a single timer wakes it when the next done item reaches its hide time (capped at a day, since browsers fire longer timers at once). With "hide right away" the toggled item disappears immediately.
 - When a hidden item holds focus, focus moves to the nearest item that stays visible, the same as for filtering (`planFocusAfterRemoval`, which takes several IDs when items disappear together).
 - **Auto-delete**: when every item is done, a notice gives the date and time the list will be deleted, computed the same way as the server (`autoDeleteTime`). It sits in a persistent `role="status"` region, so checking the last item announces it. Unchecking an item removes it.
 - If the list is deleted while open and the deletion time has passed (allowing a minute for clock differences), the overview message says it was deleted automatically rather than by another member.
+
+---
+
+## Reservations
+
+Items can be reserved for a member of the list to say who will do them; see [checklist.md](checklist.md#reservations) for the rules.
+
+- Each item row shows its reservation as a line under the name: "Reserved by you", "Reserved for you by 3fa85f64…", "Reserved for 3fa85f64… by you" (`reservationText` in `list/reservations.ts`). The line is part of the checkbox's description (`aria-describedby`), so screen readers hear it with the item.
+- Members have no names, so `memberLabel` shows "you" or the first eight characters of a user ID. When the member who made a reservation has left the list, the line only says who it's for.
+- When a member leaves or is removed, the server frees the items reserved for them and only announces `MemberRemoved`, so the reducer frees those items itself (`memberRemoved` in `listReducer`), for the event and after your own removal of someone.
 
 ---
 
@@ -334,7 +347,7 @@ The browser and integration tests need Playwright's Chromium, installed once wit
 
 ### Unit tests
 
-Pure functions with no browser APIs: the list reducer and its auto-hide/auto-delete maths, durations, GUID helpers, redirect safety (`safeRedirect`), form parsing and the loader error mapping (`loadRouteData`). They run in Node, so anything that reaches for `window` or `document` fails instead of passing by accident.
+Pure functions with no browser APIs: the list reducer and its auto-hide/auto-delete maths, how reservations read, durations, GUID helpers, redirect safety (`safeRedirect`), form parsing and the loader error mapping (`loadRouteData`). They run in Node, so anything that reaches for `window` or `document` fails instead of passing by accident.
 
 ### Browser tests
 
@@ -359,7 +372,7 @@ The production SPA (`react-router build`) is served the way a static host serves
 
 Only the network is replaced, by `FakeBackend` (`integration/support/fakeBackend.ts`), installed through Playwright's routing for every test:
 
-- **REST API:** an in-memory implementation of [checklist.md](checklist.md), including membership checks (403), conflicts (409), `completedAt` and settings. It authenticates the bearer token on every request (401 when missing or expired).
+- **REST API:** an in-memory implementation of [checklist.md](checklist.md), including membership checks (403), conflicts (409), `completedAt`, settings and the reservation rules (freeing a removed member's items included). It authenticates the bearer token on every request (401 when missing or expired).
 - **OAuth:** the token endpoint returns an unsigned JWT whose `sub` is the client ID, like the mock OAuth server.
 - **SignalR:** negotiate (version 1) returns a connection ID and a separate token, and the WebSocket must present that token (`?id=`). Over it, `page.routeWebSocket` speaks the hub's JSON protocol: handshake, `JoinGroup` (members only) and `LeaveGroup`, pings and server-pushed events. Like the real server, every change is broadcast to the list's group except the connection named in `X-SignalR-Connection-Id`; `backend.connectionIds(userId)` returns the IDs it handed out.
 - `backend.as(OTHER)` makes changes as another member through the same code paths, so the page receives real events. `deleteListAutomatically()` stands in for the cleanup service.
@@ -404,6 +417,6 @@ The specs cover sign-in and token validation, list and item changes surviving re
 
 - **Dev-only sign-in.** See [Authentication](#authentication).
 - **Item order.** The API has no ordering column, so items reload in database order.
-- **Members are GUIDs.** There is no user directory, so members are shown and added by user ID.
+- **Members are GUIDs.** There is no user directory, so members are shown and added by user ID, and reservations name people by the start of their user ID.
 - **Overview payload.** `GET /api/list` returns every open item of every list, which can be large with seeded data.
 - **Clock differences.** Auto-hide compares the server's `completedAt` with the browser's clock, so a device whose clock is off hides items correspondingly early or late.
