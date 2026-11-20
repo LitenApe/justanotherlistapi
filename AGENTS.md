@@ -84,6 +84,7 @@ Every operation follows [specifications/architecture.md](specifications/architec
 - Tests need Docker running: `TestDatabase` starts one shared SQL Server container per run and creates an isolated database per test.
 - SQL Server 2022 or later is required: list settings use `IS DISTINCT FROM` and `GREATEST`.
 - `TestDatabase` connections are already **open**, but the app's scoped `SqlConnection` starts **closed**. Dapper opens it per command, but `BeginTransaction` needs `db.Open()` first.
+- CI runs the backend tests with code coverage (`coverage.config`). On Linux that rewrites `Api.dll` and `Checklist.dll` before they load, which adds references such as `netstandard`, so tests that inspect assemblies must allow for it. To reproduce on Windows, pass `dotnet test --coverage --coverage-settings` a copy of `coverage.config` with `<EnableStaticManagedInstrumentation>True</EnableStaticManagedInstrumentation>` and `<EnableDynamicManagedInstrumentation>False</EnableDynamicManagedInstrumentation>` in `<CodeCoverage>`.
 - Client: `eslint-plugin-jsx-a11y` doesn't declare ESLint 10 support yet; `package.json` `overrides` allows it. TypeScript stays on 6.0.x until typescript-eslint supports newer versions.
 - Client: `global.css` must be the first import in `src/root.tsx` so CSS Modules can override it.
 - Client: route types are generated. `npm run typecheck` runs `react-router typegen` first; run it after adding or renaming a route module, or `./+types/...` imports won't resolve.
