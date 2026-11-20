@@ -170,6 +170,57 @@ test.describe("reservations", () => {
     expect(backend.list(list.id)?.items[3]).toMatchObject({ reservedFor: SAM });
   });
 
+  test("keep a reservation made while your edit was on its way", async ({ page, backend, app }) => {
+    const list = tripList();
+    await app.openList(list);
+    const gas = list.items[3];
+    if (!gas) throw new Error("missing item");
+    const release = backend.holdNext("PUT", new RegExp(`/api/list/${list.id}/${gas.id}$`));
+
+    await page.getByRole("button", { name: "Edit “Gas”" }).click();
+    await page.getByLabel("Name").fill("Gas canister");
+    await page.getByRole("button", { name: "Save" }).click();
+    backend.as(SAM).reserveItem(list.id, gas.id, SAM);
+    await expect(page.getByRole("checkbox", { name: "Gas" })).toHaveAccessibleDescription(
+      "Reserved by 5a3e9c71…",
+    );
+    release();
+
+    await expect(page.getByRole("checkbox", { name: "Gas canister" })).toHaveAccessibleDescription(
+      "Reserved by 5a3e9c71…",
+    );
+  });
+
+  test("keep a reservation made while a failed toggle was on its way", async ({
+    page,
+    backend,
+    app,
+  }) => {
+    const list = tripList();
+    await app.openList(list);
+    const gas = list.items[3];
+    if (!gas) throw new Error("missing item");
+    const pattern = new RegExp(`/api/list/${list.id}/${gas.id}$`);
+    const release = backend.holdNext("PUT", pattern);
+    backend.failNext("PUT", pattern, 500);
+
+    // click, not check(): the server rejects it, so the box flips back.
+    await page.getByRole("checkbox", { name: "Gas" }).click();
+    backend.as(SAM).reserveItem(list.id, gas.id, SAM);
+    await expect(page.getByRole("checkbox", { name: "Gas" })).toHaveAccessibleDescription(
+      "Reserved by 5a3e9c71…",
+    );
+    release();
+
+    await expect(
+      page.getByRole("alert").filter({ hasText: "Couldn't update “Gas”" }),
+    ).toBeVisible();
+    await expect(page.getByRole("checkbox", { name: "Gas" })).not.toBeChecked();
+    await expect(page.getByRole("checkbox", { name: "Gas" })).toHaveAccessibleDescription(
+      "Reserved by 5a3e9c71…",
+    );
+  });
+
   test("free the items of a member you remove", async ({ page, app }) => {
     await app.openList(tripList());
 
