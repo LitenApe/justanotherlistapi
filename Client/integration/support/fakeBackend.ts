@@ -192,7 +192,8 @@ export class FakeBackend {
   private async api(route: Route): Promise<void> {
     const request = route.request();
     const method = request.method();
-    const path = new URL(request.url()).pathname;
+    const url = new URL(request.url());
+    const path = url.pathname;
     const body = jsonBody(request);
     const headers = request.headers();
     const userId = this.authenticate(headers.authorization);
@@ -215,13 +216,21 @@ export class FakeBackend {
       return;
     }
 
-    const response = this.handle(method, path, body, userId, headers["x-signalr-connection-id"]);
+    const response = this.handle(
+      method,
+      path,
+      url.searchParams,
+      body,
+      userId,
+      headers["x-signalr-connection-id"],
+    );
     await route.fulfill(response.json === undefined ? { status: response.status } : response);
   }
 
   private handle(
     method: string,
     path: string,
+    query: URLSearchParams,
     body: unknown,
     userId: string,
     connectionId: string | undefined,
@@ -295,6 +304,22 @@ export class FakeBackend {
         if (list.members.length === 1 && list.members[0] === third) return { status: 409 };
         this.removeMember(list, third, exclude);
         return { status: 204 };
+      }
+    }
+
+    if (second && third === "reservation") {
+      if (method === "PUT") {
+        const { memberId, replacing } = body as { memberId?: string; replacing?: string | null };
+        // Both are required, so a reservation is never replaced unseen.
+        if (typeof memberId !== "string" || replacing === undefined) return { status: 400 };
+        const change = { callerId: userId, memberId, replacing };
+        return { status: this.changeReservation(list, second, change, exclude) };
+      }
+      if (method === "DELETE") {
+        const seen = query.get("memberId");
+        if (!seen) return { status: 400 };
+        const change = { callerId: userId, memberId: null, replacing: seen };
+        return { status: this.changeReservation(list, second, change, exclude) };
       }
     }
 

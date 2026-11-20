@@ -9,15 +9,20 @@ interface ItemRowProps {
   item: Item;
   /** Who the item is reserved for, as text (see reservationText), or null while it's free. */
   reservation: string | null;
+  /** Whether the user may reserve the item, or change its reservation. */
+  canReserve: boolean;
   onToggle: (item: Item) => void;
   onEdit: (item: Item) => void;
+  onReserve: (item: Item) => void;
 }
 
 export const ItemRow = memo(function ItemRow({
   item,
   reservation,
+  canReserve,
   onToggle,
   onEdit,
+  onReserve,
 }: ItemRowProps) {
   const id = checkboxId(item.id);
   const descriptionId = `${id}-description`;
@@ -54,16 +59,34 @@ export const ItemRow = memo(function ItemRow({
           </p>
         )}
       </div>
-      <button
-        type="button"
-        className="icon-button"
-        onClick={() => {
-          onEdit(item);
-        }}
-      >
-        <Icon name="pencil" size={18} />
-        <span className="visually-hidden">Edit “{item.name}”</span>
-      </button>
+      <div className={styles.itemActions}>
+        {canReserve && (
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => {
+              onReserve(item);
+            }}
+          >
+            <Icon name="userCheck" size={18} />
+            <span className="visually-hidden">
+              {item.reservedFor === null
+                ? `Reserve “${item.name}”`
+                : `Change reservation for “${item.name}”`}
+            </span>
+          </button>
+        )}
+        <button
+          type="button"
+          className="icon-button"
+          onClick={() => {
+            onEdit(item);
+          }}
+        >
+          <Icon name="pencil" size={18} />
+          <span className="visually-hidden">Edit “{item.name}”</span>
+        </button>
+      </div>
     </li>
   );
 });
