@@ -79,7 +79,7 @@ Each port is named after what the inside needs, and each method covers one atomi
 
 | Port                 | Methods                                                                                                                                            | Adapter                       |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
-| `IMembership`        | `IsMember`, `ListMembers`, `Add` (false if already a member), `RemoveUnlessLast` (false for the last member)                                       | `SqlMembership`               |
+| `IMembership`        | `IsMember`, `ListMembers`, `Add` (false if already a member), `RemoveUnlessLast` (false for the last member; frees the items reserved for them)   | `SqlMembership`               |
 | `IItemGroupStore`    | `Create` (with its first member), `Load`, `ListForMember`, `Rename`, `UpdateSettings` (returns them as stored), `Delete`, `DeleteDueForAutoDelete` | `SqlItemGroupStore`           |
 | `IItemStore`         | `Create`, `Update` (returns the item as stored, `null` when it's gone), `Delete`; items in other lists are left alone                              | `SqlItemStore`                |
 | `IChecklistNotifier` | `NotifyItemCreated` … `NotifyGroupDeleted`, each with the connection to leave out                                                                  | `ChecklistNotifier` (SignalR) |
@@ -149,7 +149,7 @@ Each endpoint adapter is an `internal static class` in `Api/Http/<Slice>/`, name
 SQL adapters in `Api/Sql/` implement the ports with Dapper, always through `CommandDefinition` with the `CancellationToken`. Rules that must hold under concurrency are enforced here, in one statement or one transaction:
 
 - `SqlMembership.Add` is one conditional insert whose existence check holds `UPDLOCK, HOLDLOCK` until the insert. Of two concurrent adds of the same member, the second waits, finds the row and returns `false`.
-- `SqlMembership.RemoveUnlessLast` takes an update lock on the list's `ItemGroups` row, then checks and deletes in the same transaction, so removals from one list take turns.
+- `SqlMembership.RemoveUnlessLast` takes an update lock on the list's `ItemGroups` row, then checks and deletes in the same transaction, so removals from one list take turns. The same transaction frees the items reserved for the member, so no item stays reserved for someone outside the list.
 - `SqlItemStore.Update` works out the completion time in the statement that writes the item: `COALESCE(CompletedAt, @Now)` keeps a time that's already stored, and `OUTPUT` returns the item as stored. So editing a completed item keeps its original time, and when two members complete an item at once, the first one's time stays.
 - `SqlItemGroupStore.Create` inserts the list and its first member in one transaction, so a list never exists without a member.
 - `SqlItemGroupStore.UpdateSettings` compares the stored auto-delete delay as it writes (`IS DISTINCT FROM`), so only a real change restarts the countdown.
@@ -178,6 +178,8 @@ Moving such rules into C# would mean loading, changing and saving a row, with op
 | Only members may read or change a list                                  | Use cases, through `IMembership.IsMember`; the hub, likewise        |
 | Whoever creates a list is its first member                              | `CreateItemGroup`; `SqlItemGroupStore.Create` (one transaction)     |
 | A list always keeps at least one member                                 | `SqlMembership.RemoveUnlessLast` (locked transaction)               |
+| Leaving or being removed frees the items reserved for that member       | `SqlMembership.RemoveUnlessLast` (the same transaction)             |
+| A reservation names both who it's for and who made it, or neither       | `CK_Items_Reservation`, a check constraint on `Items`               |
 | A user is a member at most once                                         | `SqlMembership.Add` (one conditional insert)                        |
 | Names aren't blank                                                      | `Name.TryCreate`, which endpoint adapters call before anything else |
 | Settings stay in range                                                  | `ItemGroupSettingsInput.TryCreate`, likewise                        |

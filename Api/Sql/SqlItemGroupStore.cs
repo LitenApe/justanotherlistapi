@@ -50,7 +50,8 @@ internal sealed class SqlItemGroupStore(IDbConnection db) : IItemGroupStore
                 """
                 SELECT Id, Name, AutoDeleteAfterMinutes, HideCompletedAfterMinutes, AutoDeleteUpdatedAt
                 FROM ItemGroups WHERE Id = @Id;
-                SELECT Id, Name, Description, IsComplete, CompletedAt, ItemGroupId FROM Items WHERE ItemGroupId = @Id;
+                SELECT Id, Name, Description, IsComplete, CompletedAt, ItemGroupId, ReservedFor, ReservedBy
+                FROM Items WHERE ItemGroupId = @Id;
                 SELECT MemberId FROM Members WHERE ItemGroupId = @Id;
                 """,
                 new { Id = itemGroupId },
@@ -84,7 +85,8 @@ internal sealed class SqlItemGroupStore(IDbConnection db) : IItemGroupStore
                 INNER JOIN Members m ON m.ItemGroupId = ig.Id
                 WHERE m.MemberId = @MemberId;
 
-                SELECT i.Id, i.Name, i.Description, i.IsComplete, i.CompletedAt, i.ItemGroupId
+                SELECT i.Id, i.Name, i.Description, i.IsComplete, i.CompletedAt, i.ItemGroupId,
+                    i.ReservedFor, i.ReservedBy
                 FROM Items i
                 INNER JOIN Members m ON m.ItemGroupId = i.ItemGroupId
                 WHERE m.MemberId = @MemberId AND i.IsComplete = 0;

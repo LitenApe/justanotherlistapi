@@ -61,6 +61,56 @@ public sealed class RemoveMemberTests
         Assert.Empty(notifier.Notifications);
     }
 
+    // Freed items need no ItemUpdated: MemberRemoved tells clients to free them too.
+    [Fact]
+    public async Task Execute_FreesTheItemsReservedForTheRemovedMember()
+    {
+        var userId = Guid.NewGuid();
+        var itemGroupId = Guid.NewGuid();
+        var memberIdToRemove = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        var notifier = new CapturingNotifier();
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, userId, memberIdToRemove);
+        await db.InsertItem(itemGroupId, itemId, reservedFor: memberIdToRemove, reservedBy: userId);
+
+        RemoveMember.Outcome outcome = await new RemoveMember(
+            new SqlMembership(db),
+            notifier
+        ).Execute(
+            new Caller(userId),
+            itemGroupId,
+            memberIdToRemove,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(RemoveMember.Outcome.Removed, outcome);
+        Assert.Null((await db.LoadItem(itemId))?.ReservedFor);
+        Assert.IsType<CapturingNotifier.MemberRemovedNotification>(
+            Assert.Single(notifier.Notifications)
+        );
+    }
+
+    [Fact]
+    public async Task Execute_FreesTheItemsReservedForAMemberWhoLeaves()
+    {
+        var userId = Guid.NewGuid();
+        var otherMemberId = Guid.NewGuid();
+        var itemGroupId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, userId, otherMemberId);
+        await db.InsertItem(itemGroupId, itemId, reservedFor: userId);
+
+        RemoveMember.Outcome outcome = await new RemoveMember(
+            new SqlMembership(db),
+            new CapturingNotifier()
+        ).Execute(new Caller(userId), itemGroupId, userId, TestContext.Current.CancellationToken);
+
+        Assert.Equal(RemoveMember.Outcome.Removed, outcome);
+        Assert.Null((await db.LoadItem(itemId))?.ReservedFor);
+    }
+
     [Fact]
     public async Task Execute_ReturnsLastMember_WhenTheOnlyMemberLeaves()
     {

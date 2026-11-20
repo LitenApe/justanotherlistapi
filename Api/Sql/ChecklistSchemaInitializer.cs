@@ -30,7 +30,13 @@ internal static class ChecklistSchemaInitializer
                     IsComplete  BIT              NOT NULL DEFAULT 0,
                     CompletedAt DATETIMEOFFSET   NULL,
                     ItemGroupId UNIQUEIDENTIFIER NOT NULL,
-                    FOREIGN KEY (ItemGroupId) REFERENCES ItemGroups(Id) ON DELETE CASCADE
+                    ReservedFor UNIQUEIDENTIFIER NULL,
+                    ReservedBy  UNIQUEIDENTIFIER NULL,
+                    FOREIGN KEY (ItemGroupId) REFERENCES ItemGroups(Id) ON DELETE CASCADE,
+                    CONSTRAINT CK_Items_Reservation CHECK (
+                        (ReservedFor IS NULL AND ReservedBy IS NULL)
+                        OR (ReservedFor IS NOT NULL AND ReservedBy IS NOT NULL)
+                    )
                 );
 
                 -- Upgrade databases created before list settings existed.
@@ -46,6 +52,21 @@ internal static class ChecklistSchemaInitializer
                     -- Items completed before the column existed start their clock now.
                     -- EXEC defers compilation until the new column exists.
                     EXEC('UPDATE Items SET CompletedAt = SYSDATETIMEOFFSET() WHERE IsComplete = 1');
+                END
+
+                -- Upgrade databases created before reservations existed. Every item starts free.
+                IF COL_LENGTH('dbo.Items', 'ReservedFor') IS NULL
+                BEGIN
+                    ALTER TABLE Items ADD
+                        ReservedFor UNIQUEIDENTIFIER NULL,
+                        ReservedBy  UNIQUEIDENTIFIER NULL;
+                    -- EXEC defers compilation until the new columns exist.
+                    EXEC('
+                        ALTER TABLE Items ADD CONSTRAINT CK_Items_Reservation CHECK (
+                            (ReservedFor IS NULL AND ReservedBy IS NULL)
+                            OR (ReservedFor IS NOT NULL AND ReservedBy IS NOT NULL)
+                        )
+                    ');
                 END
 
                 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'Members' AND schema_id = SCHEMA_ID('dbo'))

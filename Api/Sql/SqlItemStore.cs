@@ -48,7 +48,8 @@ internal sealed class SqlItemStore(IDbConnection db) : IItemStore
                     IsComplete = @IsComplete,
                     CompletedAt = CASE WHEN @IsComplete = 1 THEN COALESCE(CompletedAt, @Now) END
                 OUTPUT INSERTED.Id, INSERTED.Name, INSERTED.Description, INSERTED.IsComplete,
-                    INSERTED.CompletedAt, INSERTED.ItemGroupId
+                    INSERTED.CompletedAt, INSERTED.ItemGroupId, INSERTED.ReservedFor,
+                    INSERTED.ReservedBy
                 WHERE Id = @Id AND ItemGroupId = @ItemGroupId
                 """,
                 new

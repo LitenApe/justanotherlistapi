@@ -73,14 +73,18 @@ Per-list settings that apply to every member. Both are off (`null`) by default. 
 
 Represents a task within an item group.
 
-| Property      | Type              | Description                                                                   |
-| ------------- | ----------------- | ----------------------------------------------------------------------------- |
-| `Id`          | `Guid`            | Unique identifier                                                             |
-| `Name`        | `string`          | Display name. Must not be blank                                               |
-| `Description` | `string?`         | Optional longer description                                                   |
-| `IsComplete`  | `bool`            | Completion flag. Defaults to `false`                                          |
-| `CompletedAt` | `DateTimeOffset?` | When the item was completed. Set by the server, `null` while the item is open |
-| `ItemGroupId` | `Guid`            | The group this item belongs to                                                |
+| Property      | Type              | Description                                                                                         |
+| ------------- | ----------------- | --------------------------------------------------------------------------------------------------- |
+| `Id`          | `Guid`            | Unique identifier                                                                                   |
+| `Name`        | `string`          | Display name. Must not be blank                                                                     |
+| `Description` | `string?`         | Optional longer description                                                                         |
+| `IsComplete`  | `bool`            | Completion flag. Defaults to `false`                                                                |
+| `CompletedAt` | `DateTimeOffset?` | When the item was completed. Set by the server, `null` while the item is open                       |
+| `ItemGroupId` | `Guid`            | The group this item belongs to                                                                      |
+| `ReservedFor` | `Guid?`           | The member who will do the item. `null` while nobody has reserved it                                |
+| `ReservedBy`  | `Guid?`           | The member who reserved it, the same as `ReservedFor` when members reserve for themselves. `null` while free |
+
+`ReservedFor` and `ReservedBy` are set together or not at all. A reservation only tells the other members who's on the item: anyone can still complete, edit or delete it, and completing it keeps the reservation, so done items show who had them. Items reserved for a member become free when that member leaves or is removed (see [RemoveMember](#delete-apilistitemgroupidmembermemberid--removemember)).
 
 ### Members
 
@@ -121,7 +125,13 @@ CREATE TABLE Items (
     IsComplete  BIT              NOT NULL DEFAULT 0,
     CompletedAt DATETIMEOFFSET   NULL,
     ItemGroupId UNIQUEIDENTIFIER NOT NULL,
-    FOREIGN KEY (ItemGroupId) REFERENCES ItemGroups(Id) ON DELETE CASCADE
+    ReservedFor UNIQUEIDENTIFIER NULL,
+    ReservedBy  UNIQUEIDENTIFIER NULL,
+    FOREIGN KEY (ItemGroupId) REFERENCES ItemGroups(Id) ON DELETE CASCADE,
+    CONSTRAINT CK_Items_Reservation CHECK (
+        (ReservedFor IS NULL AND ReservedBy IS NULL)
+        OR (ReservedFor IS NOT NULL AND ReservedBy IS NOT NULL)
+    )
 );
 
 CREATE TABLE Members (
@@ -139,6 +149,8 @@ CREATE INDEX IX_Members_MemberId_ItemGroupId     ON Members(MemberId, ItemGroupI
 Deleting an `ItemGroup` cascades to both `Items` and `Members`.
 
 Databases created before list settings existed are upgraded in place: the initializer adds the settings columns and `Items.CompletedAt` when `COL_LENGTH` reports them missing. Items that were already complete get `CompletedAt` set to the upgrade time, so nothing is hidden or deleted the moment the upgrade runs. The backfill runs through `EXEC` because SQL Server compiles a batch before running it and would reject a column added in the same batch.
+
+Databases created before reservations existed get `Items.ReservedFor`, `Items.ReservedBy` and the `CK_Items_Reservation` check the same way (the check through `EXEC`, for the same reason). Every existing item starts free.
 
 The settings queries use `IS DISTINCT FROM` and `GREATEST`, which need SQL Server 2022 or later (or Azure SQL).
 
@@ -186,7 +198,9 @@ Items are then grouped in memory. If the first result set is empty the second re
         "description": null,
         "isComplete": false,
         "completedAt": null,
-        "itemGroupId": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        "itemGroupId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        "reservedFor": null,
+        "reservedBy": null
       }
     ],
     "members": [],
@@ -234,7 +248,9 @@ Returns a single item group including **all items** (complete and incomplete) an
       "description": null,
       "isComplete": true,
       "completedAt": "2026-10-19T09:30:00+00:00",
-      "itemGroupId": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+      "itemGroupId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "reservedFor": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "reservedBy": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
     }
   ],
   "members": ["a1b2c3d4-e5f6-7890-abcd-ef1234567890"],
@@ -445,7 +461,9 @@ Creates a new item within the specified item group.
   "description": "2% fat",
   "isComplete": false,
   "completedAt": null,
-  "itemGroupId": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+  "itemGroupId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "reservedFor": null,
+  "reservedBy": null
 }
 ```
 
@@ -494,6 +512,8 @@ Updates the name, description, and/or completion status of an existing item. All
 - Completing an open item sets it to the current time.
 - Saving an item that is already complete (for example, to rename it) keeps the original time, so editing doesn't restart the auto-hide or auto-delete clock.
 - Reopening an item clears it.
+
+`ReservedFor` and `ReservedBy` aren't part of the request either: editing, completing or reopening an item keeps its reservation.
 
 The `ItemUpdated` notification carries the item as stored, which `SqlItemStore.Update` reads back with `OUTPUT`.
 
@@ -590,6 +610,8 @@ Revokes a user's access to an item group. Any member can remove any other member
 
 **Orphan prevention rule:** A group must always have at least one member. Attempting to remove the last member returns `409 Conflict`. The check (in `SqlMembership.RemoveUnlessLast`) is a single query that verifies the group has exactly one member and that member is the target `memberId`. It runs in the same transaction as the delete, after taking an update lock on the group's `ItemGroups` row, so removals from one group take turns. Without the lock, two members removing each other (or themselves) at the same moment could both pass the check and leave the group with no members.
 
+**Reservations end with membership:** removing a member, or leaving, frees every item reserved for them, open and done alike: both `ReservedFor` and `ReservedBy` are cleared in the same transaction as the delete, so no item is ever reserved for someone outside the list. Items they reserved for other members stay reserved for those members. Adding them back later doesn't bring their reservations back. The other members learn about it from `MemberRemoved`; there's no `ItemUpdated` for each freed item.
+
 ---
 
 ## Shared Patterns
@@ -629,7 +651,7 @@ Checklist mutations are broadcast to group members in real time via SignalR.
 | `ItemUpdated`          | `(groupId, item)`     | UpdateItem                                     |
 | `ItemDeleted`          | `(groupId, itemId)`   | DeleteItem                                     |
 | `MemberAdded`          | `(groupId, memberId)` | AddMember                                      |
-| `MemberRemoved`        | `(groupId, memberId)` | RemoveMember                                   |
+| `MemberRemoved`        | `(groupId, memberId)` | RemoveMember. The items reserved for that member are free too |
 | `GroupRenamed`         | `(groupId, name)`     | UpdateItemGroup                                |
 | `GroupSettingsChanged` | `(groupId, settings)` | UpdateItemGroupSettings                        |
 | `GroupDeleted`         | `(groupId)`           | DeleteItemGroup, or auto-delete (no exclusion) |

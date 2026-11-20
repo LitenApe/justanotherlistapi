@@ -61,17 +61,26 @@ internal static class TestHelpers
             ? settings
             : throw new ArgumentException("Settings out of range.", nameof(autoDeleteAfterMinutes));
 
-    /// <summary>Inserts an item; it's complete when it has a <paramref name="completedAt"/>.</summary>
+    /// <summary>
+    /// Inserts an item; it's complete when it has a <paramref name="completedAt"/>, and reserved
+    /// when it has a <paramref name="reservedFor"/>. Without a <paramref name="reservedBy"/>,
+    /// the member reserved it for themselves.
+    /// </summary>
     public static async Task InsertItem(
         this SqlConnection db,
         Guid itemGroupId,
         Guid itemId,
         string name = "Item",
-        DateTimeOffset? completedAt = null
+        DateTimeOffset? completedAt = null,
+        Guid? reservedFor = null,
+        Guid? reservedBy = null
     )
     {
         await db.ExecuteAsync(
-            "INSERT INTO Items (Id, Name, IsComplete, CompletedAt, ItemGroupId) VALUES (@Id, @Name, @IsComplete, @CompletedAt, @ItemGroupId)",
+            """
+            INSERT INTO Items (Id, Name, IsComplete, CompletedAt, ItemGroupId, ReservedFor, ReservedBy)
+            VALUES (@Id, @Name, @IsComplete, @CompletedAt, @ItemGroupId, @ReservedFor, @ReservedBy)
+            """,
             new
             {
                 Id = itemId,
@@ -79,13 +88,18 @@ internal static class TestHelpers
                 IsComplete = completedAt is not null,
                 CompletedAt = completedAt,
                 ItemGroupId = itemGroupId,
+                ReservedFor = reservedFor,
+                ReservedBy = reservedFor is null ? null : reservedBy ?? reservedFor,
             }
         );
     }
 
     public static Task<Item?> LoadItem(this SqlConnection db, Guid itemId) =>
         db.QuerySingleOrDefaultAsync<Item>(
-            "SELECT Id, Name, Description, IsComplete, CompletedAt, ItemGroupId FROM Items WHERE Id = @Id",
+            """
+            SELECT Id, Name, Description, IsComplete, CompletedAt, ItemGroupId, ReservedFor, ReservedBy
+            FROM Items WHERE Id = @Id
+            """,
             new { Id = itemId }
         );
 

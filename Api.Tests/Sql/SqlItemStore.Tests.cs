@@ -74,6 +74,47 @@ public sealed class SqlItemStoreTests
     }
 
     [Fact]
+    public async Task Update_KeepsTheReservation_WhenTheItemIsEditedCompletedOrReopened()
+    {
+        var itemGroupId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        var reservedFor = Guid.NewGuid();
+        var reservedBy = Guid.NewGuid();
+        CancellationToken ct = TestContext.Current.CancellationToken;
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, reservedFor, reservedBy);
+        await db.InsertItem(
+            itemGroupId,
+            itemId,
+            "Tent",
+            reservedFor: reservedFor,
+            reservedBy: reservedBy
+        );
+        var store = new SqlItemStore(db);
+        ItemInput[] editCompleteReopen =
+        [
+            Input("Big tent", false),
+            Input("Big tent", true),
+            Input("Big tent", false),
+        ];
+
+        foreach (ItemInput input in editCompleteReopen)
+        {
+            Item? updated = await store.Update(
+                itemGroupId,
+                itemId,
+                input,
+                DateTimeOffset.UnixEpoch,
+                ct
+            );
+
+            Assert.Equal(reservedFor, updated?.ReservedFor);
+            Assert.Equal(reservedBy, updated?.ReservedBy);
+        }
+        Assert.Equal(reservedFor, (await db.LoadItem(itemId))?.ReservedFor);
+    }
+
+    [Fact]
     public async Task Update_ChangesNothing_WhenTheItemIsInAnotherList()
     {
         var itemGroupId = Guid.NewGuid();
