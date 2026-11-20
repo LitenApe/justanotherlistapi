@@ -59,7 +59,7 @@ Because `Checklist` has no package references, the compiler stops the inside fro
 
 | Folder      | Contents                                                                                                                                                                |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Domain/`   | The records the API and SignalR send (`ItemGroup`, `ItemGroupSettings`, `Item`), `Caller`, and the values use cases take: `Name`, `ItemInput`, `ItemGroupSettingsInput` |
+| `Domain/`   | The records the API and SignalR send (`ItemGroup`, `ItemGroupSettings`, `Item`), `Caller`, the values use cases take (`Name`, `ItemInput`, `ItemGroupSettingsInput`) and the reservation rule (`ReservationChange`) |
 | `Ports/`    | The interfaces the inside needs from the outside: `IMembership`, `IItemGroupStore`, `IItemStore`, `IChecklistNotifier`, `IAuditTrail`                                   |
 | `UseCases/` | One class per operation, in a folder per slice (`ItemGroup`, `Item`, `Member`). Namespace `Checklist.UseCases` for all of them                                          |
 
@@ -71,7 +71,9 @@ The domain records keep their `[Description]` attributes (plain `System.Componen
 
 `Name` is a list or item name. `Name.TryCreate` is the only way to make one and refuses blank names, so a use case can't be handed a blank name: endpoint adapters parse names first and answer 400 when that fails. `ItemInput(Name, Description, IsComplete)` is what a member sets on an item when adding or editing it.
 
-`ItemGroupSettingsInput` is the same idea for a list's settings: `TryCreate` accepts each one off (`null`) or within its range, auto-delete from one day and auto-hide from zero minutes, both up to a year. When the auto-delete countdown starts is up to the store, so the input has no timestamp.
+`ItemGroupSettingsInput` is the same idea for a list's settings: `TryCreate` accepts each one off (`null`) or within its range, auto-delete from one day and auto-hide from zero minutes, both up to a year, and whether reservations are protected. When the auto-delete countdown starts is up to the store, so the input has no timestamp.
+
+`ReservationChange(CallerId, MemberId, Replacing)` is a request to reserve an item for a member, or to cancel its reservation (`MemberId` is `null`). Its `Decide` method holds the reservation rules from [checklist.md](checklist.md#reservations) as plain C#: given who the item is reserved for and by, whether the list protects reservations and whether the member belongs to the list, it returns a `ReservationDecision` (`Unchanged`, `Change`, `Outdated`, `Protected` or `ForNonMember`). It reads no data itself. The store decides with it while holding the list's lock (see [SQL Server](#sql-server)), so the rule lives inside the hexagon and the guarantee that nothing changes in between lives in the adapter.
 
 ### Ports
 
@@ -81,7 +83,7 @@ Each port is named after what the inside needs, and each method covers one atomi
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
 | `IMembership`        | `IsMember`, `ListMembers`, `Add` (false if already a member), `RemoveUnlessLast` (false for the last member; frees the items reserved for them)   | `SqlMembership`               |
 | `IItemGroupStore`    | `Create` (with its first member), `Load`, `ListForMember`, `Rename`, `UpdateSettings` (returns them as stored), `Delete`, `DeleteDueForAutoDelete` | `SqlItemGroupStore`           |
-| `IItemStore`         | `Create`, `Update` (returns the item as stored, `null` when it's gone), `Delete`; items in other lists are left alone                              | `SqlItemStore`                |
+| `IItemStore`         | `Create`, `Update` (returns the item as stored, `null` when it's gone), `Delete`, `ChangeReservation` (decides with `ReservationChange.Decide`, returns a `ReservationResult`); items in other lists are left alone | `SqlItemStore`                |
 | `IChecklistNotifier` | `NotifyItemCreated` … `NotifyGroupDeleted`, each with the connection to leave out                                                                  | `ChecklistNotifier` (SignalR) |
 | `IAuditTrail`        | `ItemGroupAutoDeleted`: audit entries that no request is behind                                                                                    | `AuditTrail` (audit log)      |
 
@@ -154,8 +156,9 @@ SQL adapters in `Api/Sql/` implement the ports with Dapper, always through `Comm
 - `SqlItemGroupStore.Create` inserts the list and its first member in one transaction, so a list never exists without a member.
 - `SqlItemGroupStore.UpdateSettings` compares the stored auto-delete delay as it writes (`IS DISTINCT FROM`), so only a real change restarts the countdown.
 - `SqlItemGroupStore.DeleteDueForAutoDelete` is one `DELETE … OUTPUT` statement. When several app instances run auto-delete at once, each list is deleted, and so audited and announced, by one of them only.
+- `SqlItemStore.ChangeReservation` first takes an update lock on the list's `ItemGroups` row, the same lock `RemoveUnlessLast` takes first and a settings change waits for. Under it, it reads the item's reservation (`UPDLOCK`), the `ProtectReservations` setting and whether the member belongs to the list, asks `ReservationChange.Decide`, and writes only a `Change`. Reservation changes, removals and settings changes in one list therefore take turns, always locking in the same order, so two members can't both claim a free item and nothing gets reserved for a member who is being removed.
 
-Moving such rules into C# would mean loading, changing and saving a row, with optimistic concurrency on top: more code and more round trips for the same behavior. So the domain stays thin.
+Moving such rules into C# would mean loading, changing and saving a row, with optimistic concurrency on top: more code and more round trips for the same behavior. So the domain stays thin. The exception is a rule with several inputs and outcomes, like who may change a reservation: it's clearer as C# in the domain, which the adapter calls inside its transaction, while holding its locks.
 
 ### Realtime
 
@@ -180,6 +183,8 @@ Moving such rules into C# would mean loading, changing and saving a row, with op
 | A list always keeps at least one member                                 | `SqlMembership.RemoveUnlessLast` (locked transaction)               |
 | Leaving or being removed frees the items reserved for that member       | `SqlMembership.RemoveUnlessLast` (the same transaction)             |
 | A reservation names both who it's for and who made it, or neither       | `CK_Items_Reservation`, a check constraint on `Items`               |
+| Who may reserve, take over or cancel a reservation                      | `ReservationChange.Decide`                                          |
+| A reservation change acts on the reservation the caller saw, and alone  | `SqlItemStore.ChangeReservation` (locked transaction)               |
 | A user is a member at most once                                         | `SqlMembership.Add` (one conditional insert)                        |
 | Names aren't blank                                                      | `Name.TryCreate`, which endpoint adapters call before anything else |
 | Settings stay in range                                                  | `ItemGroupSettingsInput.TryCreate`, likewise                        |
@@ -199,7 +204,7 @@ All backend tests run against a real SQL Server (Testcontainers). There are no i
 
 | Kind                  | Where                                              | What it covers                                                                                                                                                                                                                                                      |
 | --------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Domain tests          | `Api.Tests/Checklist/Domain/`                      | Domain values such as `Name`, without a database                                                                                                                                                                                                                    |
+| Domain tests          | `Api.Tests/Checklist/Domain/`                      | Domain values such as `Name`, and rules such as `ReservationChange.Decide`, without a database                                                                                                                                                                     |
 | Use-case tests        | `Api.Tests/Checklist/<Slice>/<Operation>.Tests.cs` | The use case built with the real SQL adapters on a `TestDatabase` connection, `CapturingNotifier` and, when the time matters, `FixedTimeProvider`: outcome, stored data, notifications                                                                              |
 | SQL adapter tests     | `Api.Tests/Sql/`                                   | One port method at a time, including the rules in the table above                                                                                                                                                                                                   |
 | Adapter helpers       | `Api.Tests/Http/`                                  | Small pieces of the HTTP adapter, such as `ToCaller`                                                                                                                                                                                                                |
@@ -207,7 +212,7 @@ All backend tests run against a real SQL Server (Testcontainers). There are no i
 | Architecture tests    | `Api.Tests/Architecture.Tests.cs`                  | The dependency rules: `Checklist` references nothing but .NET, use cases take only ports and `TimeProvider`, and the driving adapters (`Api.Http`, `Api.Realtime`, `Api.Background`) take no port, SQL adapter or connection, so they can only go through use cases |
 | Composition root test | `Api.Tests/CompositionRoot.Tests.cs`               | The app's own container builds every use case                                                                                                                                                                                                                       |
 
-`TestHelpers` arranges and checks data (`InsertItemGroup`, `InsertItem`, `SetItemGroupSettings`, `LoadItemGroupName`, `LoadSettings`, `LoadMembers`, `LoadItem`, `CountItems`) and makes domain values with `ValidName` and `ValidSettings`.
+`TestHelpers` arranges and checks data (`InsertItemGroup`, `InsertItem`, which can reserve the item too, `SetItemGroupSettings`, `LoadItemGroupName`, `LoadSettings`, `LoadMembers`, `LoadItem`, `CountItems`) and makes domain values with `ValidName` and `ValidSettings`.
 
 ---
 

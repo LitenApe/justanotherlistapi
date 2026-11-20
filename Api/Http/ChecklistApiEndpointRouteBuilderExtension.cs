@@ -24,6 +24,8 @@ public static class ChecklistApiEndpointRouteBuilderExtension
         CreateItemEndpoint.MapEndpoint(checklistGroup);
         UpdateItemEndpoint.MapEndpoint(checklistGroup);
         DeleteItemEndpoint.MapEndpoint(checklistGroup);
+        ReserveItemEndpoint.MapEndpoint(checklistGroup);
+        UnreserveItemEndpoint.MapEndpoint(checklistGroup);
 
         // Member
         GetMembersEndpoint.MapEndpoint(checklistGroup);

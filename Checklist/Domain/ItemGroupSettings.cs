@@ -24,4 +24,9 @@ public sealed record ItemGroupSettings
         "When AutoDeleteAfterMinutes last changed. The auto-delete countdown never starts before this time"
     )]
     public DateTimeOffset? AutoDeleteUpdatedAt { get; init; }
+
+    [Description(
+        "Whether only the member an item is reserved for, and whoever reserved it, can change or cancel the reservation. When false, any member can"
+    )]
+    public bool ProtectReservations { get; init; }
 }

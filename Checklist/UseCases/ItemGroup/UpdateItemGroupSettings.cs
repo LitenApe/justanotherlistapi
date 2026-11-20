@@ -3,7 +3,7 @@ using Checklist.Ports;
 
 namespace Checklist.UseCases;
 
-/// <summary>Replaces a list's auto-delete and auto-hide settings.</summary>
+/// <summary>Replaces a list's settings: auto-delete, auto-hide and protecting reservations.</summary>
 public sealed class UpdateItemGroupSettings(
     IMembership membership,
     IItemGroupStore itemGroups,
@@ -38,6 +38,7 @@ public sealed class UpdateItemGroupSettings(
             {
                 AutoDeleteAfterMinutes = input.AutoDeleteAfterMinutes,
                 HideCompletedAfterMinutes = input.HideCompletedAfterMinutes,
+                ProtectReservations = input.ProtectReservations,
             };
         await notifier.NotifyGroupSettingsChanged(itemGroupId, settings, caller.ConnectionId);
         return settings;

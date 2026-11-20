@@ -37,6 +37,8 @@ internal static class ChecklistServiceCollectionExtensions
         services.AddScoped<CreateItem>();
         services.AddScoped<UpdateItem>();
         services.AddScoped<DeleteItem>();
+        services.AddScoped<ReserveItem>();
+        services.AddScoped<UnreserveItem>();
 
         return services;
     }

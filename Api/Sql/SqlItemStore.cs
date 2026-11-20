@@ -75,4 +75,107 @@ internal sealed class SqlItemStore(IDbConnection db) : IItemStore
             )
         );
     }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// One transaction that first takes an update lock on the list's <c>ItemGroups</c> row, the
+    /// lock <see cref="SqlMembership.RemoveUnlessLast"/> takes first too. So reservation
+    /// changes, removals and settings changes in one list take turns, always locking in the same
+    /// order, and <see cref="ReservationChange.Decide"/> sees the reservation, the member and
+    /// the setting as they stay until the change is written.
+    /// </remarks>
+    public async Task<ReservationResult> ChangeReservation(
+        Guid itemGroupId,
+        Guid itemId,
+        ReservationChange change,
+        CancellationToken ct
+    )
+    {
+        // Dapper opens connections per command, but a transaction needs one that is already open.
+        if (db.State != ConnectionState.Open)
+        {
+            db.Open();
+        }
+
+        using IDbTransaction tx = db.BeginTransaction();
+
+        ReservationState? state = await db.QuerySingleOrDefaultAsync<ReservationState>(
+            new CommandDefinition(
+                """
+                DECLARE @ProtectReservations BIT;
+                SELECT @ProtectReservations = ProtectReservations
+                FROM ItemGroups WITH (UPDLOCK) WHERE Id = @ItemGroupId;
+
+                SELECT i.ReservedFor, i.ReservedBy, @ProtectReservations AS ProtectReservations,
+                    CAST(CASE WHEN EXISTS (
+                        SELECT 1 FROM Members m
+                        WHERE m.ItemGroupId = @ItemGroupId AND m.MemberId = @MemberId
+                    ) THEN 1 ELSE 0 END AS BIT) AS MemberBelongs
+                FROM Items i WITH (UPDLOCK)
+                WHERE i.Id = @ItemId AND i.ItemGroupId = @ItemGroupId;
+                """,
+                new
+                {
+                    ItemGroupId = itemGroupId,
+                    ItemId = itemId,
+                    change.MemberId,
+                },
+                transaction: tx,
+                cancellationToken: ct
+            )
+        );
+        if (state is null)
+        {
+            return new ReservationResult(ReservationDecision.Unchanged, Item: null);
+        }
+
+        ReservationDecision decision = change.Decide(
+            state.ReservedFor,
+            state.ReservedBy,
+            state.ProtectReservations,
+            state.MemberBelongs
+        );
+        if (decision != ReservationDecision.Change)
+        {
+            return new ReservationResult(decision, Item: null);
+        }
+
+        Item item = await db.QuerySingleAsync<Item>(
+            new CommandDefinition(
+                """
+                UPDATE Items
+                SET ReservedFor = @MemberId,
+                    ReservedBy = CASE WHEN @MemberId IS NULL THEN NULL ELSE @CallerId END
+                OUTPUT INSERTED.Id, INSERTED.Name, INSERTED.Description, INSERTED.IsComplete,
+                    INSERTED.CompletedAt, INSERTED.ItemGroupId, INSERTED.ReservedFor,
+                    INSERTED.ReservedBy
+                WHERE Id = @ItemId AND ItemGroupId = @ItemGroupId
+                """,
+                new
+                {
+                    ItemGroupId = itemGroupId,
+                    ItemId = itemId,
+                    change.MemberId,
+                    change.CallerId,
+                },
+                transaction: tx,
+                cancellationToken: ct
+            )
+        );
+
+        tx.Commit();
+        return new ReservationResult(decision, item);
+    }
+
+    /// <summary>What <see cref="ReservationChange.Decide"/> needs to know, read under the lock.</summary>
+    private sealed record ReservationState
+    {
+        public Guid? ReservedFor { get; init; }
+
+        public Guid? ReservedBy { get; init; }
+
+        public bool ProtectReservations { get; init; }
+
+        public bool MemberBelongs { get; init; }
+    }
 }

@@ -150,7 +150,7 @@ CREATE TABLE AuditLog (
 | `Operation` | Name of the operation. Matches the `.WithName()` value set on the endpoint, ensuring this is a stable compile-time identifier (e.g. `"CreateItemGroup"`). The special value `"AuthenticationFailed"` is used for JWT failures. |
 | `ResourceId` | Primary resource GUID. For all Checklist operations this is `itemGroupId`. NULL for `GetItemGroups` and auth events. |
 | `SubResourceId` | Secondary resource GUID. Populated only for Item operations where both `itemGroupId` and `itemId` are relevant. NULL for all other operations. |
-| `TargetUserId` | GUID of the user being affected by the operation. Populated only for `AddMember` and `RemoveMember`. NULL for all other operations. |
+| `TargetUserId` | GUID of the user being affected by the operation. Populated only for `AddMember`, `RemoveMember`, `ReserveItem` and `UnreserveItem`. NULL for all other operations. |
 | `Outcome` | Result string — see values below. |
 | `FailureReason` | Human-readable reason for failure. Populated for `AuthenticationFailed` (the JWT exception message) and `MissingClaim` (the fixed string `"Required user identifier claim is missing."`). NULL for all other outcomes. |
 
@@ -171,7 +171,7 @@ CREATE TABLE AuditLog (
 | `MissingClaim` | 401 | JWT was valid but the `sub`/`NameIdentifier` claim is absent |
 | `Forbidden` | 403 | Authenticated user is not a member of the target group |
 | `NotFound` | 404 | Resource does not exist |
-| `Conflict` | 409 | Duplicate member or attempt to remove the last member of a group |
+| `Conflict` | 409 | Duplicate member, attempt to remove the last member of a group, or a reservation change the rules refused (out of date, protected, or for a non-member) |
 | `AuthenticationFailed` | 401 | Bearer token was presented but rejected by JWT middleware |
 | `Unknown` | other | Unrecognised status code — should not occur in normal operation |
 
@@ -218,6 +218,8 @@ Audit rows are stored indefinitely. Deletion is a manual administrative action o
 | `CreateItem` | `'Item'` | `itemGroupId` | `itemId` (set by handler after insert) | NULL |
 | `UpdateItem` | `'Item'` | `itemGroupId` | `itemId` | NULL |
 | `DeleteItem` | `'Item'` | `itemGroupId` | `itemId` | NULL |
+| `ReserveItem` | `'Item'` | `itemGroupId` | `itemId` | `memberId` from the body: who the item is to be reserved for |
+| `UnreserveItem` | `'Item'` | `itemGroupId` | `itemId` | `memberId` from the query: who the caller saw the item reserved for |
 
 ### Checklist — Member
 
@@ -362,6 +364,8 @@ public sealed class AuditContext
 | `CreateItemEndpoint` | `SubResourceId` | The `CreateItem` use case generates the new item's ID. The `itemGroupId` is a route value but the item's ID is not. |
 | `AddMemberEndpoint` | `TargetUserId` | The `memberId` route value identifies the user being added. |
 | `RemoveMemberEndpoint` | `TargetUserId` | Same as `AddMemberEndpoint`. |
+| `ReserveItemEndpoint` | `TargetUserId` | The `memberId` in the request body identifies the member the item is reserved for. |
+| `UnreserveItemEndpoint` | `TargetUserId` | The `memberId` query parameter identifies the member whose reservation is cancelled. |
 
 **Endpoint adapters that do not take `AuditContext`** — `GetItemGroupsEndpoint`, `GetItemGroupEndpoint`, `UpdateItemGroupEndpoint`, `UpdateItemGroupSettingsEndpoint`, `DeleteItemGroupEndpoint`, `UpdateItemEndpoint`, `DeleteItemEndpoint`, `GetMembersEndpoint`. The filter resolves all needed context for these handlers from route values or HTTP context without handler cooperation.
 
@@ -484,7 +488,7 @@ For handlers where all context (IDs, user) is already in route values, `AuditCon
 
 **4. Add the endpoint to `auditedEndpoints` in `AuditLog.Http.Tests.cs`**
 
-`AuditedEndpoints_CoverEveryChecklistEndpoint` fails until every endpoint under `/api/list` is listed there. `EveryEndpoint_CapturesItsOperationResourceTypeAndRouteIds` then checks that its entry carries the expected operation name, resource type and route IDs. Operation names are stored in `AuditLog.Operation`, so never rename an existing one: old rows would no longer match.
+`AuditedEndpoints_CoverEveryChecklistEndpoint` fails until every endpoint under `/api/list` is listed there. `EveryEndpoint_CapturesItsOperationResourceTypeAndRouteIds` then checks that its entry carries the expected operation name, resource type and the IDs in its request (route, query or body). Operation names are stored in `AuditLog.Operation`, so never rename an existing one: old rows would no longer match.
 
 ---
 
