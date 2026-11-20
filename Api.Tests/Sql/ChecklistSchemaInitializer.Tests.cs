@@ -84,4 +84,86 @@ public sealed class ChecklistSchemaInitializerTests
             )
         );
     }
+
+    [Fact]
+    public async Task CreateSchemaAsync_AddsReservationColumns_ToDatabasesCreatedBeforeThem()
+    {
+        // Arrange: the schema as it was before reservations existed.
+        await using SqlConnection db = await TestDatabase.CreateEmptyAsync();
+        await db.ExecuteAsync(
+            """
+            CREATE TABLE ItemGroups (
+                Id                        UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+                Name                      NVARCHAR(MAX)    NOT NULL,
+                AutoDeleteAfterMinutes    INT              NULL,
+                HideCompletedAfterMinutes INT              NULL,
+                AutoDeleteUpdatedAt       DATETIMEOFFSET   NULL
+            );
+            CREATE TABLE Items (
+                Id          UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+                Name        NVARCHAR(MAX)    NOT NULL,
+                Description NVARCHAR(MAX)    NULL,
+                IsComplete  BIT              NOT NULL DEFAULT 0,
+                CompletedAt DATETIMEOFFSET   NULL,
+                ItemGroupId UNIQUEIDENTIFIER NOT NULL,
+                FOREIGN KEY (ItemGroupId) REFERENCES ItemGroups(Id) ON DELETE CASCADE
+            );
+            """
+        );
+        var groupId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        await db.ExecuteAsync(
+            """
+            INSERT INTO ItemGroups (Id, Name) VALUES (@GroupId, 'Old list');
+            INSERT INTO Items (Id, Name, ItemGroupId) VALUES (@ItemId, 'Tent', @GroupId);
+            """,
+            new { GroupId = groupId, ItemId = itemId }
+        );
+
+        // Act: run twice to confirm the upgrade is idempotent.
+        await ChecklistSchemaInitializer.CreateSchemaAsync(
+            db,
+            TestContext.Current.CancellationToken
+        );
+        await ChecklistSchemaInitializer.CreateSchemaAsync(
+            db,
+            TestContext.Current.CancellationToken
+        );
+
+        // Assert: existing items start free, and reservations are kept whole.
+        Item? item = await db.LoadItem(itemId);
+        Assert.NotNull(item);
+        Assert.Null(item.ReservedFor);
+        Assert.Null(item.ReservedBy);
+        await AssertRejectsHalfAReservation(db, itemId);
+    }
+
+    [Fact]
+    public async Task CreateSchemaAsync_KeepsReservationsWhole()
+    {
+        var itemGroupId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId);
+        await db.InsertItem(itemGroupId, itemId);
+
+        await AssertRejectsHalfAReservation(db, itemId);
+    }
+
+    /// <summary>An item is reserved for someone by someone, or free: never one without the other.</summary>
+    private static async Task AssertRejectsHalfAReservation(SqlConnection db, Guid itemId)
+    {
+        string[] halves =
+        [
+            "UPDATE Items SET ReservedFor = NEWID() WHERE Id = @Id",
+            "UPDATE Items SET ReservedBy = NEWID() WHERE Id = @Id",
+        ];
+        foreach (string half in halves)
+        {
+            SqlException error = await Assert.ThrowsAsync<SqlException>(() =>
+                db.ExecuteAsync(half, new { Id = itemId })
+            );
+            Assert.Contains("CK_Items_Reservation", error.Message, StringComparison.Ordinal);
+        }
+    }
 }

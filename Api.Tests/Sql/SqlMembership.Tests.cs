@@ -1,4 +1,5 @@
 using Api.Sql;
+using Checklist.Domain;
 using Microsoft.Data.SqlClient;
 
 namespace Api.Tests.Sql;
@@ -69,6 +70,81 @@ public sealed class SqlMembershipTests
 
         Assert.True(removed);
         Assert.Equal(otherMemberId, Assert.Single(await db.LoadMembers(itemGroupId)));
+    }
+
+    [Fact]
+    public async Task RemoveUnlessLast_FreesTheItemsReservedForTheMember_AndNothingElse()
+    {
+        var itemGroupId = Guid.NewGuid();
+        var otherGroupId = Guid.NewGuid();
+        var memberId = Guid.NewGuid();
+        var otherMemberId = Guid.NewGuid();
+        var theirOwn = Guid.NewGuid();
+        var givenToThem = Guid.NewGuid();
+        var givenByThem = Guid.NewGuid();
+        var inOtherList = Guid.NewGuid();
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, memberId, otherMemberId);
+        await db.InsertItemGroup(otherGroupId, memberId, otherMemberId);
+        await db.InsertItem(itemGroupId, theirOwn, reservedFor: memberId);
+        await db.InsertItem(
+            itemGroupId,
+            givenToThem,
+            completedAt: DateTimeOffset.UnixEpoch,
+            reservedFor: memberId,
+            reservedBy: otherMemberId
+        );
+        await db.InsertItem(
+            itemGroupId,
+            givenByThem,
+            reservedFor: otherMemberId,
+            reservedBy: memberId
+        );
+        await db.InsertItem(otherGroupId, inOtherList, reservedFor: memberId);
+
+        bool removed = await new SqlMembership(db).RemoveUnlessLast(
+            itemGroupId,
+            memberId,
+            TestContext.Current.CancellationToken
+        );
+
+        // Open and done items alike are free again.
+        Assert.True(removed);
+        foreach (Guid freed in new[] { theirOwn, givenToThem })
+        {
+            Item? item = await db.LoadItem(freed);
+            Assert.NotNull(item);
+            Assert.Null(item.ReservedFor);
+            Assert.Null(item.ReservedBy);
+        }
+
+        // What they reserved for someone else stays reserved for that person.
+        Item? kept = await db.LoadItem(givenByThem);
+        Assert.Equal(otherMemberId, kept?.ReservedFor);
+        Assert.Equal(memberId, kept?.ReservedBy);
+
+        // They're still a member of the other list, so their reservation there stays.
+        Assert.Equal(memberId, (await db.LoadItem(inOtherList))?.ReservedFor);
+    }
+
+    [Fact]
+    public async Task RemoveUnlessLast_KeepsTheirReservations_WhenItRefusesToRemoveTheLastMember()
+    {
+        var itemGroupId = Guid.NewGuid();
+        var memberId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, memberId);
+        await db.InsertItem(itemGroupId, itemId, reservedFor: memberId);
+
+        bool removed = await new SqlMembership(db).RemoveUnlessLast(
+            itemGroupId,
+            memberId,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.False(removed);
+        Assert.Equal(memberId, (await db.LoadItem(itemId))?.ReservedFor);
     }
 
     [Fact]

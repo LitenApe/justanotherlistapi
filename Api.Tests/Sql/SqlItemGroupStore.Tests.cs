@@ -61,7 +61,7 @@ public sealed class SqlItemGroupStoreTests
         await using SqlConnection db = await TestDatabase.CreateAsync();
         await db.InsertItemGroup(itemGroupId, memberId);
         await db.SetItemGroupSettings(itemGroupId, settings);
-        await db.InsertItem(itemGroupId, itemId, "Milk", completedAt: now);
+        await db.InsertItem(itemGroupId, itemId, "Milk", completedAt: now, reservedFor: memberId);
 
         ItemGroup? itemGroup = await new SqlItemGroupStore(db).Load(
             itemGroupId,
@@ -71,9 +71,44 @@ public sealed class SqlItemGroupStoreTests
         Assert.NotNull(itemGroup);
         Assert.Equal(itemGroupId, itemGroup.Id);
         Assert.Equal("Group", itemGroup.Name);
-        Assert.Equal(await db.LoadItem(itemId), Assert.Single(itemGroup.Items));
+        Item item = Assert.Single(itemGroup.Items);
+        Assert.Equal(await db.LoadItem(itemId), item);
+        Assert.Equal(memberId, item.ReservedFor);
+        Assert.Equal(memberId, item.ReservedBy);
         Assert.Equal(memberId, Assert.Single(itemGroup.Members));
         Assert.Equal(settings, itemGroup.Settings);
+    }
+
+    [Fact]
+    public async Task ListForMember_ReturnsTheirLists_WithOpenItemsAndTheirReservations()
+    {
+        var itemGroupId = Guid.NewGuid();
+        var memberId = Guid.NewGuid();
+        var otherMemberId = Guid.NewGuid();
+        var openId = Guid.NewGuid();
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, memberId, otherMemberId);
+        await db.InsertItemGroup(Guid.NewGuid(), otherMemberId);
+        await db.InsertItem(
+            itemGroupId,
+            openId,
+            "Tent",
+            reservedFor: otherMemberId,
+            reservedBy: memberId
+        );
+        await db.InsertItem(itemGroupId, Guid.NewGuid(), "Stove", completedAt: now);
+
+        IReadOnlyList<ItemGroup> lists = await new SqlItemGroupStore(db).ListForMember(
+            memberId,
+            TestContext.Current.CancellationToken
+        );
+
+        ItemGroup list = Assert.Single(lists);
+        Assert.Equal(itemGroupId, list.Id);
+        Item open = Assert.Single(list.Items);
+        Assert.Equal(await db.LoadItem(openId), open);
+        Assert.Equal(otherMemberId, open.ReservedFor);
+        Assert.Equal(memberId, open.ReservedBy);
     }
 
     [Fact]

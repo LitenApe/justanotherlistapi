@@ -61,10 +61,11 @@ internal sealed class SqlMembership(IDbConnection db) : IMembership
 
     /// <inheritdoc/>
     /// <remarks>
-    /// The check and the delete share a transaction that first takes an update lock on the
-    /// list's <c>ItemGroups</c> row, so removals from one list take turns. Without it, two
-    /// members removing each other (or themselves) at the same moment could both pass the check
-    /// and leave the list with no members.
+    /// The check, the delete and freeing the member's items share a transaction that first
+    /// takes an update lock on the list's <c>ItemGroups</c> row, so removals from one list take
+    /// turns. Without it, two members removing each other (or themselves) at the same moment
+    /// could both pass the check and leave the list with no members. Freeing the items in the
+    /// same transaction means no item is ever reserved for someone outside the list.
     /// </remarks>
     public async Task<bool> RemoveUnlessLast(Guid itemGroupId, Guid memberId, CancellationToken ct)
     {
@@ -100,7 +101,12 @@ internal sealed class SqlMembership(IDbConnection db) : IMembership
 
         await db.ExecuteAsync(
             new CommandDefinition(
-                "DELETE FROM Members WHERE MemberId = @MemberId AND ItemGroupId = @ItemGroupId",
+                """
+                DELETE FROM Members WHERE MemberId = @MemberId AND ItemGroupId = @ItemGroupId;
+
+                UPDATE Items SET ReservedFor = NULL, ReservedBy = NULL
+                WHERE ItemGroupId = @ItemGroupId AND ReservedFor = @MemberId;
+                """,
                 new { MemberId = memberId, ItemGroupId = itemGroupId },
                 transaction: tx,
                 cancellationToken: ct

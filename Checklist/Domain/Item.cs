@@ -21,4 +21,12 @@ public sealed record Item
 
     [Description("Identifier of the item group this item belongs to")]
     public required Guid ItemGroupId { get; init; }
+
+    [Description("The member who will do the item, or null while nobody has reserved it")]
+    public Guid? ReservedFor { get; init; }
+
+    [Description(
+        "The member who reserved the item, the same as reservedFor when members reserve items for themselves. Null while nobody has reserved it"
+    )]
+    public Guid? ReservedBy { get; init; }
 }
