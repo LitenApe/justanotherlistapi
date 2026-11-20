@@ -48,14 +48,16 @@ internal static class TestHelpers
             ? name
             : throw new ArgumentException("Names can't be blank.", nameof(value));
 
-    /// <summary>An <see cref="ItemGroupSettingsInput"/> for arranging tests; both must be in range.</summary>
+    /// <summary>An <see cref="ItemGroupSettingsInput"/> for arranging tests; both delays must be in range.</summary>
     public static ItemGroupSettingsInput ValidSettings(
         int? autoDeleteAfterMinutes,
-        int? hideCompletedAfterMinutes
+        int? hideCompletedAfterMinutes,
+        bool protectReservations = false
     ) =>
         ItemGroupSettingsInput.TryCreate(
             autoDeleteAfterMinutes,
             hideCompletedAfterMinutes,
+            protectReservations,
             out ItemGroupSettingsInput? settings
         )
             ? settings
@@ -114,7 +116,8 @@ internal static class TestHelpers
             UPDATE ItemGroups
             SET AutoDeleteAfterMinutes = @AutoDeleteAfterMinutes,
                 HideCompletedAfterMinutes = @HideCompletedAfterMinutes,
-                AutoDeleteUpdatedAt = @AutoDeleteUpdatedAt
+                AutoDeleteUpdatedAt = @AutoDeleteUpdatedAt,
+                ProtectReservations = @ProtectReservations
             WHERE Id = @Id
             """,
             new
@@ -123,6 +126,7 @@ internal static class TestHelpers
                 settings.AutoDeleteAfterMinutes,
                 settings.HideCompletedAfterMinutes,
                 settings.AutoDeleteUpdatedAt,
+                settings.ProtectReservations,
             }
         );
 
@@ -135,7 +139,10 @@ internal static class TestHelpers
 
     public static Task<ItemGroupSettings?> LoadSettings(this SqlConnection db, Guid itemGroupId) =>
         db.QuerySingleOrDefaultAsync<ItemGroupSettings>(
-            "SELECT AutoDeleteAfterMinutes, HideCompletedAfterMinutes, AutoDeleteUpdatedAt FROM ItemGroups WHERE Id = @Id",
+            """
+            SELECT AutoDeleteAfterMinutes, HideCompletedAfterMinutes, AutoDeleteUpdatedAt, ProtectReservations
+            FROM ItemGroups WHERE Id = @Id
+            """,
             new { Id = itemGroupId }
         );
 

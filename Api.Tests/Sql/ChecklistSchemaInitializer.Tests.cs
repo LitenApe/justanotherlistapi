@@ -61,11 +61,7 @@ public sealed class ChecklistSchemaInitializerTests
         );
 
         // Assert: settings default to off, and completed items start their clock now.
-        ItemGroupSettings settings = await db.QuerySingleAsync<ItemGroupSettings>(
-            "SELECT AutoDeleteAfterMinutes, HideCompletedAfterMinutes, AutoDeleteUpdatedAt FROM ItemGroups WHERE Id = @Id",
-            new { Id = groupId }
-        );
-        Assert.Equal(new ItemGroupSettings(), settings);
+        Assert.Equal(new ItemGroupSettings(), await db.LoadSettings(groupId));
 
         DateTimeOffset? doneAt = await db.ExecuteScalarAsync<DateTimeOffset?>(
             "SELECT CompletedAt FROM Items WHERE Id = @Id",
@@ -130,12 +126,14 @@ public sealed class ChecklistSchemaInitializerTests
             TestContext.Current.CancellationToken
         );
 
-        // Assert: existing items start free, and reservations are kept whole.
+        // Assert: existing items start free, reservations are kept whole, and lists don't
+        // protect them.
         Item? item = await db.LoadItem(itemId);
         Assert.NotNull(item);
         Assert.Null(item.ReservedFor);
         Assert.Null(item.ReservedBy);
         await AssertRejectsHalfAReservation(db, itemId);
+        Assert.False((await db.LoadSettings(groupId))?.ProtectReservations);
     }
 
     [Fact]

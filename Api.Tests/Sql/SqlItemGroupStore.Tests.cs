@@ -57,6 +57,7 @@ public sealed class SqlItemGroupStoreTests
             AutoDeleteAfterMinutes = OneDay,
             HideCompletedAfterMinutes = 30,
             AutoDeleteUpdatedAt = now,
+            ProtectReservations = true,
         };
         await using SqlConnection db = await TestDatabase.CreateAsync();
         await db.InsertItemGroup(itemGroupId, memberId);
@@ -122,6 +123,29 @@ public sealed class SqlItemGroupStoreTests
                 TestContext.Current.CancellationToken
             )
         );
+    }
+
+    [Fact]
+    public async Task UpdateSettings_StoresWhetherReservationsAreProtected()
+    {
+        var itemGroupId = Guid.NewGuid();
+        CancellationToken ct = TestContext.Current.CancellationToken;
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId);
+        var store = new SqlItemGroupStore(db);
+
+        foreach (bool protect in new[] { true, false })
+        {
+            ItemGroupSettings? stored = await store.UpdateSettings(
+                itemGroupId,
+                TestHelpers.ValidSettings(null, null, protect),
+                now,
+                ct
+            );
+
+            Assert.Equal(protect, stored?.ProtectReservations);
+            Assert.Equal(stored, await db.LoadSettings(itemGroupId));
+        }
     }
 
     [Fact]

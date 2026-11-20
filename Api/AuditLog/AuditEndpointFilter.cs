@@ -20,6 +20,8 @@ internal sealed partial class AuditEndpointFilter(
         [CreateItemEndpoint.Operation] = "Item",
         [UpdateItemEndpoint.Operation] = "Item",
         [DeleteItemEndpoint.Operation] = "Item",
+        [ReserveItemEndpoint.Operation] = "Item",
+        [UnreserveItemEndpoint.Operation] = "Item",
         [GetMembersEndpoint.Operation] = "ItemGroup",
         [AddMemberEndpoint.Operation] = "ItemGroup",
         [RemoveMemberEndpoint.Operation] = "ItemGroup",

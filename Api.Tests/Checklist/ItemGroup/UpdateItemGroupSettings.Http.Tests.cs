@@ -14,7 +14,12 @@ public sealed class UpdateItemGroupSettingsHttpTests(ApiFactory factory) : IClas
 
         HttpResponseMessage response = await client.PutAsJsonAsync(
             $"/api/list/{itemGroupId}/settings",
-            new { AutoDeleteAfterMinutes = 1440, HideCompletedAfterMinutes = 0 },
+            new
+            {
+                AutoDeleteAfterMinutes = 1440,
+                HideCompletedAfterMinutes = 0,
+                ProtectReservations = true,
+            },
             TestContext.Current.CancellationToken
         );
 
@@ -26,6 +31,29 @@ public sealed class UpdateItemGroupSettingsHttpTests(ApiFactory factory) : IClas
         Assert.Equal(1440, settings.AutoDeleteAfterMinutes);
         Assert.Equal(0, settings.HideCompletedAfterMinutes);
         Assert.NotNull(settings.AutoDeleteUpdatedAt);
+        Assert.True(settings.ProtectReservations);
+    }
+
+    // The request replaces every setting, so leaving one out turns it off.
+    [Fact]
+    public async Task MapEndpoint_StopsProtectingReservations_WhenTheRequestLeavesItOut()
+    {
+        Guid itemGroupId = await InsertGroupWithTestUser();
+        await factory.Connection.SetItemGroupSettings(
+            itemGroupId,
+            new ItemGroupSettings { ProtectReservations = true }
+        );
+
+        HttpResponseMessage response = await factory
+            .CreateClient()
+            .PutAsJsonAsync(
+                $"/api/list/{itemGroupId}/settings",
+                new { HideCompletedAfterMinutes = 60 },
+                TestContext.Current.CancellationToken
+            );
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False((await factory.Connection.LoadSettings(itemGroupId))?.ProtectReservations);
     }
 
     [Fact]

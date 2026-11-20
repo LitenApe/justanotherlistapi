@@ -48,7 +48,8 @@ internal sealed class SqlItemGroupStore(IDbConnection db) : IItemGroupStore
         await using SqlMapper.GridReader multi = await db.QueryMultipleAsync(
             new CommandDefinition(
                 """
-                SELECT Id, Name, AutoDeleteAfterMinutes, HideCompletedAfterMinutes, AutoDeleteUpdatedAt
+                SELECT Id, Name, AutoDeleteAfterMinutes, HideCompletedAfterMinutes, AutoDeleteUpdatedAt,
+                    ProtectReservations
                 FROM ItemGroups WHERE Id = @Id;
                 SELECT Id, Name, Description, IsComplete, CompletedAt, ItemGroupId, ReservedFor, ReservedBy
                 FROM Items WHERE ItemGroupId = @Id;
@@ -80,7 +81,8 @@ internal sealed class SqlItemGroupStore(IDbConnection db) : IItemGroupStore
         await using SqlMapper.GridReader multi = await db.QueryMultipleAsync(
             new CommandDefinition(
                 """
-                SELECT ig.Id, ig.Name, ig.AutoDeleteAfterMinutes, ig.HideCompletedAfterMinutes, ig.AutoDeleteUpdatedAt
+                SELECT ig.Id, ig.Name, ig.AutoDeleteAfterMinutes, ig.HideCompletedAfterMinutes, ig.AutoDeleteUpdatedAt,
+                    ig.ProtectReservations
                 FROM ItemGroups ig
                 INNER JOIN Members m ON m.ItemGroupId = ig.Id
                 WHERE m.MemberId = @MemberId;
@@ -135,8 +137,10 @@ internal sealed class SqlItemGroupStore(IDbConnection db) : IItemGroupStore
                         ELSE AutoDeleteUpdatedAt
                     END,
                     AutoDeleteAfterMinutes = @AutoDeleteAfterMinutes,
-                    HideCompletedAfterMinutes = @HideCompletedAfterMinutes
-                OUTPUT INSERTED.AutoDeleteAfterMinutes, INSERTED.HideCompletedAfterMinutes, INSERTED.AutoDeleteUpdatedAt
+                    HideCompletedAfterMinutes = @HideCompletedAfterMinutes,
+                    ProtectReservations = @ProtectReservations
+                OUTPUT INSERTED.AutoDeleteAfterMinutes, INSERTED.HideCompletedAfterMinutes, INSERTED.AutoDeleteUpdatedAt,
+                    INSERTED.ProtectReservations
                 WHERE Id = @Id
                 """,
                 new
@@ -144,6 +148,7 @@ internal sealed class SqlItemGroupStore(IDbConnection db) : IItemGroupStore
                     Id = itemGroupId,
                     settings.AutoDeleteAfterMinutes,
                     settings.HideCompletedAfterMinutes,
+                    settings.ProtectReservations,
                     Now = now,
                 },
                 cancellationToken: ct

@@ -17,7 +17,7 @@ internal static class UpdateItemGroupSettingsEndpoint
             .MapPut("/{itemGroupId:guid}/settings", Handle)
             .WithSummary("Update item group settings")
             .WithDescription(
-                "Replaces the auto-delete and auto-hide settings of an item group. A null or omitted value turns that setting off. The authenticated user must be a member of the group."
+                "Replaces the auto-delete, auto-hide and reservation settings of an item group. A null, false or omitted value turns that setting off. The authenticated user must be a member of the group."
             )
             .WithTags(nameof(ItemGroup))
             .WithName(Operation);
@@ -38,6 +38,7 @@ internal static class UpdateItemGroupSettingsEndpoint
             !ItemGroupSettingsInput.TryCreate(
                 request.AutoDeleteAfterMinutes,
                 request.HideCompletedAfterMinutes,
+                request.ProtectReservations,
                 out ItemGroupSettingsInput? settings
             )
         )
@@ -68,5 +69,11 @@ internal static class UpdateItemGroupSettingsEndpoint
             "Minutes after an item is completed before it is hidden, from 0 to 525600 (365 days). Null turns auto-hide off"
         )]
         public int? HideCompletedAfterMinutes { get; init; }
+
+        [DefaultValue(false)]
+        [Description(
+            "Whether only the member an item is reserved for, and whoever reserved it, can change or cancel the reservation. False or omitted lets any member"
+        )]
+        public bool ProtectReservations { get; init; }
     }
 }

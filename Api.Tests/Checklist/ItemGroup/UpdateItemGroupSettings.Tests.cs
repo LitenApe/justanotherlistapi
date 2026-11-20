@@ -22,7 +22,7 @@ public sealed class UpdateItemGroupSettingsTests
             .Execute(
                 new Caller(userId, "conn-settings-001"),
                 itemGroupId,
-                TestHelpers.ValidSettings(2880, 60),
+                TestHelpers.ValidSettings(2880, 60, protectReservations: true),
                 TestContext.Current.CancellationToken
             );
 
@@ -32,6 +32,7 @@ public sealed class UpdateItemGroupSettingsTests
                 AutoDeleteAfterMinutes = 2880,
                 HideCompletedAfterMinutes = 60,
                 AutoDeleteUpdatedAt = now,
+                ProtectReservations = true,
             },
             settings
         );

@@ -19,6 +19,7 @@ public sealed class ItemGroupSettingsInputTests
             ItemGroupSettingsInput.TryCreate(
                 autoDeleteAfterMinutes,
                 hideCompletedAfterMinutes,
+                protectReservations: false,
                 out ItemGroupSettingsInput? settings
             )
         );
@@ -26,22 +27,25 @@ public sealed class ItemGroupSettingsInputTests
     }
 
     [Theory]
-    [InlineData(1440, 0)]
-    [InlineData(525600, 525600)]
-    [InlineData(null, null)]
+    [InlineData(1440, 0, false)]
+    [InlineData(525600, 525600, true)]
+    [InlineData(null, null, false)]
     public void TryCreate_AcceptsTheLimits_AndOff(
         int? autoDeleteAfterMinutes,
-        int? hideCompletedAfterMinutes
+        int? hideCompletedAfterMinutes,
+        bool protectReservations
     )
     {
         Assert.True(
             ItemGroupSettingsInput.TryCreate(
                 autoDeleteAfterMinutes,
                 hideCompletedAfterMinutes,
+                protectReservations,
                 out ItemGroupSettingsInput? settings
             )
         );
         Assert.Equal(autoDeleteAfterMinutes, settings.AutoDeleteAfterMinutes);
         Assert.Equal(hideCompletedAfterMinutes, settings.HideCompletedAfterMinutes);
+        Assert.Equal(protectReservations, settings.ProtectReservations);
     }
 }

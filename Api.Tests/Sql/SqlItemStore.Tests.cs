@@ -159,6 +159,159 @@ public sealed class SqlItemStoreTests
         Assert.NotNull(await db.LoadItem(otherItemId));
     }
 
+    [Fact]
+    public async Task ChangeReservation_ReservesAndCancels_AndReturnsTheItemAsStored()
+    {
+        var itemGroupId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        var alice = Guid.NewGuid();
+        var bob = Guid.NewGuid();
+        CancellationToken ct = TestContext.Current.CancellationToken;
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, alice, bob);
+        await db.InsertItem(itemGroupId, itemId, "Tent");
+        var store = new SqlItemStore(db);
+
+        // Alice reserves the tent for Bob.
+        ReservationResult reserved = await store.ChangeReservation(
+            itemGroupId,
+            itemId,
+            new ReservationChange(alice, bob, Replacing: null),
+            ct
+        );
+        Assert.Equal(ReservationDecision.Change, reserved.Decision);
+        Assert.Equal(await db.LoadItem(itemId), reserved.Item);
+        Assert.Equal(bob, reserved.Item?.ReservedFor);
+        Assert.Equal(alice, reserved.Item?.ReservedBy);
+
+        // Bob cancels it.
+        ReservationResult cancelled = await store.ChangeReservation(
+            itemGroupId,
+            itemId,
+            new ReservationChange(bob, MemberId: null, Replacing: bob),
+            ct
+        );
+        Assert.Equal(ReservationDecision.Change, cancelled.Decision);
+        Assert.Equal(await db.LoadItem(itemId), cancelled.Item);
+        Assert.Null(cancelled.Item?.ReservedFor);
+        Assert.Null(cancelled.Item?.ReservedBy);
+    }
+
+    [Fact]
+    public async Task ChangeReservation_TakesOverAReservation_WhenTheListDoesNotProtectIt()
+    {
+        var itemGroupId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        var alice = Guid.NewGuid();
+        var bob = Guid.NewGuid();
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, alice, bob);
+        await db.InsertItem(itemGroupId, itemId, reservedFor: bob);
+
+        ReservationResult result = await new SqlItemStore(db).ChangeReservation(
+            itemGroupId,
+            itemId,
+            new ReservationChange(alice, alice, Replacing: bob),
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(ReservationDecision.Change, result.Decision);
+        Assert.Equal(alice, (await db.LoadItem(itemId))?.ReservedFor);
+    }
+
+    [Fact]
+    public async Task ChangeReservation_ChangesNothing_WhenTheChangeIsRefused()
+    {
+        var itemGroupId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        var alice = Guid.NewGuid();
+        var bob = Guid.NewGuid();
+        var carol = Guid.NewGuid();
+        CancellationToken ct = TestContext.Current.CancellationToken;
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, alice, bob, carol);
+        await db.SetItemGroupSettings(
+            itemGroupId,
+            new ItemGroupSettings { ProtectReservations = true }
+        );
+        await db.InsertItem(itemGroupId, itemId, reservedFor: bob, reservedBy: alice);
+        Item? before = await db.LoadItem(itemId);
+        var store = new SqlItemStore(db);
+        (ReservationChange Change, ReservationDecision Decision)[] refusals =
+        [
+            // Carol saw the item free: Alice reserved it for Bob before her.
+            (new ReservationChange(carol, carol, Replacing: null), ReservationDecision.Outdated),
+            // The list protects Bob's reservation from Carol.
+            (new ReservationChange(carol, carol, Replacing: bob), ReservationDecision.Protected),
+            // Only members can have items reserved for them.
+            (
+                new ReservationChange(alice, Guid.NewGuid(), Replacing: bob),
+                ReservationDecision.ForNonMember
+            ),
+        ];
+
+        foreach ((ReservationChange change, ReservationDecision decision) in refusals)
+        {
+            ReservationResult result = await store.ChangeReservation(
+                itemGroupId,
+                itemId,
+                change,
+                ct
+            );
+
+            Assert.Equal(decision, result.Decision);
+            Assert.Null(result.Item);
+            Assert.Equal(before, await db.LoadItem(itemId));
+        }
+    }
+
+    [Fact]
+    public async Task ChangeReservation_ChangesNothing_WhenTheItemIsInAnotherList()
+    {
+        var itemGroupId = Guid.NewGuid();
+        var otherGroupId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        var memberId = Guid.NewGuid();
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, memberId);
+        await db.InsertItemGroup(otherGroupId, memberId);
+        await db.InsertItem(otherGroupId, itemId);
+
+        ReservationResult result = await new SqlItemStore(db).ChangeReservation(
+            itemGroupId,
+            itemId,
+            new ReservationChange(memberId, memberId, Replacing: null),
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(new ReservationResult(ReservationDecision.Unchanged, Item: null), result);
+        Assert.Null((await db.LoadItem(itemId))?.ReservedFor);
+    }
+
+    // The app's scoped connection starts closed, unlike TestDatabase connections, and a
+    // transaction needs an open one.
+    [Fact]
+    public async Task ChangeReservation_OpensTheConnection_WhenItIsClosed()
+    {
+        var itemGroupId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        var memberId = Guid.NewGuid();
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, memberId);
+        await db.InsertItem(itemGroupId, itemId);
+        await db.CloseAsync();
+
+        ReservationResult result = await new SqlItemStore(db).ChangeReservation(
+            itemGroupId,
+            itemId,
+            new ReservationChange(memberId, memberId, Replacing: null),
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(ReservationDecision.Change, result.Decision);
+        Assert.Equal(memberId, (await db.LoadItem(itemId))?.ReservedFor);
+    }
+
     private static ItemInput Input(string name, bool isComplete) =>
         new(TestHelpers.ValidName(name), Description: null, isComplete);
 }

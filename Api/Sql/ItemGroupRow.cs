@@ -17,6 +17,8 @@ internal sealed record ItemGroupRow
 
     public DateTimeOffset? AutoDeleteUpdatedAt { get; init; }
 
+    public bool ProtectReservations { get; init; }
+
     public ItemGroup ToItemGroup() =>
         new()
         {
@@ -27,6 +29,7 @@ internal sealed record ItemGroupRow
                 AutoDeleteAfterMinutes = AutoDeleteAfterMinutes,
                 HideCompletedAfterMinutes = HideCompletedAfterMinutes,
                 AutoDeleteUpdatedAt = AutoDeleteUpdatedAt,
+                ProtectReservations = ProtectReservations,
             },
         };
 }

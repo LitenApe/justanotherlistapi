@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using System.Text.Json;
 using Api.AuditLog;
 using Dapper;
 using Microsoft.AspNetCore.Authentication;
@@ -58,6 +59,19 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
             new { Name = "Name" }
         ),
         new("DeleteItem", "Item", HttpMethod.Delete, $"/api/list/{auditedGroupId}/{auditedItemId}"),
+        new(
+            "ReserveItem",
+            "Item",
+            HttpMethod.Put,
+            $"/api/list/{auditedGroupId}/{auditedItemId}/reservation",
+            new { MemberId = auditedMemberId, Replacing = (Guid?)null }
+        ),
+        new(
+            "UnreserveItem",
+            "Item",
+            HttpMethod.Delete,
+            $"/api/list/{auditedGroupId}/{auditedItemId}/reservation?memberId={auditedMemberId}"
+        ),
         new("GetMembers", "ItemGroup", HttpMethod.Get, $"/api/list/{auditedGroupId}/member"),
         new(
             "AddMember",
@@ -94,17 +108,18 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
             }
             await client.SendAsync(request, TestContext.Current.CancellationToken);
 
-            // IDs in the route end up in the entry: the group as ResourceId, the item as
-            // SubResourceId and the member as TargetUserId. Comparing tuples that start with
-            // the operation name makes a failure say which endpoint broke.
+            // IDs in the request end up in the entry: the group as ResourceId, the item as
+            // SubResourceId and the member (in the route, query or body) as TargetUserId.
+            // Comparing tuples that start with the operation name makes a failure say which
+            // endpoint broke.
             AuditEntry entry = Assert.Single(writer.Entries);
             Assert.Equal(
                 (
                     endpoint.Operation,
                     endpoint.ResourceType,
-                    IdInPath(endpoint, auditedGroupId),
-                    IdInPath(endpoint, auditedItemId),
-                    IdInPath(endpoint, auditedMemberId)
+                    IdInRequest(endpoint, auditedGroupId),
+                    IdInRequest(endpoint, auditedItemId),
+                    IdInRequest(endpoint, auditedMemberId)
                 ),
                 (
                     entry.Operation,
@@ -470,8 +485,11 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
         Assert.Null(entry.ResourceType);
     }
 
-    private static Guid? IdInPath(AuditedEndpoint endpoint, Guid id) =>
-        endpoint.Path.Contains(id.ToString(), StringComparison.Ordinal) ? id : null;
+    private static Guid? IdInRequest(AuditedEndpoint endpoint, Guid id) =>
+        endpoint.Path.Contains(id.ToString(), StringComparison.Ordinal)
+        || JsonSerializer.Serialize(endpoint.Body).Contains(id.ToString(), StringComparison.Ordinal)
+            ? id
+            : null;
 
     private WebApplicationFactory<Program> WithAuditWriter(CapturingAuditWriter writer) =>
         factory.WithWebHostBuilder(b =>

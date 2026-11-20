@@ -23,4 +23,19 @@ public interface IItemStore
 
     /// <summary>Deletes the item. Changes nothing when the item isn't in that list.</summary>
     Task Delete(Guid itemGroupId, Guid itemId, CancellationToken ct);
+
+    /// <summary>
+    /// Applies <paramref name="change"/> if <see cref="ReservationChange.Decide"/> allows it, and
+    /// returns the decision, with the item as stored when it changed. Deciding and changing are
+    /// one atomic step, which also can't interleave with changes to the list's members or
+    /// settings: concurrent changes can't both act on the same reservation, and nothing gets
+    /// reserved for a member who is being removed. An item that isn't in that list counts as
+    /// <see cref="ReservationDecision.Unchanged"/>.
+    /// </summary>
+    Task<ReservationResult> ChangeReservation(
+        Guid itemGroupId,
+        Guid itemId,
+        ReservationChange change,
+        CancellationToken ct
+    );
 }

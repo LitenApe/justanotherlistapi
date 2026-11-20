@@ -22,6 +22,8 @@
     - [POST /api/list/{itemGroupId} — CreateItem](#post-apilistitemgroupid--createitem)
     - [PUT /api/list/{itemGroupId}/{itemId} — UpdateItem](#put-apilistitemgroupiditemid--updateitem)
     - [DELETE /api/list/{itemGroupId}/{itemId} — DeleteItem](#delete-apilistitemgroupiditemid--deleteitem)
+    - [PUT /api/list/{itemGroupId}/{itemId}/reservation — ReserveItem](#put-apilistitemgroupiditemidreservation--reserveitem)
+    - [DELETE /api/list/{itemGroupId}/{itemId}/reservation — UnreserveItem](#delete-apilistitemgroupiditemidreservation--unreserveitem)
   - [Member Endpoints](#member-endpoints)
     - [GET /api/list/{itemGroupId}/member — GetMembers](#get-apilistitemgroupidmember--getmembers)
     - [POST /api/list/{itemGroupId}/member/{memberId} — AddMember](#post-apilistitemgroupidmembermemberid--addmember)
@@ -31,6 +33,7 @@
 - [List Settings](#list-settings)
   - [Auto-Hide](#auto-hide)
   - [Auto-Delete](#auto-delete)
+- [Reservations](#reservations)
 - [Structural Conventions](#structural-conventions)
 
 ---
@@ -49,25 +52,26 @@ The feature's domain records, rules and use cases live in the `Checklist` projec
 
 Represents a shared list owned collectively by its members.
 
-| Property   | Type                  | Description                                  |
-| ---------- | --------------------- | -------------------------------------------- |
-| `Id`       | `Guid`                | Unique identifier                            |
-| `Name`     | `string`              | Display name. Must not be blank              |
-| `Items`    | `IReadOnlyList<Item>` | Items belonging to this group                |
-| `Members`  | `IReadOnlyList<Guid>` | User IDs of all members                      |
-| `Settings` | `ItemGroupSettings`   | Auto-hide and auto-delete, shared by members |
+| Property   | Type                  | Description                                                           |
+| ---------- | --------------------- | --------------------------------------------------------------------- |
+| `Id`       | `Guid`                | Unique identifier                                                     |
+| `Name`     | `string`              | Display name. Must not be blank                                       |
+| `Items`    | `IReadOnlyList<Item>` | Items belonging to this group                                         |
+| `Members`  | `IReadOnlyList<Guid>` | User IDs of all members                                               |
+| `Settings` | `ItemGroupSettings`   | Auto-hide, auto-delete and protected reservations, shared by members |
 
 `Items` and `Members` are populated contextually — see individual endpoint descriptions for what is included in each response. `Settings` is always populated.
 
 ### `ItemGroupSettings`
 
-Per-list settings that apply to every member. Both are off (`null`) by default. See [List Settings](#list-settings).
+Per-list settings that apply to every member. All are off (`null` or `false`) by default. See [List Settings](#list-settings) and [Reservations](#reservations).
 
-| Property                    | Type              | Description                                                                                              |
-| --------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------- |
-| `AutoDeleteAfterMinutes`    | `int?`            | Delete the list this many minutes after every item is done. 1440 (1 day) to 525600 (365 days), or `null` |
-| `HideCompletedAfterMinutes` | `int?`            | Clients hide done items this many minutes after completion. 0 to 525600 (365 days), or `null`            |
-| `AutoDeleteUpdatedAt`       | `DateTimeOffset?` | Set by the server when `AutoDeleteAfterMinutes` changes. The auto-delete countdown never starts earlier  |
+| Property                    | Type              | Description                                                                                                       |
+| --------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `AutoDeleteAfterMinutes`    | `int?`            | Delete the list this many minutes after every item is done. 1440 (1 day) to 525600 (365 days), or `null`          |
+| `HideCompletedAfterMinutes` | `int?`            | Clients hide done items this many minutes after completion. 0 to 525600 (365 days), or `null`                     |
+| `AutoDeleteUpdatedAt`       | `DateTimeOffset?` | Set by the server when `AutoDeleteAfterMinutes` changes. The auto-delete countdown never starts earlier           |
+| `ProtectReservations`       | `bool`            | Only the member an item is reserved for, and whoever reserved it, can change or cancel the reservation. `false`: any member can |
 
 ### `Item`
 
@@ -84,7 +88,7 @@ Represents a task within an item group.
 | `ReservedFor` | `Guid?`           | The member who will do the item. `null` while nobody has reserved it                                |
 | `ReservedBy`  | `Guid?`           | The member who reserved it, the same as `ReservedFor` when members reserve for themselves. `null` while free |
 
-`ReservedFor` and `ReservedBy` are set together or not at all. A reservation only tells the other members who's on the item: anyone can still complete, edit or delete it, and completing it keeps the reservation, so done items show who had them. Items reserved for a member become free when that member leaves or is removed (see [RemoveMember](#delete-apilistitemgroupidmembermemberid--removemember)).
+`ReservedFor` and `ReservedBy` are set together or not at all. A reservation only tells the other members who's on the item: anyone can still complete, edit or delete it, and completing it keeps the reservation, so done items show who had them. See [Reservations](#reservations) for who can change one, and for what happens when a member leaves.
 
 ### Members
 
@@ -103,6 +107,8 @@ The authorization check order applied in every operation (the endpoint adapter d
 
 The exception is `CreateItemGroup`, which has no membership pre-condition — any authenticated user can create a group and becomes its first member automatically.
 
+Reservations add one rule between members, which isn't access control: in a list with `ProtectReservations` on, only the member an item is reserved for and whoever reserved it can change or cancel the reservation. Any member can switch the setting off again, and every member is told when the settings change. See [Reservations](#reservations).
+
 ---
 
 ## Database Schema
@@ -115,7 +121,9 @@ CREATE TABLE ItemGroups (
     Name                      NVARCHAR(MAX)    NOT NULL,
     AutoDeleteAfterMinutes    INT              NULL,
     HideCompletedAfterMinutes INT              NULL,
-    AutoDeleteUpdatedAt       DATETIMEOFFSET   NULL
+    AutoDeleteUpdatedAt       DATETIMEOFFSET   NULL,
+    ProtectReservations       BIT              NOT NULL
+        CONSTRAINT DF_ItemGroups_ProtectReservations DEFAULT 0
 );
 
 CREATE TABLE Items (
@@ -150,7 +158,7 @@ Deleting an `ItemGroup` cascades to both `Items` and `Members`.
 
 Databases created before list settings existed are upgraded in place: the initializer adds the settings columns and `Items.CompletedAt` when `COL_LENGTH` reports them missing. Items that were already complete get `CompletedAt` set to the upgrade time, so nothing is hidden or deleted the moment the upgrade runs. The backfill runs through `EXEC` because SQL Server compiles a batch before running it and would reject a column added in the same batch.
 
-Databases created before reservations existed get `Items.ReservedFor`, `Items.ReservedBy` and the `CK_Items_Reservation` check the same way (the check through `EXEC`, for the same reason). Every existing item starts free.
+Databases created before reservations existed get `Items.ReservedFor`, `Items.ReservedBy`, the `CK_Items_Reservation` check and `ItemGroups.ProtectReservations` the same way (the check through `EXEC`, for the same reason). Every existing item starts free, and no list protects its reservations.
 
 The settings queries use `IS DISTINCT FROM` and `GREATEST`, which need SQL Server 2022 or later (or Azure SQL).
 
@@ -207,7 +215,8 @@ Items are then grouped in memory. If the first result set is empty the second re
     "settings": {
       "autoDeleteAfterMinutes": null,
       "hideCompletedAfterMinutes": null,
-      "autoDeleteUpdatedAt": null
+      "autoDeleteUpdatedAt": null,
+      "protectReservations": false
     }
   }
 ]
@@ -257,7 +266,8 @@ Returns a single item group including **all items** (complete and incomplete) an
   "settings": {
     "autoDeleteAfterMinutes": 1440,
     "hideCompletedAfterMinutes": 60,
-    "autoDeleteUpdatedAt": "2026-10-18T14:00:00+00:00"
+    "autoDeleteUpdatedAt": "2026-10-18T14:00:00+00:00",
+    "protectReservations": false
   }
 }
 ```
@@ -301,7 +311,8 @@ Returns the created `ItemGroup`. The caller is automatically added as the first 
   "settings": {
     "autoDeleteAfterMinutes": null,
     "hideCompletedAfterMinutes": null,
-    "autoDeleteUpdatedAt": null
+    "autoDeleteUpdatedAt": null,
+    "protectReservations": false
   }
 }
 ```
@@ -347,7 +358,7 @@ Settings are not part of this request; they have their own endpoint so that a re
 
 #### `PUT /api/list/{itemGroupId}/settings` — UpdateItemGroupSettings
 
-Replaces both list settings. This is a full replacement: a `null` or omitted value turns that setting off. See [List Settings](#list-settings) for what each setting does.
+Replaces the list settings. This is a full replacement: a `null`, `false` or omitted value turns that setting off. See [List Settings](#list-settings) and [Reservations](#reservations) for what each setting does.
 
 **Route parameters**
 
@@ -361,13 +372,14 @@ Replaces both list settings. This is a full replacement: a `null` or omitted val
 | --------------------------- | ------ | ---------------------------------------------- | ------- |
 | `AutoDeleteAfterMinutes`    | `int?` | `null`, or 1440 (1 day) to 525600 (365 days)   | `null`  |
 | `HideCompletedAfterMinutes` | `int?` | `null`, or 0 (right away) to 525600 (365 days) | `null`  |
+| `ProtectReservations`       | `bool` | Optional                                       | `false` |
 
 The one-day minimum for auto-delete leaves time to undo an accidental check before the list is gone.
 
 **Request body example**
 
 ```json
-{ "autoDeleteAfterMinutes": 1440, "hideCompletedAfterMinutes": 60 }
+{ "autoDeleteAfterMinutes": 1440, "hideCompletedAfterMinutes": 60, "protectReservations": true }
 ```
 
 **Responses**
@@ -385,7 +397,8 @@ The one-day minimum for auto-delete leaves time to undo an accidental check befo
 {
   "autoDeleteAfterMinutes": 1440,
   "hideCompletedAfterMinutes": 60,
-  "autoDeleteUpdatedAt": "2026-10-19T12:00:00+00:00"
+  "autoDeleteUpdatedAt": "2026-10-19T12:00:00+00:00",
+  "protectReservations": true
 }
 ```
 
@@ -542,6 +555,70 @@ Permanently deletes an item from an item group.
 
 ---
 
+#### `PUT /api/list/{itemGroupId}/{itemId}/reservation` — ReserveItem
+
+Reserves an item for a member of the group, the caller or someone else, taking it over from whoever had it. See [Reservations](#reservations) for the rules.
+
+**Route parameters**
+
+| Parameter     | Type   | Description                        |
+| ------------- | ------ | ---------------------------------- |
+| `itemGroupId` | `Guid` | The item group the item belongs to |
+| `itemId`      | `Guid` | The item to reserve                |
+
+**Request body**
+
+| Field       | Type    | Validation                                                                      |
+| ----------- | ------- | ------------------------------------------------------------------------------- |
+| `MemberId`  | `Guid`  | Required. The member to reserve the item for                                    |
+| `Replacing` | `Guid?` | Required, may be `null`. Who the caller saw the item reserved for, `null` if free |
+
+**Request body example**
+
+```json
+{ "memberId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "replacing": null }
+```
+
+**Responses**
+
+| Status             | Condition                                                                                                                                                       |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `204 No Content`   | Reserved. Also when it already was, by the caller for that member, and when the item doesn't exist                                                            |
+| `400 Bad Request`  | A field is missing, or isn't a GUID                                                                                                                             |
+| `401 Unauthorized` | Missing user ID claim                                                                                                                                           |
+| `403 Forbidden`    | Authenticated user is not a member                                                                                                                              |
+| `409 Conflict`     | Nothing changed: the item isn't reserved for `Replacing` any more, the group protects reservations and the caller isn't involved, or `MemberId` isn't a member |
+
+Members are told with `ItemUpdated`, carrying the item as stored. Nothing is sent when nothing changed.
+
+---
+
+#### `DELETE /api/list/{itemGroupId}/{itemId}/reservation` — UnreserveItem
+
+Cancels an item's reservation, so that any member can reserve it. See [Reservations](#reservations) for the rules.
+
+**Route and query parameters**
+
+| Parameter     | Type   | Description                                                   |
+| ------------- | ------ | ------------------------------------------------------------- |
+| `itemGroupId` | `Guid` | The item group the item belongs to                            |
+| `itemId`      | `Guid` | The item whose reservation to cancel                          |
+| `memberId`    | `Guid` | Query, required. Who the caller saw the item reserved for     |
+
+**Responses**
+
+| Status             | Condition                                                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `204 No Content`   | Cancelled. Also when the item was already free, and when it doesn't exist                                                 |
+| `400 Bad Request`  | `memberId` is missing, or isn't a GUID                                                                                    |
+| `401 Unauthorized` | Missing user ID claim                                                                                                     |
+| `403 Forbidden`    | Authenticated user is not a member                                                                                        |
+| `409 Conflict`     | Nothing changed: the item is now reserved for someone other than `memberId`, or the group protects reservations and the caller isn't involved |
+
+Members are told with `ItemUpdated`, carrying the item as stored. Nothing is sent when nothing changed.
+
+---
+
 ### Member Endpoints
 
 #### `GET /api/list/{itemGroupId}/member` — GetMembers
@@ -622,7 +699,7 @@ Name fields (`ItemGroup.Name`, `Item.Name`) must not be blank: endpoints parse t
 
 ### Idempotent Deletes and Updates
 
-`DELETE` and `PUT` endpoints do not return `404 Not Found` if the target resource does not exist. Zero-row operations return `204 No Content`. This is intentional — it keeps the interface simple and avoids race condition handling on the client side.
+`DELETE` and `PUT` endpoints do not return `404 Not Found` if the target resource does not exist. Zero-row operations return `204 No Content`. This is intentional — it keeps the interface simple and avoids race condition handling on the client side. The reservation endpoints do the same for missing items, but answer `409 Conflict` when a reservation changed since the caller saw it (see [Reservations](#reservations)).
 
 ### Membership Check Helper
 
@@ -648,7 +725,7 @@ Checklist mutations are broadcast to group members in real time via SignalR.
 | Event                  | Payload               | Triggered by                                   |
 | ---------------------- | --------------------- | ---------------------------------------------- |
 | `ItemCreated`          | `(groupId, item)`     | CreateItem                                     |
-| `ItemUpdated`          | `(groupId, item)`     | UpdateItem                                     |
+| `ItemUpdated`          | `(groupId, item)`     | UpdateItem, ReserveItem, UnreserveItem         |
 | `ItemDeleted`          | `(groupId, itemId)`   | DeleteItem                                     |
 | `MemberAdded`          | `(groupId, memberId)` | AddMember                                      |
 | `MemberRemoved`        | `(groupId, memberId)` | RemoveMember. The items reserved for that member are free too |
@@ -699,6 +776,23 @@ Consequences of this rule:
 - `OUTPUT DELETED.Id` returns each deleted group exactly once, so several app instances can run the job without duplicate notifications.
 
 For each deleted group, `AutoDeleteItemGroups` records an `AutoDeleteItemGroup` audit entry through the `IAuditTrail` port (see [audit-logs.md](audit-logs.md#checklist--itemgroup)) and sends `GroupDeleted` to all members. The current time comes from the injected `TimeProvider`, and tests run the use case directly with a `FixedTimeProvider`. The test factories remove `ChecklistCleanupService`, whose timer tests can't control.
+
+---
+
+## Reservations
+
+A member reserves an item to tell the others who will do it: a group of friends shares out what to buy for a trip, or someone plans work and hands it out. An item is reserved for one member (`ReservedFor`) by one member (`ReservedBy`, the same member when they reserve it for themselves). It's a signal, not a lock: anyone can still complete, edit or delete a reserved item, and completing it keeps the reservation, so done items show who had them.
+
+[ReserveItem](#put-apilistitemgroupiditemidreservation--reserveitem) reserves an item for a member, the caller or someone else, and [UnreserveItem](#delete-apilistitemgroupiditemidreservation--unreserveitem) cancels a reservation. The `ReservationChange.Decide` domain rule decides each request, checking in this order:
+
+1. **Asking for what's already there changes nothing:** reserving an item that the caller already reserved for that member, or cancelling a reservation that's gone, succeeds without notifying anyone. So a repeated request is harmless.
+2. **Items can only be reserved for members** of the group (`409 Conflict` otherwise).
+3. **Every change names what it replaces.** `Replacing` (for ReserveItem) or `memberId` (for UnreserveItem) says who the caller saw the item reserved for. When that's out of date, nothing changes (`409 Conflict`). This is what stops two members who both saw an item free from both getting it, and what stops a member from taking over a reservation they haven't seen.
+4. **The `ProtectReservations` setting decides who may change a reservation.** When it's off (the default), any member can take a reserved item over, give it to someone else, or cancel the reservation. When it's on, only the member the item is reserved for and whoever reserved it can, so they can still hand it on or give it back (`409 Conflict` for anyone else). Either way, any member can reserve a free item, for themselves or for another member.
+
+`SqlItemStore.ChangeReservation` applies the rule in one transaction. It first takes an update lock on the group's `ItemGroups` row, which `SqlMembership.RemoveUnlessLast` takes first too and which a settings change has to wait for, then reads the reservation, the setting and whether the member belongs to the group, and writes the change only if the rule allows it. So concurrent reservation changes, removals and settings changes in one group take turns, in the same lock order.
+
+**When a member leaves or is removed**, every item reserved for them becomes free in the same transaction as the removal (see [RemoveMember](#delete-apilistitemgroupidmembermemberid--removemember)). A reservation made for them at the same moment either comes first and is freed by the removal, or comes second and is refused because they're no longer a member. Items they reserved for others stay reserved for those members; in a protected group, those members can still change or cancel them. The other members learn about it from `MemberRemoved` alone, so clients free those items themselves.
 
 ---
 
