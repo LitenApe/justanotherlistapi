@@ -67,6 +67,7 @@ function SettingsForm({ settings, onSave, onClose }: Omit<ListSettingsDialogProp
   const [autoDelete, setAutoDelete] = useState(() =>
     initialSetting(settings.autoDeleteAfterMinutes, DEFAULT_AUTO_DELETE_MINUTES),
   );
+  const [protectReservations, setProtectReservations] = useState(settings.protectReservations);
   const [errors, setErrors] = useState<{
     hide?: string | undefined;
     autoDelete?: string | undefined;
@@ -97,6 +98,7 @@ function SettingsForm({ settings, onSave, onClose }: Omit<ListSettingsDialogProp
       await onSave({
         hideCompletedAfterMinutes: hideResult.minutes,
         autoDeleteAfterMinutes: autoDeleteResult.minutes,
+        protectReservations,
       });
     } catch {
       setPending(false);
@@ -132,6 +134,29 @@ function SettingsForm({ settings, onSave, onClose }: Omit<ListSettingsDialogProp
         amountRef={autoDeleteAmountRef}
         onChange={setAutoDelete}
       />
+      <div className={styles.setting}>
+        <div className={styles.settingToggle}>
+          <input
+            type="checkbox"
+            id="protect-reservations"
+            className={styles.settingCheckbox}
+            checked={protectReservations}
+            onChange={(event) => {
+              setProtectReservations(event.target.checked);
+            }}
+            aria-describedby="protect-reservations-hint"
+          />
+          <div className={styles.settingText}>
+            <label htmlFor="protect-reservations" className="label">
+              Protect reservations
+            </label>
+            <p id="protect-reservations-hint" className="hint">
+              Only the person an item is reserved for, and whoever reserved it, can change or cancel
+              the reservation. Otherwise anyone in the list can.
+            </p>
+          </div>
+        </div>
+      </div>
       <DialogActions>
         <button type="button" className="button" onClick={onClose}>
           Cancel

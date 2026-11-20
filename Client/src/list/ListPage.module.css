@@ -243,6 +243,19 @@
   white-space: pre-line;
 }
 
+.itemReservation {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.itemReservation svg {
+  flex: none;
+}
+
 .emptyItems {
   padding: var(--space-6) var(--space-4);
   border: 1px dashed var(--color-border-strong);
