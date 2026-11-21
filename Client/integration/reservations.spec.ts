@@ -1,11 +1,11 @@
-import { expect, makeItem, makeList, ME, OTHER, test } from "./support/test";
+import { expect, makeItem, makeList, ME, member, OTHER, test } from "./support/test";
 
-/** A third member, whose user ID starts differently from ME's and OTHER's. */
+/** A third member, Sam, whose user ID starts differently from ME's and OTHER's. */
 const SAM = "5a3e9c71-2b4d-4e8f-9a01-b2c3d4e5f607";
 
 /** A trip list where OTHER has the tent and the stove, one of them from ME. */
 function tripList() {
-  const list = makeList("Trip", [], [ME, OTHER, SAM]);
+  const list = makeList("Trip", [], [ME, OTHER, member(SAM, "Sam")]);
   list.items = [
     makeItem({ name: "Tent", itemGroupId: list.id, reservedFor: OTHER, reservedBy: OTHER }),
     makeItem({ name: "Stove", itemGroupId: list.id, reservedFor: OTHER, reservedBy: ME }),
@@ -20,13 +20,13 @@ test.describe("reservations", () => {
     await app.openList(tripList());
 
     await expect(page.getByRole("checkbox", { name: "Tent" })).toHaveAccessibleDescription(
-      "Reserved by 00000000…",
+      "Reserved by Kim",
     );
     await expect(page.getByRole("checkbox", { name: "Stove" })).toHaveAccessibleDescription(
-      "Reserved for 00000000… by you",
+      "Reserved for Kim by you",
     );
     await expect(page.getByRole("checkbox", { name: "Map" })).toHaveAccessibleDescription(
-      "Reserved for you by 5a3e9c71…",
+      "Reserved for you by Sam",
     );
     await expect(page.getByRole("checkbox", { name: "Gas" })).toHaveAccessibleDescription("");
   });
@@ -41,7 +41,7 @@ test.describe("reservations", () => {
     backend.as(SAM).unreserveItem(list.id, tent.id);
 
     await expect(page.getByRole("checkbox", { name: "Gas" })).toHaveAccessibleDescription(
-      "Reserved for you by 5a3e9c71…",
+      "Reserved for you by Sam",
     );
     await expect(page.getByRole("checkbox", { name: "Tent" })).toHaveAccessibleDescription("");
   });
@@ -55,7 +55,7 @@ test.describe("reservations", () => {
     await expect(page.getByRole("checkbox", { name: "Tent" })).toHaveAccessibleDescription("");
     await expect(page.getByRole("checkbox", { name: "Stove" })).toHaveAccessibleDescription("");
     await expect(page.getByRole("checkbox", { name: "Map" })).toHaveAccessibleDescription(
-      "Reserved for you by 5a3e9c71…",
+      "Reserved for you by Sam",
     );
   });
 
@@ -96,10 +96,10 @@ test.describe("reservations", () => {
 
     await page.getByRole("button", { name: "Reserve “Gas”" }).click();
     const dialog = page.getByRole("dialog", { name: "Reserve “Gas”" });
-    await dialog.getByRole("radio", { name: SAM }).check();
+    await dialog.getByRole("radio", { name: "Sam" }).check();
     await dialog.getByRole("button", { name: "Save" }).click();
     await expect(page.getByRole("checkbox", { name: "Gas" })).toHaveAccessibleDescription(
-      "Reserved for 5a3e9c71… by you",
+      "Reserved for Sam by you",
     );
 
     await page.getByRole("button", { name: "Change reservation for “Gas”" }).click();
@@ -118,7 +118,7 @@ test.describe("reservations", () => {
 
     await page.getByRole("button", { name: "Change reservation for “Tent”" }).click();
     const dialog = page.getByRole("dialog", { name: "Reserve “Tent”" });
-    await expect(dialog.getByText("Reserved by 00000000….")).toBeVisible();
+    await expect(dialog.getByText("Reserved by Kim.")).toBeVisible();
     await dialog.getByRole("radio", { name: "You" }).check();
     await dialog.getByRole("button", { name: "Save" }).click();
 
@@ -164,7 +164,7 @@ test.describe("reservations", () => {
       page.getByRole("alert").filter({ hasText: "Someone changed the reservation of “Gas”" }),
     ).toBeVisible();
     await expect(page.getByRole("checkbox", { name: "Gas" })).toHaveAccessibleDescription(
-      "Reserved by 5a3e9c71…",
+      "Reserved by Sam",
     );
     await expect(page.getByRole("checkbox", { name: "Gas" })).toBeFocused();
     expect(backend.list(list.id)?.items[3]).toMatchObject({ reservedFor: SAM });
@@ -182,12 +182,12 @@ test.describe("reservations", () => {
     await page.getByRole("button", { name: "Save" }).click();
     backend.as(SAM).reserveItem(list.id, gas.id, SAM);
     await expect(page.getByRole("checkbox", { name: "Gas" })).toHaveAccessibleDescription(
-      "Reserved by 5a3e9c71…",
+      "Reserved by Sam",
     );
     release();
 
     await expect(page.getByRole("checkbox", { name: "Gas canister" })).toHaveAccessibleDescription(
-      "Reserved by 5a3e9c71…",
+      "Reserved by Sam",
     );
   });
 
@@ -208,7 +208,7 @@ test.describe("reservations", () => {
     await page.getByRole("checkbox", { name: "Gas" }).click();
     backend.as(SAM).reserveItem(list.id, gas.id, SAM);
     await expect(page.getByRole("checkbox", { name: "Gas" })).toHaveAccessibleDescription(
-      "Reserved by 5a3e9c71…",
+      "Reserved by Sam",
     );
     release();
 
@@ -217,14 +217,14 @@ test.describe("reservations", () => {
     ).toBeVisible();
     await expect(page.getByRole("checkbox", { name: "Gas" })).not.toBeChecked();
     await expect(page.getByRole("checkbox", { name: "Gas" })).toHaveAccessibleDescription(
-      "Reserved by 5a3e9c71…",
+      "Reserved by Sam",
     );
   });
 
   test("free the items of a member you remove", async ({ page, app }) => {
     await app.openList(tripList());
 
-    await page.getByRole("button", { name: `Remove member ${OTHER}` }).click();
+    await page.getByRole("button", { name: "Remove member Kim" }).click();
     await page
       .getByRole("dialog", { name: "Remove member?" })
       .getByRole("button", { name: "Remove member" })
@@ -232,5 +232,28 @@ test.describe("reservations", () => {
 
     await expect(page.getByRole("checkbox", { name: "Tent" })).toHaveAccessibleDescription("");
     await expect(page.getByRole("checkbox", { name: "Stove" })).toHaveAccessibleDescription("");
+  });
+
+  test("tell two members with the same name apart by the start of their user IDs", async ({
+    page,
+    app,
+  }) => {
+    const otherKim = "6b4f0d82-3c5e-4f90-ab12-c3d4e5f60718";
+    const list = makeList("Trip", [], [ME, OTHER, member(otherKim, "kim")]);
+    list.items = [
+      makeItem({ name: "Tent", itemGroupId: list.id, reservedFor: otherKim, reservedBy: OTHER }),
+    ];
+    await app.openList(list);
+
+    await expect(page.getByRole("checkbox", { name: "Tent" })).toHaveAccessibleDescription(
+      "Reserved for kim (6b4f0d82…) by Kim (00000000…)",
+    );
+    const members = page.getByRole("region", { name: /Members/ });
+    await expect(
+      members.getByRole("button", { name: "Remove member Kim (00000000…)" }),
+    ).toBeVisible();
+    await expect(
+      members.getByRole("button", { name: "Remove member kim (6b4f0d82…)" }),
+    ).toBeVisible();
   });
 });

@@ -12,6 +12,12 @@ test.describe("live updates", () => {
     other.updateItem(list.id, milk.id, { isComplete: true });
     other.deleteItem(list.id, eggs.id);
     other.renameList(list.id, "Weekly shop");
+    backend.accounts.push({
+      id: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+      name: "Sam",
+      email: "sam@example.com",
+      password: "correct horse battery",
+    });
     other.addMember(list.id, "3f2504e0-4f89-41d3-9a0c-0305e82c3301");
 
     await expect(page.getByRole("heading", { level: 1, name: "Weekly shop" })).toBeVisible();
@@ -21,11 +27,7 @@ test.describe("live updates", () => {
     await expect(page.getByRole("checkbox", { name: "Eggs" })).toHaveCount(0);
     await expect(page.getByText("1 of 2 done")).toBeVisible();
     await expect(
-      page
-        .getByRole("region", { name: /Members/ })
-        .getByText("3f2504e0-4f89-41d3-9a0c-0305e82c3301", {
-          exact: true,
-        }),
+      page.getByRole("region", { name: /Members/ }).getByText("Sam", { exact: true }),
     ).toBeVisible();
   });
 

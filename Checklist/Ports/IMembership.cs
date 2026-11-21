@@ -1,3 +1,5 @@
+using Checklist.Domain;
+
 namespace Checklist.Ports;
 
 /// <summary>Who belongs to which list. Every member has the same rights.</summary>
@@ -5,7 +7,8 @@ public interface IMembership
 {
     Task<bool> IsMember(Guid itemGroupId, Guid userId, CancellationToken ct);
 
-    Task<IReadOnlyList<Guid>> ListMembers(Guid itemGroupId, CancellationToken ct);
+    /// <summary>The list's members, each with their account's name when they have one.</summary>
+    Task<IReadOnlyList<Member>> ListMembers(Guid itemGroupId, CancellationToken ct);
 
     /// <summary>
     /// Adds the member and returns <see langword="true"/>, or returns <see langword="false"/>

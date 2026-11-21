@@ -411,6 +411,7 @@ public sealed class ChecklistHubTests(ApiFactory factory) : IClassFixture<ApiFac
             "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
             new { MemberId = TestAuthHandler.UserId, ItemGroupId = itemGroupId }
         );
+        await factory.Connection.InsertUser(newMemberId, "Kim");
 
         await using HubConnection connection = factory.CreateHubConnection();
         await connection.StartAsync(TestContext.Current.CancellationToken);
@@ -420,9 +421,9 @@ public sealed class ChecklistHubTests(ApiFactory factory) : IClassFixture<ApiFac
             TestContext.Current.CancellationToken
         );
 
-        var tcs = new TaskCompletionSource<(Guid GroupId, Guid MemberId)>();
-        connection.On<Guid, Guid>("MemberAdded", (groupId, memberId) =>
-            tcs.TrySetResult((groupId, memberId))
+        var tcs = new TaskCompletionSource<(Guid GroupId, Member Member)>();
+        connection.On<Guid, Member>("MemberAdded", (groupId, member) =>
+            tcs.TrySetResult((groupId, member))
         );
 
         // Act
@@ -441,9 +442,10 @@ public sealed class ChecklistHubTests(ApiFactory factory) : IClassFixture<ApiFac
         );
         Assert.Equal(tcs.Task, completed);
 
-        (Guid receivedGroupId, Guid receivedMemberId) = await tcs.Task;
+        (Guid receivedGroupId, Member receivedMember) = await tcs.Task;
         Assert.Equal(itemGroupId, receivedGroupId);
-        Assert.Equal(newMemberId, receivedMemberId);
+        // The other members get the new member's name along with their ID.
+        Assert.Equal(new Member { Id = newMemberId, Name = "Kim" }, receivedMember);
     }
 
     [Fact]

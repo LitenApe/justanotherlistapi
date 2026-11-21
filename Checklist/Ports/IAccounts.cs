@@ -27,6 +27,9 @@ public interface IAccounts
     /// </summary>
     Task<PasswordCheck> CheckPassword(EmailAddress email, string password, CancellationToken ct);
 
+    /// <summary>The user with the ID, or <see langword="null"/> when no account has it.</summary>
+    Task<User?> Find(Guid userId, CancellationToken ct);
+
     /// <summary>
     /// A code that lets the owner of <paramref name="email"/> choose a new password, for an hour
     /// and once, or <see langword="null"/> when no account uses the email.

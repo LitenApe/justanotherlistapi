@@ -30,12 +30,38 @@ public sealed class SqlMembershipTests
         await db.InsertItemGroup(itemGroupId, memberId);
         await db.InsertItemGroup(Guid.NewGuid(), Guid.NewGuid());
 
-        IReadOnlyList<Guid> members = await new SqlMembership(db).ListMembers(
+        IReadOnlyList<Member> members = await new SqlMembership(db).ListMembers(
             itemGroupId,
             TestContext.Current.CancellationToken
         );
 
-        Assert.Equal(memberId, Assert.Single(members));
+        Assert.Equal(memberId, Assert.Single(members).Id);
+    }
+
+    [Fact]
+    public async Task ListMembers_NamesEachMemberByTheirAccount_AndNoneWithoutOne()
+    {
+        var itemGroupId = Guid.NewGuid();
+        var kimId = Guid.NewGuid();
+        var withoutAccountId = Guid.NewGuid();
+        await using SqlConnection db = await TestDatabase.CreateAsync();
+        await db.InsertItemGroup(itemGroupId, kimId, withoutAccountId);
+        await db.InsertUser(kimId, "Kim");
+
+        IReadOnlyList<Member> members = await new SqlMembership(db).ListMembers(
+            itemGroupId,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equivalent(
+            new[]
+            {
+                new Member { Id = kimId, Name = "Kim" },
+                new Member { Id = withoutAccountId, Name = null },
+            },
+            members,
+            strict: true
+        );
     }
 
     [Fact]

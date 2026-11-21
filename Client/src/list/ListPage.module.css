@@ -343,8 +343,8 @@
   min-width: 0;
 }
 
-.memberId {
-  font-size: 0.8125rem;
+.memberName {
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 

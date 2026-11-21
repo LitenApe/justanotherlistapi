@@ -57,7 +57,7 @@ Represents a shared list owned collectively by its members.
 | `Id`       | `Guid`                | Unique identifier                                                     |
 | `Name`     | `string`              | Display name. Must not be blank                                       |
 | `Items`    | `IReadOnlyList<Item>` | Items belonging to this group                                         |
-| `Members`  | `IReadOnlyList<Guid>` | User IDs of all members                                               |
+| `Members`  | `IReadOnlyList<Member>` | All members, each with their user ID and name (see [Members](#members)) |
 | `Settings` | `ItemGroupSettings`   | Auto-hide, auto-delete and protected reservations, shared by members |
 
 `Items` and `Members` are populated contextually — see individual endpoint descriptions for what is included in each response. `Settings` is always populated.
@@ -92,7 +92,14 @@ Represents a task within an item group.
 
 ### Members
 
-Membership is a join between a user (`MemberId: Guid`) and an item group (`ItemGroupId: Guid`). There is no `Member` entity — membership is represented as a list of `Guid` on `ItemGroup` and queried directly from the `Members` table.
+Membership is a join between a user (`MemberId: Guid`) and an item group (`ItemGroupId: Guid`), stored in the `Members` table. Responses and events show each member as a `Member`, with the name from their account (`Users.Name`, joined when read):
+
+| Property | Type      | Description                                                                                  |
+| -------- | --------- | -------------------------------------------------------------------------------------------- |
+| `Id`     | `Guid`    | The member's user ID                                                                         |
+| `Name`   | `string?` | The member's name. `null` for someone added before accounts existed who hasn't signed up since |
+
+Members never see each other's email addresses. Names aren't unique; clients tell two members with the same name apart (see [client.md](client.md#members-and-names)).
 
 ---
 
@@ -262,7 +269,7 @@ Returns a single item group including **all items** (complete and incomplete) an
       "reservedBy": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
     }
   ],
-  "members": ["a1b2c3d4-e5f6-7890-abcd-ef1234567890"],
+  "members": [{ "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "name": "Kim" }],
   "settings": {
     "autoDeleteAfterMinutes": 1440,
     "hideCompletedAfterMinutes": 60,
@@ -288,7 +295,7 @@ Creates a new item group and automatically adds the authenticated user as its fi
 
 | Status             | Condition                                                                                     |
 | ------------------ | --------------------------------------------------------------------------------------------- |
-| `201 Created`      | `ItemGroup` with `Members` containing the creator's ID. `Location` header set to `/list/{id}` |
+| `201 Created`      | `ItemGroup` with `Members` containing the creator, with their name. `Location` header set to `/list/{id}` |
 | `400 Bad Request`  | `Name` is blank or whitespace                                                                 |
 | `401 Unauthorized` | Missing user ID claim                                                                         |
 
@@ -307,7 +314,7 @@ Returns the created `ItemGroup`. The caller is automatically added as the first 
   "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "name": "Shopping",
   "items": [],
-  "members": ["a1b2c3d4-e5f6-7890-abcd-ef1234567890"],
+  "members": [{ "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "name": "Kim" }],
   "settings": {
     "autoDeleteAfterMinutes": null,
     "hideCompletedAfterMinutes": null,
@@ -623,7 +630,7 @@ Members are told with `ItemUpdated`, carrying the item as stored. Nothing is sen
 
 #### `GET /api/list/{itemGroupId}/member` — GetMembers
 
-Returns the list of user IDs that are members of the specified item group.
+Returns the members of the specified item group, each with their user ID and name.
 
 **Route parameters**
 
@@ -635,7 +642,7 @@ Returns the list of user IDs that are members of the specified item group.
 
 | Status             | Condition                          |
 | ------------------ | ---------------------------------- |
-| `200 OK`           | `List<Guid>` — all member IDs      |
+| `200 OK`           | `List<Member>` — every member      |
 | `401 Unauthorized` | Missing user ID claim              |
 | `403 Forbidden`    | Authenticated user is not a member |
 
@@ -643,7 +650,7 @@ Returns the list of user IDs that are members of the specified item group.
 
 #### `POST /api/list/{itemGroupId}/member/{memberId}` — AddMember
 
-Grants another user access to an item group by adding them as a member. The authenticated user must already be a member — there is no concept of an owner or admin; any member can invite others.
+Grants another user access to an item group by adding them as a member, and returns them as a `Member` with their name (`null` when no account has that user ID). The authenticated user must already be a member — there is no concept of an owner or admin; any member can invite others.
 
 **Route parameters**
 
@@ -656,12 +663,12 @@ Grants another user access to an item group by adding them as a member. The auth
 
 | Status             | Condition                                   |
 | ------------------ | ------------------------------------------- |
-| `204 No Content`   | Member added successfully                   |
+| `200 OK`           | The new `Member`, with their name           |
 | `401 Unauthorized` | Missing user ID claim                       |
 | `403 Forbidden`    | Authenticated user is not a member          |
 | `409 Conflict`     | `memberId` is already a member of the group |
 
-Adding is one conditional insert whose existence check holds its locks until the insert (`SqlMembership.Add`). When two members add the same user at the same moment, one gets `204` and the other `409`; neither gets a server error from the primary key.
+Adding is one conditional insert whose existence check holds its locks until the insert (`SqlMembership.Add`). When two members add the same user at the same moment, one gets `200` and the other `409`; neither gets a server error from the primary key.
 
 ---
 
@@ -727,7 +734,7 @@ Checklist mutations are broadcast to group members in real time via SignalR.
 | `ItemCreated`          | `(groupId, item)`     | CreateItem                                     |
 | `ItemUpdated`          | `(groupId, item)`     | UpdateItem, ReserveItem, UnreserveItem         |
 | `ItemDeleted`          | `(groupId, itemId)`   | DeleteItem                                     |
-| `MemberAdded`          | `(groupId, memberId)` | AddMember                                      |
+| `MemberAdded`          | `(groupId, member)`   | AddMember. `member` is the `Member`, with their name |
 | `MemberRemoved`        | `(groupId, memberId)` | RemoveMember. The items reserved for that member are free too |
 | `GroupRenamed`         | `(groupId, name)`     | UpdateItemGroup                                |
 | `GroupSettingsChanged` | `(groupId, settings)` | UpdateItemGroupSettings                        |

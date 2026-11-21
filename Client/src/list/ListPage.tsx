@@ -43,7 +43,8 @@ import { MembersPanel } from "./MembersPanel";
 import type { Route } from "./+types/ListPage";
 import { RenameListDialog } from "./RenameListDialog";
 import { ReservationDialog } from "./ReservationDialog";
-import { canChangeReservation, memberLabel, reservationText } from "./reservations";
+import { memberLabel, memberName } from "./members";
+import { canChangeReservation, reservationText } from "./reservations";
 import styles from "./ListPage.module.css";
 
 type DialogState =
@@ -378,7 +379,7 @@ function ListPage({ list }: { list: ItemGroup }) {
     announce(
       memberId === null
         ? `“${item.name}” is free again.`
-        : `Reserved “${item.name}” for ${memberLabel(memberId, userId)}.`,
+        : `Reserved “${item.name}” for ${memberLabel(memberId, userId, state.members)}.`,
     );
   }
 
@@ -441,9 +442,9 @@ function ListPage({ list }: { list: ItemGroup }) {
 
   async function addMember(memberId: string): Promise<string | null> {
     try {
-      await checklistApi.addMember(listId, memberId);
-      dispatch({ type: "memberAdded", memberId });
-      announce("Member added.");
+      const member = await checklistApi.addMember(listId, memberId);
+      dispatch({ type: "memberAdded", member });
+      announce(`Added ${memberName(member.id, [...state.members, member])}.`);
       return null;
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
@@ -455,6 +456,7 @@ function ListPage({ list }: { list: ItemGroup }) {
 
   async function removeMember(memberId: string) {
     const leaving = memberId === userId;
+    const name = memberName(memberId, state.members);
     setDialogPending(true);
     try {
       await checklistApi.removeMember(listId, memberId);
@@ -477,7 +479,7 @@ function ListPage({ list }: { list: ItemGroup }) {
     dispatch({ type: "memberRemoved", memberId });
     setDialog(null);
     setDialogPending(false);
-    announce("Member removed.");
+    announce(`Removed ${name}.`);
   }
 
   // ─── Realtime ──────────────────────────────────────────────────────────────
@@ -523,8 +525,8 @@ function ListPage({ list }: { list: ItemGroup }) {
           : `“${listName}” was deleted by another member.`,
       );
     },
-    memberAdded: (_, memberId) => {
-      dispatch({ type: "memberAdded", memberId });
+    memberAdded: (_, member) => {
+      dispatch({ type: "memberAdded", member });
     },
     memberRemoved: (_, memberId) => {
       if (memberId === userId) leaveRemovedList(`You were removed from “${listName}”.`);
@@ -799,7 +801,7 @@ function ListPage({ list }: { list: ItemGroup }) {
         description={
           dialog?.type === "removeMember" && dialog.memberId === userId
             ? "You'll lose access until another member adds you again."
-            : "They'll lose access to this list until a member adds them again."
+            : `${dialog?.type === "removeMember" ? memberName(dialog.memberId, state.members) : "They"} will lose access to this list until a member adds them again.`
         }
         confirmLabel={
           dialog?.type === "removeMember" && dialog.memberId === userId

@@ -79,6 +79,12 @@ internal sealed class IdentityAccounts(
         );
     }
 
+    public async Task<User?> Find(Guid userId, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        return await users.FindByIdAsync(userId.ToString()) is { } account ? ToUser(account) : null;
+    }
+
     public async Task<PasswordReset?> CreateResetCode(EmailAddress email, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();

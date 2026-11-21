@@ -3,7 +3,7 @@ import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import type { Item } from "../api/types";
 import { expectNoAxeViolations } from "../test/axe";
-import { makeItem, ME, OTHER } from "../test/builders";
+import { makeItem, member, ME, OTHER } from "../test/builders";
 import { ReservationDialog } from "./ReservationDialog";
 
 async function renderDialog(item: Item) {
@@ -13,7 +13,7 @@ async function renderDialog(item: Item) {
     <ReservationDialog
       item={item}
       userId={ME}
-      members={[ME, OTHER]}
+      members={[member(ME), member(OTHER)]}
       onSave={onSave}
       onClose={onClose}
     />,
@@ -42,7 +42,7 @@ describe("ReservationDialog", () => {
     const tent = makeItem({ name: "Tent", itemGroupId: "g" });
     const { dialog, onSave } = await renderDialog(tent);
 
-    await dialog.getByRole("radio", { name: OTHER }).click();
+    await dialog.getByRole("radio", { name: "Kim" }).click();
     await dialog.getByRole("button", { name: "Save" }).click();
 
     expect(onSave).toHaveBeenCalledWith(tent, OTHER, null);
@@ -52,8 +52,8 @@ describe("ReservationDialog", () => {
     const tent = makeItem({ name: "Tent", itemGroupId: "g", reservedFor: OTHER, reservedBy: ME });
     const { dialog, onSave } = await renderDialog(tent);
 
-    await expect.element(dialog.getByText("Reserved for 00000000… by you.")).toBeVisible();
-    const other = dialog.getByRole("radio", { name: OTHER });
+    await expect.element(dialog.getByText("Reserved for Kim by you.")).toBeVisible();
+    const other = dialog.getByRole("radio", { name: "Kim" });
     await expect.element(other).toBeChecked();
     await expect.element(other).toHaveFocus();
     await expectNoAxeViolations(dialog.element());

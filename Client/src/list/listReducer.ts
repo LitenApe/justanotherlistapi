@@ -1,10 +1,10 @@
-import type { Item, ItemGroup, ItemGroupSettings } from "../api/types";
+import type { Item, ItemGroup, ItemGroupSettings, Member } from "../api/types";
 
 /** A loaded list. Loading and load errors belong to the route (clientLoader, ErrorBoundary). */
 export interface ListState {
   name: string;
   items: Item[];
-  members: string[];
+  members: Member[];
   settings: ItemGroupSettings;
 }
 
@@ -14,7 +14,7 @@ export type ListAction =
   | { type: "itemRemoved"; itemId: string }
   | { type: "renamed"; name: string }
   | { type: "settingsChanged"; settings: ItemGroupSettings }
-  | { type: "memberAdded"; memberId: string }
+  | { type: "memberAdded"; member: Member }
   | { type: "memberRemoved"; memberId: string };
 
 export function listStateFrom(list: ItemGroup): ListState {
@@ -43,13 +43,13 @@ export function listReducer(state: ListState, action: ListAction): ListState {
     case "settingsChanged":
       return { ...state, settings: action.settings };
     case "memberAdded":
-      return state.members.includes(action.memberId)
+      return state.members.some((member) => member.id === action.member.id)
         ? state
-        : { ...state, members: [...state.members, action.memberId] };
+        : { ...state, members: [...state.members, action.member] };
     case "memberRemoved":
       return {
         ...state,
-        members: state.members.filter((id) => id !== action.memberId),
+        members: state.members.filter((member) => member.id !== action.memberId),
         items: freeItemsReservedFor(state.items, action.memberId),
       };
   }

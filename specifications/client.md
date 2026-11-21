@@ -12,6 +12,7 @@
 - [Data Flow](#data-flow)
 - [Real-Time Updates](#real-time-updates)
 - [List Settings](#list-settings)
+- [Members And Names](#members-and-names)
 - [Reservations](#reservations)
 - [Accessibility](#accessibility)
 - [Themes](#themes)
@@ -94,7 +95,8 @@ Client/
       listReducer.ts         - Pure, idempotent state transitions shared by local and realtime changes,
                                plus filtering, auto-hide and auto-delete time helpers
       ListSettingsDialog.tsx - Auto-hide, auto-delete and protected reservations; duration.ts converts minutes ↔ amount + unit
-      reservations.ts        - How reservations read ("Reserved for you by 3fa85f64…") and member labels
+      members.ts             - What to call a member: their name, "you", or a name shared by two told apart
+      reservations.ts        - How reservations read ("Reserved for you by Kim") and who may change one
       ReservationDialog.tsx  - Who an item is reserved for: you, another member or nobody
       ItemRow.tsx, EditItemDialog.tsx, RenameListDialog.tsx, MembersPanel.tsx
     theme/theme.ts           - Light/dark theme store (dark default, saved in localStorage)
@@ -262,17 +264,29 @@ The **Settings** button on the list page opens `ListSettingsDialog`, which edits
 
 ---
 
+## Members And Names
+
+The API sends each member as `{ id, name }` ([checklist.md](checklist.md#members)), and the client shows people by name, never by email. `list/members.ts` decides what to call someone, in one place:
+
+- `memberName(id, members)`: the member's name. When another member of the list has the same name, ignoring case, both get the start of their user ID after it: "Alex (3fa85f64…)". A member without a name (added before accounts existed) shows as the start of their user ID.
+- `memberLabel(id, userId, members)`: the same, but "you" for yourself, for sentences such as reservation lines and announcements.
+- `sortMembers(members, userId)`: you first, then everyone by name.
+
+The members panel lists each member by name, yours marked **You**, with **Remove** buttons named "Remove member Kim". Adding a member returns them with their name, so the panel shows it straight away and announces "Added Kim."; `MemberAdded` carries the name to everyone else.
+
+---
+
 ## Reservations
 
 Items can be reserved for a member of the list to say who will do them; see [checklist.md](checklist.md#reservations) for the rules.
 
-- Each item row shows its reservation as a line under the name: "Reserved by you", "Reserved for you by 3fa85f64…", "Reserved for 3fa85f64… by you" (`reservationText` in `list/reservations.ts`). The line is part of the checkbox's description (`aria-describedby`), so screen readers hear it with the item.
-- Members have no names, so `memberLabel` shows "you" or the first eight characters of a user ID. When the member who made a reservation has left the list, the line only says who it's for.
+- Each item row shows its reservation as a line under the name: "Reserved by you", "Reserved for you by Kim", "Reserved for Kim by you" (`reservationText` in `list/reservations.ts`). The line is part of the checkbox's description (`aria-describedby`), so screen readers hear it with the item.
+- People are named with `memberLabel` (see [Members And Names](#members-and-names)). When the member who made a reservation has left the list, the line only says who it's for.
 - When a member leaves or is removed, the server frees the items reserved for them and only announces `MemberRemoved`, so the reducer frees those items itself (`memberRemoved` in `listReducer`), for the event and after your own removal of someone.
 
 **Reserving.** Next to **Edit**, each row has a button named `Reserve “Tent”`, or `Change reservation for “Tent”` once the item is reserved. It's only there when you may change the reservation (`canChangeReservation`, mirroring the server): always for free items, and for reserved ones unless the list protects reservations and you're neither the member it's for nor whoever reserved it. It opens `ReservationDialog`:
 
-- A "Reserved for" fieldset of radios: **Nobody** (only while the item is reserved), **You**, then the other members by full user ID, as in the members panel. The current choice is checked and has the initial focus, so reserving a free item for yourself takes two clicks.
+- A "Reserved for" fieldset of radios: **Nobody** (only while the item is reserved), **You**, then the other members by name, as in the members panel. The current choice is checked and has the initial focus, so reserving a free item for yourself takes two clicks.
 - The dialog keeps who the item was reserved for when it opened, and **Save** sends that as `replacing` (`PUT …/reservation`), or as `memberId` when cancelling (`DELETE …/reservation?memberId=`). Saving the choice it opened with closes the dialog without a request.
 - On success the page applies the change locally (you as `reservedBy`) and announces it. A `409` means someone changed the reservation while you were choosing, or the list started protecting it: the dialog closes, an error toast says so, the page revalidates to show the reservation as it is, and focus moves to the item's checkbox. Other failures keep the dialog open, like the edit dialog.
 
@@ -439,6 +453,6 @@ The specs cover signing up, signing out and back in with a password the server c
 ## Known Limitations
 
 - **Item order.** The API has no ordering column, so items reload in database order.
-- **Members are GUIDs.** There is no user directory, so members are shown and added by user ID, and reservations name people by the start of their user ID.
+- **Adding members by user ID.** Members are shown by name, but still added by pasting their user ID.
 - **Overview payload.** `GET /api/list` returns every open item of every list, which can be large with seeded data.
 - **Clock differences.** Auto-hide compares the server's `completedAt` with the browser's clock, so a device whose clock is off hides items correspondingly early or late.
