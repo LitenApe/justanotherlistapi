@@ -1,21 +1,20 @@
 import { useId, useRef, useState, type SubmitEvent } from "react";
 import { CopyButton } from "../components/CopyButton";
 import { Icon } from "../components/Icon";
+import type { Member } from "../api/types";
 import { isGuid, normalizeGuid } from "../lib/guid";
 import styles from "./ListPage.module.css";
+import { memberName, sortMembers } from "./members";
 
 interface MembersPanelProps {
-  members: string[];
+  members: Member[];
   currentUserId: string;
   onAdd: (memberId: string) => Promise<string | null>;
   onRemove: (memberId: string) => void;
 }
 
 export function MembersPanel({ members, currentUserId, onAdd, onRemove }: MembersPanelProps) {
-  // Show yourself first.
-  const sorted = members.toSorted((a, b) =>
-    a === currentUserId ? -1 : b === currentUserId ? 1 : a.localeCompare(b),
-  );
+  const sorted = sortMembers(members, currentUserId);
   const onlyMember = members.length === 1;
 
   return (
@@ -27,12 +26,13 @@ export function MembersPanel({ members, currentUserId, onAdd, onRemove }: Member
       <p className="hint">Everyone here can view and change this list.</p>
 
       <ul className={styles.memberList}>
-        {sorted.map((memberId) => {
+        {sorted.map(({ id: memberId }) => {
           const isYou = memberId === currentUserId;
+          const name = memberName(memberId, members);
           return (
             <li key={memberId} className={styles.member}>
               <div className={styles.memberInfo}>
-                <code className={styles.memberId}>{memberId}</code>
+                <span className={styles.memberName}>{name}</span>
                 {isYou && <span className="badge">You</span>}
               </div>
               {isYou ? (
@@ -55,7 +55,7 @@ export function MembersPanel({ members, currentUserId, onAdd, onRemove }: Member
                     onRemove(memberId);
                   }}
                 >
-                  Remove <span className="visually-hidden">member {memberId}</span>
+                  Remove <span className="visually-hidden">member {name}</span>
                 </button>
               )}
             </li>
@@ -95,7 +95,7 @@ function AddMemberForm({ members, onAdd }: Pick<MembersPanelProps, "members" | "
       return;
     }
     const memberId = normalizeGuid(value);
-    if (members.includes(memberId)) {
+    if (members.some((member) => member.id === memberId)) {
       fail("That person is already a member.");
       return;
     }

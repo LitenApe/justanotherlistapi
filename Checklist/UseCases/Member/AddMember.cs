@@ -4,7 +4,11 @@ using Checklist.Ports;
 namespace Checklist.UseCases;
 
 /// <summary>Lets a member give another user access to the list.</summary>
-public sealed class AddMember(IMembership membership, IChecklistNotifier notifier)
+public sealed class AddMember(
+    IMembership membership,
+    IAccounts accounts,
+    IChecklistNotifier notifier
+)
 {
     public enum Outcome
     {
@@ -13,7 +17,10 @@ public sealed class AddMember(IMembership membership, IChecklistNotifier notifie
         AlreadyAMember,
     }
 
-    public async Task<Outcome> Execute(
+    /// <summary>What happened, and the new member, with their name, when they were added.</summary>
+    public sealed record Result(Outcome Outcome, Member? Member);
+
+    public async Task<Result> Execute(
         Caller caller,
         Guid itemGroupId,
         Guid memberId,
@@ -22,15 +29,16 @@ public sealed class AddMember(IMembership membership, IChecklistNotifier notifie
     {
         if (!await membership.IsMember(itemGroupId, caller.UserId, ct))
         {
-            return Outcome.NotAMember;
+            return new Result(Outcome.NotAMember, null);
         }
 
         if (!await membership.Add(itemGroupId, memberId, ct))
         {
-            return Outcome.AlreadyAMember;
+            return new Result(Outcome.AlreadyAMember, null);
         }
 
-        await notifier.NotifyMemberAdded(itemGroupId, memberId, caller.ConnectionId);
-        return Outcome.Added;
+        var member = new Member { Id = memberId, Name = (await accounts.Find(memberId, ct))?.Name };
+        await notifier.NotifyMemberAdded(itemGroupId, member, caller.ConnectionId);
+        return new Result(Outcome.Added, member);
     }
 }

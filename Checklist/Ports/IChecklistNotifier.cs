@@ -12,7 +12,7 @@ public interface IChecklistNotifier
     Task NotifyItemCreated(Guid groupId, Item item, string? excludeConnectionId);
     Task NotifyItemUpdated(Guid groupId, Item item, string? excludeConnectionId);
     Task NotifyItemDeleted(Guid groupId, Guid itemId, string? excludeConnectionId);
-    Task NotifyMemberAdded(Guid groupId, Guid memberId, string? excludeConnectionId);
+    Task NotifyMemberAdded(Guid groupId, Member member, string? excludeConnectionId);
     Task NotifyMemberRemoved(Guid groupId, Guid memberId, string? excludeConnectionId);
     Task NotifyGroupRenamed(Guid groupId, string name, string? excludeConnectionId);
     Task NotifyGroupSettingsChanged(

@@ -1,4 +1,5 @@
 using System.Data;
+using Checklist.Domain;
 using Checklist.Ports;
 using Dapper;
 
@@ -20,11 +21,15 @@ internal sealed class SqlMembership(IDbConnection db) : IMembership
         return count > 0;
     }
 
-    public async Task<IReadOnlyList<Guid>> ListMembers(Guid itemGroupId, CancellationToken ct)
+    public async Task<IReadOnlyList<Member>> ListMembers(Guid itemGroupId, CancellationToken ct)
     {
-        IEnumerable<Guid> members = await db.QueryAsync<Guid>(
+        IEnumerable<Member> members = await db.QueryAsync<Member>(
             new CommandDefinition(
-                "SELECT MemberId FROM Members WHERE ItemGroupId = @ItemGroupId",
+                """
+                SELECT m.MemberId AS Id, u.Name
+                FROM Members m LEFT JOIN Users u ON u.Id = m.MemberId
+                WHERE m.ItemGroupId = @ItemGroupId
+                """,
                 new { ItemGroupId = itemGroupId },
                 cancellationToken: ct
             )

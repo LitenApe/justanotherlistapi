@@ -42,6 +42,31 @@ internal static class TestHelpers
         }
     }
 
+    /// <summary>
+    /// Inserts an account with the name, as if they had signed up, with a password nobody knows.
+    /// Members without one have no name, like people added before accounts existed.
+    /// </summary>
+    public static async Task InsertUser(
+        this SqlConnection db,
+        Guid userId,
+        string name,
+        string? email = null
+    )
+    {
+        await db.ExecuteAsync(
+            """
+            INSERT INTO Users (Id, Name, Email, NormalizedEmail, PasswordHash, SecurityStamp, CreatedAt)
+            VALUES (@Id, @Name, @Email, UPPER(@Email), 'not a hash', 'STAMP', SYSDATETIMEOFFSET())
+            """,
+            new
+            {
+                Id = userId,
+                Name = name,
+                Email = email ?? $"{userId:N}@example.com",
+            }
+        );
+    }
+
     /// <summary>A <see cref="Name"/> for arranging tests; <paramref name="value"/> must not be blank.</summary>
     public static Name ValidName(string value) =>
         Name.TryCreate(value, out Name? name)

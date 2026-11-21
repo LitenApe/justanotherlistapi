@@ -1,14 +1,15 @@
 import { useState, type SubmitEvent } from "react";
-import type { Item } from "../api/types";
+import type { Item, Member } from "../api/types";
 import { Dialog, DialogActions } from "../components/Dialog";
 import styles from "./ListPage.module.css";
+import { memberName } from "./members";
 import { reservationText } from "./reservations";
 
 interface ReservationDialogProps {
   /** The item to reserve, or null while the dialog is closed. */
   item: Item | null;
   userId: string;
-  members: readonly string[];
+  members: readonly Member[];
   /**
    * Saves the choice: who to reserve the item for (null to cancel the
    * reservation), and who it was reserved for when the dialog opened, so a
@@ -61,11 +62,14 @@ function ReservationForm({
   const [choice, setChoice] = useState(item.reservedFor ?? userId);
   const [pending, setPending] = useState(false);
   const current = reservationText(item, userId, members);
-  const others = members.filter((memberId) => memberId !== userId).toSorted();
+  const others = members
+    .filter((member) => member.id !== userId)
+    .map((member) => ({ value: member.id, label: memberName(member.id, members) }))
+    .toSorted((a, b) => a.label.localeCompare(b.label));
   const options = [
-    ...(seen === null ? [] : [{ value: NOBODY, label: "Nobody", mono: false }]),
-    { value: userId, label: "You", mono: false },
-    ...others.map((memberId) => ({ value: memberId, label: memberId, mono: true })),
+    ...(seen === null ? [] : [{ value: NOBODY, label: "Nobody" }]),
+    { value: userId, label: "You" },
+    ...others,
   ];
 
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
@@ -91,7 +95,7 @@ function ReservationForm({
       <p className="hint">{current ? `${current}.` : "Nobody has reserved it yet."}</p>
       <fieldset className={styles.reserveOptions}>
         <legend className="label">Reserved for</legend>
-        {options.map(({ value, label, mono }) => (
+        {options.map(({ value, label }) => (
           <label key={value} className={styles.reserveOption}>
             <input
               type="radio"
@@ -103,7 +107,7 @@ function ReservationForm({
               }}
               data-autofocus={choice === value || undefined}
             />
-            <span className={mono ? styles.memberId : undefined}>{label}</span>
+            <span>{label}</span>
           </label>
         ))}
       </fieldset>

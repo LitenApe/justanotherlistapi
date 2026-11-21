@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Item, ItemGroupSettings } from "../api/types";
-import { defaultSettings, makeItem, makeList, ME, OTHER } from "../test/builders";
+import { defaultSettings, makeItem, makeList, member, ME, OTHER } from "../test/builders";
 import {
   autoDeleteTime,
   filterItems,
@@ -48,8 +48,8 @@ describe("listReducer", () => {
     if (!milk) throw new Error("missing item");
     let next = listReducer(state, { type: "itemRemoved", itemId: milk.id });
     next = listReducer(next, { type: "itemRemoved", itemId: milk.id });
-    next = listReducer(next, { type: "memberAdded", memberId: OTHER });
-    next = listReducer(next, { type: "memberAdded", memberId: OTHER });
+    next = listReducer(next, { type: "memberAdded", member: member(OTHER) });
+    next = listReducer(next, { type: "memberAdded", member: member(OTHER) });
 
     expect(next.items.map((i) => i.name)).toEqual(["Eggs"]);
     expect(next.members).toHaveLength(2);

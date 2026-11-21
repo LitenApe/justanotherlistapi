@@ -22,12 +22,19 @@ export interface ItemGroupSettings {
   protectReservations: boolean;
 }
 
+/** A member of a list, as the other members see them: never their email. */
+export interface Member {
+  id: string;
+  /** Null for someone added before accounts existed who hasn't signed up since. */
+  name: string | null;
+}
+
 /** A shared checklist. The API calls these "item groups". */
 export interface ItemGroup {
   id: string;
   name: string;
   items: Item[];
-  members: string[];
+  members: Member[];
   settings: ItemGroupSettings;
 }
 

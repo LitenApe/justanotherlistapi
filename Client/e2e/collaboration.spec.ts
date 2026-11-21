@@ -23,7 +23,7 @@ test.describe("working together", () => {
 
     await member.page.getByRole("link", { name: "Groceries" }).click();
     await expect(member.page.getByRole("heading", { level: 1, name: "Groceries" })).toBeVisible();
-    await expect(member.members().getByText(owner.id, { exact: true })).toBeVisible();
+    await expect(member.members().getByText(owner.name, { exact: true })).toBeVisible();
     await expect(member.members().getByText("You", { exact: true })).toBeVisible();
   });
 
@@ -72,7 +72,7 @@ test.describe("working together", () => {
 
     await owner
       .members()
-      .getByRole("button", { name: `Remove member ${member.id}` })
+      .getByRole("button", { name: `Remove member ${member.name}` })
       .click();
     await owner.page
       .getByRole("dialog", { name: "Remove member?" })
@@ -82,7 +82,7 @@ test.describe("working together", () => {
     await expect(member.page.getByRole("heading", { level: 1, name: "Your lists" })).toBeVisible();
     await expect(member.page.getByText("You were removed from “Groceries”.")).toBeVisible();
     await expect(member.page.getByRole("link", { name: "Groceries" })).toHaveCount(0);
-    await expect(owner.members().getByText(member.id, { exact: true })).toHaveCount(0);
+    await expect(owner.members().getByText(member.name, { exact: true })).toHaveCount(0);
   });
 
   test("a member who leaves disappears from the other members' view", async ({ newUser }) => {
@@ -96,7 +96,7 @@ test.describe("working together", () => {
 
     await expect(member.page.getByText("You left “Groceries”.")).toBeVisible();
     await expect(member.page.getByText(/You were removed/)).toHaveCount(0);
-    await expect(owner.members().getByText(member.id, { exact: true })).toHaveCount(0);
+    await expect(owner.members().getByText(member.name, { exact: true })).toHaveCount(0);
     // The owner is the last member now, so they can't leave.
     await expect(owner.page.getByRole("button", { name: "Leave list" })).toHaveCount(0);
   });

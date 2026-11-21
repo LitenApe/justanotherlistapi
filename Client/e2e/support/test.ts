@@ -103,7 +103,7 @@ export class User {
     const row = this.page.getByRole("listitem").filter({ has: this.item(itemName) });
     await row.getByRole("button", { name: /^(Reserve|Change reservation for) “/ }).click();
     const dialog = this.page.getByRole("dialog", { name: `Reserve “${itemName}”` });
-    const choice = forWhom === null ? "Nobody" : forWhom === this ? "You" : forWhom.id;
+    const choice = forWhom === null ? "Nobody" : forWhom === this ? "You" : forWhom.name;
     await dialog.getByRole("radio", { name: choice, exact: true }).check();
     const saved = this.page.waitForResponse((response) =>
       new URL(response.url()).pathname.endsWith("/reservation"),
@@ -147,7 +147,7 @@ export class User {
   async addMember(member: User): Promise<void> {
     await this.page.getByLabel("Add a member").fill(member.id);
     await this.page.getByRole("button", { name: "Add member" }).click();
-    await expect(this.members().getByText(member.id, { exact: true })).toBeVisible();
+    await expect(this.members().getByText(member.name, { exact: true })).toBeVisible();
   }
 
   members() {

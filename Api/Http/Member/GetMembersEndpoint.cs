@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Checklist.Domain;
 using Checklist.UseCases;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -15,14 +16,14 @@ internal static class GetMembersEndpoint
             .MapGet("/{itemGroupId:guid}/member", Handle)
             .WithSummary("Get members of an item group")
             .WithDescription(
-                "Returns the list of user IDs that are members of the specified item group. The authenticated user must already be a member."
+                "Returns the members of the specified item group, each with their user ID and name (null for a member who joined before accounts existed and hasn't signed up since). The authenticated user must already be a member."
             )
             .WithTags("Member")
             .WithName(Operation);
     }
 
     private static async Task<
-        Results<Ok<IReadOnlyList<Guid>>, UnauthorizedHttpResult, ForbidHttpResult>
+        Results<Ok<IReadOnlyList<Member>>, UnauthorizedHttpResult, ForbidHttpResult>
     > Handle(
         Guid itemGroupId,
         ClaimsPrincipal user,

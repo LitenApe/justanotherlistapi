@@ -60,7 +60,7 @@ Because `Checklist` has no package references, the compiler stops the inside fro
 
 | Folder      | Contents                                                                                                                                                                |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Domain/`   | The records the API and SignalR send (`ItemGroup`, `ItemGroupSettings`, `Item`, `User`), `Caller`, the values use cases take (`Name`, `ItemInput`, `ItemGroupSettingsInput`, `DisplayName`, `EmailAddress`, `Password`), the reservation rule (`ReservationChange`) and what signing in deals in (`Session`, `AccessToken`, `PasswordCheck`, `PasswordReset`) |
+| `Domain/`   | The records the API and SignalR send (`ItemGroup`, `ItemGroupSettings`, `Item`, `Member`, `User`), `Caller`, the values use cases take (`Name`, `ItemInput`, `ItemGroupSettingsInput`, `DisplayName`, `EmailAddress`, `Password`), the reservation rule (`ReservationChange`) and what signing in deals in (`Session`, `AccessToken`, `PasswordCheck`, `PasswordReset`) |
 | `Ports/`    | The interfaces the inside needs from the outside: `IMembership`, `IItemGroupStore`, `IItemStore`, `IChecklistNotifier`, `IAuditTrail`, `IAccounts`, `ITokenIssuer`, `IMailer` |
 | `UseCases/` | One class per operation, in a folder per slice (`ItemGroup`, `Item`, `Member`, `Account`). Namespace `Checklist.UseCases` for all of them                               |
 
@@ -84,12 +84,12 @@ Each port is named after what the inside needs, and each method covers one atomi
 
 | Port                 | Methods                                                                                                                                            | Adapter                       |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
-| `IMembership`        | `IsMember`, `ListMembers`, `Add` (false if already a member), `RemoveUnlessLast` (false for the last member; frees the items reserved for them)   | `SqlMembership`               |
+| `IMembership`        | `IsMember`, `ListMembers` (with their names, from `Users`), `Add` (false if already a member), `RemoveUnlessLast` (false for the last member; frees the items reserved for them)   | `SqlMembership`               |
 | `IItemGroupStore`    | `Create` (with its first member), `Load`, `ListForMember`, `Rename`, `UpdateSettings` (returns them as stored), `Delete`, `DeleteDueForAutoDelete` | `SqlItemGroupStore`           |
 | `IItemStore`         | `Create`, `Update` (returns the item as stored, `null` when it's gone), `Delete`, `ChangeReservation` (decides with `ReservationChange.Decide`, returns a `ReservationResult`); items in other lists are left alone | `SqlItemStore`                |
 | `IChecklistNotifier` | `NotifyItemCreated` … `NotifyGroupDeleted`, each with the connection to leave out                                                                  | `ChecklistNotifier` (SignalR) |
 | `IAuditTrail`        | `ItemGroupAutoDeleted`: audit entries that no request is behind                                                                                    | `AuditTrail` (audit log)      |
-| `IAccounts`          | `Create` (`null` when another account uses the email), `CheckPassword` (counts wrong ones towards a lockout), `CreateResetCode` (`null` without an account), `ResetPassword` (`false` for a spent code; ends the lockout) | `IdentityAccounts` (ASP.NET Core Identity on `SqlAccountStore`) |
+| `IAccounts`          | `Create` (`null` when another account uses the email), `CheckPassword` (counts wrong ones towards a lockout), `Find` (by user ID), `CreateResetCode` (`null` without an account), `ResetPassword` (`false` for a spent code; ends the lockout) | `IdentityAccounts` (ASP.NET Core Identity on `SqlAccountStore`) |
 | `ITokenIssuer`       | `Issue`: a signed token for a user, and when it expires                                                                                            | `JwtTokenIssuer`              |
 | `IMailer`            | `SendPasswordReset`: failures are the adapter's to log, so asking for a reset answers the same either way                                         | `SmtpMailer` (SMTP)           |
 
@@ -232,7 +232,7 @@ All backend tests run against a real SQL Server (Testcontainers). There are no i
 | Architecture tests    | `Api.Tests/Architecture.Tests.cs`                  | The dependency rules: `Checklist` references nothing but .NET, use cases take only ports and `TimeProvider`, and the driving adapters (`Api.Http`, `Api.Realtime`, `Api.Background`) take no port, SQL adapter or connection, so they can only go through use cases |
 | Composition root test | `Api.Tests/CompositionRoot.Tests.cs`               | The app's own container builds every use case                                                                                                                                                                                                                       |
 
-`TestHelpers` arranges and checks data (`InsertItemGroup`, `InsertItem`, which can reserve the item too, `SetItemGroupSettings`, `LoadItemGroupName`, `LoadSettings`, `LoadMembers`, `LoadItem`, `CountItems`) and makes domain values with `ValidName` and `ValidSettings`. `TestAccounts` does the same for accounts: `CreateServices`, `SignUp` (with `KnownPassword`), `UniqueEmail`, `ValidDisplayName`, `ValidEmail` and `ValidPassword`.
+`TestHelpers` arranges and checks data (`InsertItemGroup`, `InsertUser`, which gives a member a name, `InsertItem`, which can reserve the item too, `SetItemGroupSettings`, `LoadItemGroupName`, `LoadSettings`, `LoadMembers`, `LoadItem`, `CountItems`) and makes domain values with `ValidName` and `ValidSettings`. `TestAccounts` does the same for accounts: `CreateServices`, `SignUp` (with `KnownPassword`), `UniqueEmail`, `ValidDisplayName`, `ValidEmail` and `ValidPassword`.
 
 ---
 

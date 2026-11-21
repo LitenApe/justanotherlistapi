@@ -5,6 +5,7 @@ import type {
   ItemGroupSettings,
   ItemGroupSettingsInput,
   ItemInput,
+  Member,
 } from "./types";
 
 const listPath = (listId: string) => `/api/list/${encodeURIComponent(listId)}`;
@@ -57,8 +58,9 @@ export const checklistApi = {
       `${reservationPath(listId, itemId)}?memberId=${encodeURIComponent(memberId)}`,
     ),
 
+  /** Adds the user and returns them as a member, with their name. */
   addMember: (listId: string, memberId: string) =>
-    apiRequest<undefined>("POST", memberPath(listId, memberId)),
+    apiRequest<Member>("POST", memberPath(listId, memberId)),
 
   removeMember: (listId: string, memberId: string) =>
     apiRequest<undefined>("DELETE", memberPath(listId, memberId)),

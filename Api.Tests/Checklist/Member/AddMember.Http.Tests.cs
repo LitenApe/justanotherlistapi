@@ -1,4 +1,5 @@
 using System.Net;
+using Checklist.Domain;
 using Dapper;
 
 namespace Api.Tests.Checklist.MemberTests;
@@ -6,7 +7,7 @@ namespace Api.Tests.Checklist.MemberTests;
 public sealed class AddMemberHttpTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     [Fact]
-    public async Task MapEndpoint_ReturnsNoContent_OnHappyPath()
+    public async Task MapEndpoint_Returns200WithTheNewMember_OnHappyPath()
     {
         var itemGroupId = Guid.NewGuid();
         await factory.Connection.ExecuteAsync(
@@ -19,6 +20,7 @@ public sealed class AddMemberHttpTests(ApiFactory factory) : IClassFixture<ApiFa
         );
 
         var newMemberId = Guid.NewGuid();
+        await factory.Connection.InsertUser(newMemberId, "Kim");
         HttpClient client = factory.CreateClient();
 
         HttpResponseMessage response = await client.PostAsync(
@@ -27,7 +29,11 @@ public sealed class AddMemberHttpTests(ApiFactory factory) : IClassFixture<ApiFa
             TestContext.Current.CancellationToken
         );
 
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            new Member { Id = newMemberId, Name = "Kim" },
+            await response.Content.ReadFromJsonAsync<Member>(TestContext.Current.CancellationToken)
+        );
     }
 
     // Two members add the same user at the same moment. One request adds them; the other finds
@@ -63,7 +69,7 @@ public sealed class AddMemberHttpTests(ApiFactory factory) : IClassFixture<ApiFa
 
             Assert.Equal(3, (await factory.Connection.LoadMembers(itemGroupId)).Count);
             Assert.Equal(
-                new[] { HttpStatusCode.NoContent, HttpStatusCode.Conflict },
+                new[] { HttpStatusCode.OK, HttpStatusCode.Conflict },
                 responses.Select(r => r.StatusCode).Order()
             );
         }
