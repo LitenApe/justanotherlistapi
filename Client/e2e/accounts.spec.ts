@@ -11,7 +11,8 @@ test.describe("accounts", () => {
     await page.getByRole("button", { name: "Account" }).click();
     await expect(page.getByText("Robin", { exact: true })).toBeVisible();
     await expect(page.getByText(user.email, { exact: true })).toBeVisible();
-    await expect(page.getByText(user.id, { exact: true })).toBeVisible();
+    // Nobody needs their user ID: people are added by email and shown by name.
+    await expect(page.getByText(user.id)).toHaveCount(0);
   });
 
   test("keeps you signed in across reloads, out after signing out, and back in with your password", async ({

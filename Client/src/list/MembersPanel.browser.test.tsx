@@ -47,37 +47,47 @@ describe("MembersPanel", () => {
       .not.toBeInTheDocument();
   });
 
-  it("checks the user ID before adding, with the error next to the field", async () => {
+  it("asks for an email before adding, with the error next to the field", async () => {
     const { region, onAdd } = await renderPanel([member(ME), member(OTHER)]);
     const input = region.getByLabelText("Add a member");
 
-    await input.fill("not-a-guid");
     await region.getByRole("button", { name: "Add member" }).click();
-    await expect.element(input).toHaveAccessibleDescription(/Enter a user ID in GUID format/);
+    await expect.element(input).toHaveAccessibleDescription(/Enter their email address\./);
     await expect.element(input).toHaveFocus();
 
-    await input.fill(OTHER.toUpperCase());
+    await input.fill("kim");
     await region.getByRole("button", { name: "Add member" }).click();
-    await expect.element(input).toHaveAccessibleDescription(/That person is already a member/);
+    await expect
+      .element(input)
+      .toHaveAccessibleDescription(/Enter an email address, like name@example\.com\./);
     expect(onAdd).not.toHaveBeenCalled();
     await expectNoAxeViolations(region.element());
   });
 
-  it("adds normalized IDs, shows errors the caller reports and clears on success", async () => {
-    const results = ["Couldn't add the member. Try again.", null];
+  it("adds by email, shows the problems the caller reports, and clears on success", async () => {
+    const results = ["No one has an account with that email.", null];
     const { region, onAdd } = await renderPanel([member(ME)], () =>
       Promise.resolve(results.shift() ?? null),
     );
     const input = region.getByLabelText("Add a member");
-    const newMember = "3F2504E0-4F89-41D3-9A0C-0305E82C3301";
 
-    await input.fill(newMember);
+    await input.fill("sam@example.com");
     await region.getByRole("button", { name: "Add member" }).click();
-    expect(onAdd).toHaveBeenCalledWith(newMember.toLowerCase());
-    await expect.element(input).toHaveAccessibleDescription(/Couldn't add the member/);
-    await expect.element(input).toHaveValue(newMember);
+    expect(onAdd).toHaveBeenCalledWith("sam@example.com");
+    await expect
+      .element(input)
+      .toHaveAccessibleDescription(/No one has an account with that email/);
+    await expect.element(input).toHaveValue("sam@example.com");
 
     await region.getByRole("button", { name: "Add member" }).click();
     await expect.element(input).toHaveValue("");
+  });
+
+  it("shows names only: no user IDs and no emails", async () => {
+    const { region } = await renderPanel([member(ME), member(OTHER)]);
+
+    await expect.element(region).not.toHaveTextContent(ME);
+    await expect.element(region).not.toHaveTextContent(OTHER);
+    await expect.element(region.getByText("Kim", { exact: true })).toBeVisible();
   });
 });

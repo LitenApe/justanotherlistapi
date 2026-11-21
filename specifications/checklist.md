@@ -26,7 +26,7 @@
     - [DELETE /api/list/{itemGroupId}/{itemId}/reservation — UnreserveItem](#delete-apilistitemgroupiditemidreservation--unreserveitem)
   - [Member Endpoints](#member-endpoints)
     - [GET /api/list/{itemGroupId}/member — GetMembers](#get-apilistitemgroupidmember--getmembers)
-    - [POST /api/list/{itemGroupId}/member/{memberId} — AddMember](#post-apilistitemgroupidmembermemberid--addmember)
+    - [POST /api/list/{itemGroupId}/member — AddMember](#post-apilistitemgroupidmember--addmember)
     - [DELETE /api/list/{itemGroupId}/member/{memberId} — RemoveMember](#delete-apilistitemgroupidmembermemberid--removemember)
 - [Shared Patterns](#shared-patterns)
 - [Real-Time Notifications](#real-time-notifications)
@@ -648,27 +648,34 @@ Returns the members of the specified item group, each with their user ID and nam
 
 ---
 
-#### `POST /api/list/{itemGroupId}/member/{memberId}` — AddMember
+#### `POST /api/list/{itemGroupId}/member` — AddMember
 
-Grants another user access to an item group by adding them as a member, and returns them as a `Member` with their name (`null` when no account has that user ID). The authenticated user must already be a member — there is no concept of an owner or admin; any member can invite others.
+Grants someone access to an item group by the email address they signed up with, and returns them as a `Member` with their name. The email is looked up ignoring case and is never sent back: members see each other's names, not emails. The authenticated user must already be a member — there is no concept of an owner or admin; any member can invite others.
 
 **Route parameters**
 
 | Parameter     | Type   | Description                         |
 | ------------- | ------ | ----------------------------------- |
 | `itemGroupId` | `Guid` | The item group to add the member to |
-| `memberId`    | `Guid` | The user ID to add as a member      |
+
+**Request body**
+
+```json
+{ "email": "kim@example.com" }
+```
 
 **Responses**
 
-| Status             | Condition                                   |
-| ------------------ | ------------------------------------------- |
-| `200 OK`           | The new `Member`, with their name           |
-| `401 Unauthorized` | Missing user ID claim                       |
-| `403 Forbidden`    | Authenticated user is not a member          |
-| `409 Conflict`     | `memberId` is already a member of the group |
+| Status             | Condition                                              |
+| ------------------ | ------------------------------------------------------ |
+| `200 OK`           | The new `Member`, with their name                      |
+| `400 Bad Request`  | `email` is missing or isn't an email address           |
+| `401 Unauthorized` | Missing user ID claim                                  |
+| `403 Forbidden`    | Authenticated user is not a member                     |
+| `404 Not Found`    | No account uses the email address                      |
+| `409 Conflict`     | The account's owner is already a member of the group   |
 
-Adding is one conditional insert whose existence check holds its locks until the insert (`SqlMembership.Add`). When two members add the same user at the same moment, one gets `200` and the other `409`; neither gets a server error from the primary key.
+The membership check comes first, so a non-member learns nothing about which emails have accounts. Adding is one conditional insert whose existence check holds its locks until the insert (`SqlMembership.Add`). When two members add the same person at the same moment, one gets `200` and the other `409`; neither gets a server error from the primary key.
 
 ---
 

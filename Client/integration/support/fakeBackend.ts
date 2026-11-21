@@ -383,11 +383,17 @@ export class FakeBackend {
       };
     }
 
+    if (second === "member" && !third && method === "POST") {
+      // Added by the email they signed up with, like the real API.
+      const { email } = (body ?? {}) as { email?: string };
+      if (!email?.includes("@")) return { status: 400 };
+      const account = this.account(email);
+      if (!account) return { status: 404 };
+      if (isMember(list, account.id)) return { status: 409 };
+      return { status: 200, json: this.addMember(list, account.id, exclude) };
+    }
+
     if (second === "member" && third) {
-      if (method === "POST") {
-        if (isMember(list, third)) return { status: 409 };
-        return { status: 200, json: this.addMember(list, third, exclude) };
-      }
       if (method === "DELETE") {
         if (list.members.length === 1 && list.members[0]?.id === third) return { status: 409 };
         this.removeMember(list, third, exclude);

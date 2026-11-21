@@ -145,7 +145,7 @@ export class User {
   }
 
   async addMember(member: User): Promise<void> {
-    await this.page.getByLabel("Add a member").fill(member.id);
+    await this.page.getByLabel("Add a member").fill(member.email);
     await this.page.getByRole("button", { name: "Add member" }).click();
     await expect(this.members().getByText(member.name, { exact: true })).toBeVisible();
   }

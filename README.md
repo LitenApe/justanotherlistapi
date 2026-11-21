@@ -197,7 +197,7 @@ Docker is required because Aspire spins up SQL Server as a persistent container,
 
 - Each browser tab keeps its own sign-in, so you can sign up a second account in another tab to try sharing.
 - **Forgot your password?** on the sign-in page emails a link to choose a new one. Locally the email lands in Mailpit's inbox.
-- To share a list, ask the other person for their user ID (shown under **Account**) and paste it under **Add a member** on the list page.
+- To share a list, enter the email the other person signed up with under **Add a member** on the list page. Members see each other's names, never their emails.
 - Changes made by other members appear live.
 - **Settings** on the list page can hide done items after a while and delete the list once every item has been done for a while (at least a day). Both are off by default and apply to every member.
 - Dark mode is the default; use the **Dark mode** toggle in the header to switch to light. Your choice is remembered in the browser.

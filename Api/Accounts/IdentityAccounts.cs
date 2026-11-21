@@ -79,10 +79,10 @@ internal sealed class IdentityAccounts(
         );
     }
 
-    public async Task<User?> Find(Guid userId, CancellationToken ct)
+    public async Task<User?> FindByEmail(EmailAddress email, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        return await users.FindByIdAsync(userId.ToString()) is { } account ? ToUser(account) : null;
+        return await users.FindByEmailAsync(email.Value) is { } account ? ToUser(account) : null;
     }
 
     public async Task<PasswordReset?> CreateResetCode(EmailAddress email, CancellationToken ct)
