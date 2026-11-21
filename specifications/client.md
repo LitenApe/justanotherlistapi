@@ -184,7 +184,7 @@ route("*", "NotFoundPage.tsx"),
 - **Loaders** call the API through `loadRouteData()`. A 401 redirects to sign-in (the session has already been cleared). Other API errors become error responses with the HTTP status (503 when the server can't be reached), which the route's `ErrorBoundary` shows: 403 "You can't open this list", 404 "List not found", anything else an alert with **Try again** (`useRevalidator()`).
 - **Forms that navigate** use React Router forms and `clientAction`s: sign-in and sign-up (`<Form>`) and create list (`useFetcher`, so a validation error doesn't change the URL or add a history entry). Validation errors come back as action data and move focus to the field.
 - **Mutations on the list page** (toggle, edit, delete, members, settings) stay as direct API calls with an idempotent reducer. They need optimistic updates, focus management and realtime merging, and they shouldn't trigger a full reload of a list that can hold thousands of items.
-- **Loader data vs. live state:** pages keep an editable copy of loader data for realtime events (`useLoaderState()` on the overview, `listReducer` on the list page). The copy resets whenever the loader returns new data. After a SignalR reconnect, or when a hidden overview tab becomes visible, pages call `revalidate()` instead of fetching by hand.
+- **Loader data vs. live state:** pages keep an editable copy of loader data for realtime events (`useLoaderState()` on the overview, `listReducer` on the list page). The copy resets whenever the loader returns new data, except that the list page keeps its items in the order it shows them (see [Data Flow](#data-flow)). After a SignalR reconnect, or when a hidden overview tab becomes visible, pages call `revalidate()` instead of fetching by hand.
 - **Pending UI:** while the next page loads, the current page stays visible, `<main>` gets `aria-busy`, and a thin bar appears under the header after 150ms (`AppShell`). The first load shows the root `HydrateFallback` ("Loading JustAnotherList…" in `role="status"`).
 - **Titles** are React 19 `<title>` elements (`DocumentTitle`), so they update with the data, for example when another member renames the list.
 - **Route types** come from `react-router typegen` (`.react-router/types`, git-ignored). Route modules import them as `./+types/<File>`.
@@ -217,7 +217,7 @@ People have accounts with a name, an email address and a password ([accounts.md]
 - When a request returns, the page applies it to the item as it is by then (`latestItem` in `ListPage`): a saved edit changes only the name and notes, and a failed toggle undoes only the toggle. So whatever other members changed meanwhile, such as a reservation, stays, and an item they deleted stays deleted.
 - `completedAt` is set by the server and never sent. An optimistic toggle fills it in locally with the current time so auto-hide works straight away; other members receive the server's value through `ItemUpdated`.
 - The list page keeps state in `listReducer`. Local changes and realtime events dispatch the **same idempotent actions**, so receiving an event for a change already applied locally is harmless.
-- The API returns items in no particular order. The client keeps the order stable during a visit and puts new items at the top, next to the add form.
+- The API returns items in no particular order. The client keeps the order stable during a visit and puts new items at the top, next to the add form. When the page reloads its data (after a reconnect, a reservation conflict or a change of name), the items it shows keep their place, and items new to it go to the top.
 
 ---
 
@@ -454,6 +454,6 @@ The specs cover signing up, signing out and back in with a password the server c
 
 ## Known Limitations
 
-- **Item order.** The API has no ordering column, so items reload in database order.
+- **Item order.** The API has no ordering column, so opening a list shows its items in database order, and members can see them in different orders.
 - **Overview payload.** `GET /api/list` returns every open item of every list, which can be large with seeded data.
 - **Clock differences.** Auto-hide compares the server's `completedAt` with the browser's clock, so a device whose clock is off hides items correspondingly early or late.

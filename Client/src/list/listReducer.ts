@@ -28,7 +28,7 @@ export function listStateFrom(list: ItemGroup): ListState {
 export function listReducer(state: ListState, action: ListAction): ListState {
   switch (action.type) {
     case "loaded":
-      return listStateFrom(action.list);
+      return { ...listStateFrom(action.list), items: keepOrder(state.items, action.list.items) };
     case "itemUpserted": {
       const index = state.items.findIndex((item) => item.id === action.item.id);
       // New items go to the top, next to the form that adds them.
@@ -53,6 +53,21 @@ export function listReducer(state: ListState, action: ListAction): ListState {
         items: freeItemsReservedFor(state.items, action.memberId),
       };
   }
+}
+
+/**
+ * The API returns items in no particular order, so fresh loader data (after a
+ * reconnect, say) would shuffle the list. Items already shown keep their place
+ * with their fresh data, items the server no longer has drop out, and items new
+ * to the page go to the top, like items added while it's open.
+ */
+function keepOrder(shown: Item[], fresh: Item[]): Item[] {
+  const freshById = new Map(fresh.map((item) => [item.id, item]));
+  const shownIds = new Set(shown.map((item) => item.id));
+  return [
+    ...fresh.filter((item) => !shownIds.has(item.id)),
+    ...shown.map((item) => freshById.get(item.id)).filter((item) => item !== undefined),
+  ];
 }
 
 /**

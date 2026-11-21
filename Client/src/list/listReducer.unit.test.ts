@@ -20,6 +20,25 @@ describe("listReducer", () => {
     expect(next).toEqual(listStateFrom(fresh));
   });
 
+  it("keeps the items it shows in place when the loader returns fresh data", () => {
+    // The API returns items in no particular order.
+    const list = makeList("Groceries", ["Milk", "Eggs", "Tea"]);
+    const [milk, eggs, tea] = list.items;
+    if (!milk || !eggs || !tea) throw new Error("missing item");
+    const bread = makeItem({ name: "Bread", itemGroupId: list.id });
+    const state = listStateFrom(list);
+
+    // Meanwhile Milk was deleted, Eggs done and Bread added.
+    const fresh = { ...list, items: [tea, bread, { ...eggs, isComplete: true }] };
+    const next = listReducer(state, { type: "loaded", list: fresh });
+
+    expect(next.items.map((i) => [i.name, i.isComplete])).toEqual([
+      ["Bread", false],
+      ["Eggs", true],
+      ["Tea", false],
+    ]);
+  });
+
   it("adds new items to the top and is idempotent", () => {
     const state = ready();
     const item = makeItem({ name: "Bread", itemGroupId: "g" });
