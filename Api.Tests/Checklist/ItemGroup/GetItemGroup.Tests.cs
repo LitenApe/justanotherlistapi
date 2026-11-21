@@ -15,6 +15,7 @@ public sealed class GetItemGroupTests
         var itemGroupId = Guid.NewGuid();
         await using SqlConnection db = await TestDatabase.CreateAsync();
         await db.InsertItemGroup(itemGroupId, userId, otherMemberId);
+        await db.InsertUser(otherMemberId, "Kim");
         await db.InsertItem(itemGroupId, Guid.NewGuid(), "Open");
         await db.InsertItem(itemGroupId, Guid.NewGuid(), "Done", DateTimeOffset.UnixEpoch);
 
@@ -31,9 +32,16 @@ public sealed class GetItemGroupTests
         Assert.Contains(itemGroup.Items, item =>
             string.Equals(item.Name, "Done", StringComparison.Ordinal)
         );
-        Assert.Equal(2, itemGroup.Members.Count);
-        Assert.Contains(userId, itemGroup.Members);
-        Assert.Contains(otherMemberId, itemGroup.Members);
+        // Members come with their names; one without an account has none.
+        Assert.Equivalent(
+            new[]
+            {
+                new Member { Id = userId, Name = null },
+                new Member { Id = otherMemberId, Name = "Kim" },
+            },
+            itemGroup.Members,
+            strict: true
+        );
     }
 
     [Fact]

@@ -3,11 +3,12 @@ import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import { ToastProvider } from "../components/Toasts";
 import { expectNoAxeViolations } from "../test/axe";
-import { ME, OTHER } from "../test/builders";
+import type { Member } from "../api/types";
+import { member, ME, OTHER } from "../test/builders";
 import { MembersPanel } from "./MembersPanel";
 
 async function renderPanel(
-  members: string[],
+  members: Member[],
   onAdd: (memberId: string) => Promise<string | null> = () => Promise.resolve(null),
 ) {
   const onRemove = vi.fn();
@@ -22,31 +23,32 @@ async function renderPanel(
 
 describe("MembersPanel", () => {
   it("lists you first, and offers to remove others or leave", async () => {
-    const { region, onRemove } = await renderPanel([OTHER, ME]);
+    const { region, onRemove } = await renderPanel([member(OTHER), member(ME)]);
 
-    const ids = region
+    const rows = region
       .getByRole("listitem")
       .elements()
       .map((item) => item.textContent);
-    expect(ids[0]).toContain(ME);
+    expect(rows[0]).toContain("Robin");
+    expect(rows[1]).toContain("Kim");
     await expect.element(region.getByText("You")).toBeVisible();
     await expectNoAxeViolations(region.element());
 
-    await region.getByRole("button", { name: `Remove member ${OTHER}` }).click();
+    await region.getByRole("button", { name: "Remove member Kim" }).click();
     expect(onRemove).toHaveBeenCalledWith(OTHER);
     await region.getByRole("button", { name: "Leave list" }).click();
     expect(onRemove).toHaveBeenCalledWith(ME);
   });
 
   it("doesn't offer to leave when you're the only member", async () => {
-    const { region } = await renderPanel([ME]);
+    const { region } = await renderPanel([member(ME)]);
     await expect
       .element(region.getByRole("button", { name: "Leave list" }))
       .not.toBeInTheDocument();
   });
 
   it("checks the user ID before adding, with the error next to the field", async () => {
-    const { region, onAdd } = await renderPanel([ME, OTHER]);
+    const { region, onAdd } = await renderPanel([member(ME), member(OTHER)]);
     const input = region.getByLabelText("Add a member");
 
     await input.fill("not-a-guid");
@@ -63,7 +65,7 @@ describe("MembersPanel", () => {
 
   it("adds normalized IDs, shows errors the caller reports and clears on success", async () => {
     const results = ["Couldn't add the member. Try again.", null];
-    const { region, onAdd } = await renderPanel([ME], () =>
+    const { region, onAdd } = await renderPanel([member(ME)], () =>
       Promise.resolve(results.shift() ?? null),
     );
     const input = region.getByLabelText("Add a member");

@@ -5,6 +5,7 @@ import type {
   ItemGroupSettings,
   ItemGroupSettingsInput,
   ItemInput,
+  Member,
 } from "../../src/api/types";
 import { defaultSettings, ME, OTHER } from "../../src/test/builders";
 
@@ -330,7 +331,7 @@ export class FakeBackend {
     if (!listId) {
       if (method === "GET") {
         // Lists you belong to, with open items only and no member IDs.
-        const mine = this.lists.filter((list) => list.members.includes(userId));
+        const mine = this.lists.filter((list) => isMember(list, userId));
         return {
           status: 200,
           json: mine.map((list) => ({
@@ -347,7 +348,7 @@ export class FakeBackend {
           id: crypto.randomUUID(),
           name,
           items: [],
-          members: [userId],
+          members: [this.memberFor(userId)],
           settings: defaultSettings(),
         };
         this.lists.push(list);
@@ -358,7 +359,7 @@ export class FakeBackend {
 
     // Membership is checked before existence, so non-members can't probe for lists.
     const list = this.list(listId);
-    if (!list?.members.includes(userId)) return { status: 403 };
+    if (!list || !isMember(list, userId)) return { status: 403 };
 
     if (!second) {
       switch (method) {
@@ -384,12 +385,11 @@ export class FakeBackend {
 
     if (second === "member" && third) {
       if (method === "POST") {
-        if (list.members.includes(third)) return { status: 409 };
-        this.addMember(list, third, exclude);
-        return { status: 204 };
+        if (isMember(list, third)) return { status: 409 };
+        return { status: 200, json: this.addMember(list, third, exclude) };
       }
       if (method === "DELETE") {
-        if (list.members.length === 1 && list.members[0] === third) return { status: 409 };
+        if (list.members.length === 1 && list.members[0]?.id === third) return { status: 409 };
         this.removeMember(list, third, exclude);
         return { status: 204 };
       }
@@ -490,13 +490,24 @@ export class FakeBackend {
     this.broadcast(list.id, "GroupDeleted", [list.id], exclude);
   }
 
-  private addMember(list: ItemGroup, memberId: string, exclude: string | null) {
-    list.members.push(memberId);
-    this.broadcast(list.id, "MemberAdded", [list.id, memberId], exclude);
+  /** Adds the user, named by their account like the real server, and returns them. */
+  private addMember(list: ItemGroup, memberId: string, exclude: string | null): Member {
+    const member = this.memberFor(memberId);
+    list.members.push(member);
+    this.broadcast(list.id, "MemberAdded", [list.id, member], exclude);
+    return member;
+  }
+
+  /** The user as a member: with their account's name, or none without an account. */
+  private memberFor(userId: string): Member {
+    return {
+      id: userId,
+      name: this.accounts.find((account) => account.id === userId)?.name ?? null,
+    };
   }
 
   private removeMember(list: ItemGroup, memberId: string, exclude: string | null) {
-    list.members = list.members.filter((id) => id !== memberId);
+    list.members = list.members.filter((member) => member.id !== memberId);
     // Like the server, free their items without an ItemUpdated for each.
     list.items = list.items.map((item) =>
       item.reservedFor === memberId ? { ...item, reservedFor: null, reservedBy: null } : item,
@@ -523,7 +534,7 @@ export class FakeBackend {
     if (!item) return 204;
     const { reservedFor, reservedBy } = item;
     if (reservedFor === memberId && (memberId === null || reservedBy === callerId)) return 204;
-    if (memberId !== null && !list.members.includes(memberId)) return 409;
+    if (memberId !== null && !isMember(list, memberId)) return 409;
     if (reservedFor !== replacing) return 409;
     const involved = callerId === reservedFor || callerId === reservedBy;
     if (list.settings.protectReservations && reservedFor !== null && !involved) return 409;
@@ -540,7 +551,9 @@ export class FakeBackend {
 
   private requireMember(listId: string, userId: string): ItemGroup {
     const list = this.list(listId);
-    if (!list?.members.includes(userId)) throw new Error(`${userId} isn't a member of ${listId}.`);
+    if (!list || !isMember(list, userId)) {
+      throw new Error(`${userId} isn't a member of ${listId}.`);
+    }
     return list;
   }
 
@@ -632,7 +645,8 @@ export class FakeBackend {
 
     if (message.target === "JoinGroup" && typeof groupId === "string") {
       // Like ChecklistHub: only members may listen to a list.
-      if (this.list(groupId)?.members.includes(client.userId)) {
+      const list = this.list(groupId);
+      if (list && isMember(list, client.userId)) {
         client.groups.add(groupId);
         complete();
       } else {
@@ -688,6 +702,10 @@ const RECORD_SEPARATOR = "\u001e";
 
 function send(client: HubClient, message: object) {
   client.socket.send(JSON.stringify(message) + RECORD_SEPARATOR);
+}
+
+function isMember(list: ItemGroup, userId: string): boolean {
+  return list.members.some((member) => member.id === userId);
 }
 
 function jsonBody(request: Request): unknown {

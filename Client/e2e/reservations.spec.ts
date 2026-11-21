@@ -1,14 +1,14 @@
 import { expect, test, type User } from "./support/test";
 
-/** How other members see a user in a reservation: the start of their user ID. */
-const label = (user: User) => `${user.id.slice(0, 8)}…`;
+/** How other members see a user in a reservation: by name. */
+const label = (user: User) => user.name;
 
 test.describe("reservations", () => {
   test("members reserve items for themselves and each other, live and for good", async ({
     newUser,
   }) => {
-    const alice = await newUser();
-    const bob = await newUser();
+    const alice = await newUser("Alice");
+    const bob = await newUser("Bob");
     const listId = await alice.createList("Trip");
     await alice.addItem("Tent");
     await alice.addItem("Stove");
@@ -35,8 +35,8 @@ test.describe("reservations", () => {
   });
 
   test("a list that protects reservations keeps them from other members", async ({ newUser }) => {
-    const alice = await newUser();
-    const bob = await newUser();
+    const alice = await newUser("Alice");
+    const bob = await newUser("Bob");
     const listId = await alice.createList("Work");
     await alice.addItem("Report");
     await alice.addItem("Slides");
@@ -57,9 +57,9 @@ test.describe("reservations", () => {
   test("items reserved for a member are free again when they leave or are removed", async ({
     newUser,
   }) => {
-    const alice = await newUser();
-    const bob = await newUser();
-    const carol = await newUser();
+    const alice = await newUser("Alice");
+    const bob = await newUser("Bob");
+    const carol = await newUser("Carol");
     const listId = await alice.createList("Trip");
     await alice.addItem("Tent");
     await alice.addItem("Stove");
@@ -80,7 +80,7 @@ test.describe("reservations", () => {
     await expect(alice.item("Tent")).toHaveAccessibleDescription("");
 
     // Alice removes Bob.
-    await alice.page.getByRole("button", { name: `Remove member ${bob.id}` }).click();
+    await alice.page.getByRole("button", { name: `Remove member ${bob.name}` }).click();
     await alice.page
       .getByRole("dialog", { name: "Remove member?" })
       .getByRole("button", { name: "Remove member" })

@@ -1,4 +1,4 @@
-import { expect, expectAccessible, makeList, ME, OTHER, test } from "./support/test";
+import { expect, expectAccessible, makeList, ME, OTHER, PASSWORD, test } from "./support/test";
 
 const itemPath = /^\/api\/list\/[^/]+\/[0-9a-f-]{36}$/;
 
@@ -18,7 +18,7 @@ test.describe("a list", () => {
     await expect(page.getByRole("button", { name: "Edit “Milk”" })).toBeVisible();
     const members = page.getByRole("region", { name: /Members/ });
     await expect(members.getByText("You", { exact: true })).toBeVisible();
-    await expect(members.getByRole("button", { name: `Remove member ${OTHER}` })).toBeVisible();
+    await expect(members.getByRole("button", { name: "Remove member Kim" })).toBeVisible();
     await expectAccessible(page);
   });
 
@@ -213,12 +213,25 @@ test.describe("a list", () => {
     await expect(input).toHaveAccessibleDescription(/That person is already a member/);
 
     const newMember = "3F2504E0-4F89-41D3-9A0C-0305E82C3301";
+    backend.accounts.push({
+      id: newMember.toLowerCase(),
+      name: "Sam",
+      email: "sam@example.com",
+      password: PASSWORD,
+    });
     await input.fill(newMember);
     await page.getByRole("button", { name: "Add member" }).click();
 
-    await expect(page.getByText(newMember.toLowerCase(), { exact: true })).toBeVisible();
+    // The server answers with the new member's name, which the panel shows straight away.
+    const members = page.getByRole("region", { name: /Members/ });
+    await expect(members.getByText("Sam", { exact: true })).toBeVisible();
+    await expect(page.getByRole("status").getByText("Added Sam.")).toBeAttached();
     await expect(input).toHaveValue("");
-    expect(backend.list(list.id)?.members).toEqual([ME, OTHER, newMember.toLowerCase()]);
+    expect(backend.list(list.id)?.members.map((member) => member.id)).toEqual([
+      ME,
+      OTHER,
+      newMember.toLowerCase(),
+    ]);
   });
 
   test("leaves a shared list after confirmation", async ({ page, backend, app }) => {
@@ -233,7 +246,7 @@ test.describe("a list", () => {
 
     await expect(page.getByRole("heading", { level: 1, name: "Your lists" })).toBeVisible();
     await expect(page.getByRole("status").getByText("You left “Groceries”.")).toBeVisible();
-    expect(backend.list(list.id)?.members).toEqual([OTHER]);
+    expect(backend.list(list.id)?.members.map((member) => member.id)).toEqual([OTHER]);
   });
 
   test("only offers to leave when someone else remains a member", async ({ page, app }) => {

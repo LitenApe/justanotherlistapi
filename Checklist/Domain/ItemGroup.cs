@@ -13,8 +13,8 @@ public sealed record ItemGroup
     [Description("Description of the item group")]
     public IReadOnlyList<Item> Items { get; init; } = [];
 
-    [Description("Members of the item group")]
-    public IReadOnlyList<Guid> Members { get; init; } = [];
+    [Description("Members of the item group, by user ID and name")]
+    public IReadOnlyList<Member> Members { get; init; } = [];
 
     [Description("Auto-delete and auto-hide settings, shared by all members")]
     public ItemGroupSettings Settings { get; init; } = new();

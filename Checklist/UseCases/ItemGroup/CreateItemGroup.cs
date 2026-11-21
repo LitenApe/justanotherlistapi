@@ -4,17 +4,18 @@ using Checklist.Ports;
 namespace Checklist.UseCases;
 
 /// <summary>Creates a list. Anyone signed in may, and becomes its first member.</summary>
-public sealed class CreateItemGroup(IItemGroupStore itemGroups)
+public sealed class CreateItemGroup(IItemGroupStore itemGroups, IMembership membership)
 {
     public async Task<ItemGroup> Execute(Caller caller, Name name, CancellationToken ct)
     {
-        var itemGroup = new ItemGroup
+        var itemGroupId = Guid.NewGuid();
+        await itemGroups.Create(itemGroupId, name, caller.UserId, ct);
+        return new ItemGroup
         {
-            Id = Guid.NewGuid(),
+            Id = itemGroupId,
             Name = name.Value,
-            Members = [caller.UserId],
+            // The creator, with their name.
+            Members = await membership.ListMembers(itemGroupId, ct),
         };
-        await itemGroups.Create(itemGroup.Id, name, caller.UserId, ct);
-        return itemGroup;
     }
 }

@@ -37,7 +37,7 @@ test.describe("your lists", () => {
 
     await expect(page.getByRole("heading", { level: 1, name: "Holiday packing" })).toBeFocused();
     const created = backend.lists.find((list) => list.name === "Holiday packing");
-    expect(created?.members).toEqual([ME]);
+    expect(created?.members).toEqual([{ id: ME, name: "Robin" }]);
     await expect(page).toHaveURL(`/lists/${created?.id ?? ""}`);
   });
 

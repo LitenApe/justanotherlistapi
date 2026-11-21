@@ -61,6 +61,7 @@ public sealed class SqlItemGroupStoreTests
         };
         await using SqlConnection db = await TestDatabase.CreateAsync();
         await db.InsertItemGroup(itemGroupId, memberId);
+        await db.InsertUser(memberId, "Kim");
         await db.SetItemGroupSettings(itemGroupId, settings);
         await db.InsertItem(itemGroupId, itemId, "Milk", completedAt: now, reservedFor: memberId);
 
@@ -76,7 +77,7 @@ public sealed class SqlItemGroupStoreTests
         Assert.Equal(await db.LoadItem(itemId), item);
         Assert.Equal(memberId, item.ReservedFor);
         Assert.Equal(memberId, item.ReservedBy);
-        Assert.Equal(memberId, Assert.Single(itemGroup.Members));
+        Assert.Equal(new Member { Id = memberId, Name = "Kim" }, Assert.Single(itemGroup.Members));
         Assert.Equal(settings, itemGroup.Settings);
     }
 

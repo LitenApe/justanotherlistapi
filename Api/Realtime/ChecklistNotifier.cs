@@ -22,9 +22,9 @@ public sealed class ChecklistNotifier(IHubContext<ChecklistHub, IChecklistClient
         return GetClients(groupId, excludeConnectionId).ItemDeleted(groupId, itemId);
     }
 
-    public Task NotifyMemberAdded(Guid groupId, Guid memberId, string? excludeConnectionId)
+    public Task NotifyMemberAdded(Guid groupId, Member member, string? excludeConnectionId)
     {
-        return GetClients(groupId, excludeConnectionId).MemberAdded(groupId, memberId);
+        return GetClients(groupId, excludeConnectionId).MemberAdded(groupId, member);
     }
 
     public Task NotifyMemberRemoved(Guid groupId, Guid memberId, string? excludeConnectionId)

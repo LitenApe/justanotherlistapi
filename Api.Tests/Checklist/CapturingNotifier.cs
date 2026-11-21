@@ -25,9 +25,9 @@ internal sealed class CapturingNotifier : IChecklistNotifier
         return Task.CompletedTask;
     }
 
-    public Task NotifyMemberAdded(Guid groupId, Guid memberId, string? excludeConnectionId)
+    public Task NotifyMemberAdded(Guid groupId, Member member, string? excludeConnectionId)
     {
-        Notifications.Add(new MemberAddedNotification(groupId, memberId, excludeConnectionId));
+        Notifications.Add(new MemberAddedNotification(groupId, member, excludeConnectionId));
         return Task.CompletedTask;
     }
 
@@ -81,7 +81,7 @@ internal sealed class CapturingNotifier : IChecklistNotifier
 
     internal sealed record MemberAddedNotification(
         Guid GroupId,
-        Guid MemberId,
+        Member Member,
         string? ExcludeConnectionId
     );
 

@@ -53,7 +53,9 @@ internal sealed class SqlItemGroupStore(IDbConnection db) : IItemGroupStore
                 FROM ItemGroups WHERE Id = @Id;
                 SELECT Id, Name, Description, IsComplete, CompletedAt, ItemGroupId, ReservedFor, ReservedBy
                 FROM Items WHERE ItemGroupId = @Id;
-                SELECT MemberId FROM Members WHERE ItemGroupId = @Id;
+                SELECT m.MemberId AS Id, u.Name
+                FROM Members m LEFT JOIN Users u ON u.Id = m.MemberId
+                WHERE m.ItemGroupId = @Id;
                 """,
                 new { Id = itemGroupId },
                 cancellationToken: ct
@@ -67,7 +69,7 @@ internal sealed class SqlItemGroupStore(IDbConnection db) : IItemGroupStore
         }
 
         IEnumerable<Item> items = await multi.ReadAsync<Item>();
-        IEnumerable<Guid> members = await multi.ReadAsync<Guid>();
+        IEnumerable<Member> members = await multi.ReadAsync<Member>();
 
         return row.ToItemGroup() with
         {

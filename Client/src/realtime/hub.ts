@@ -5,7 +5,7 @@ import {
   LogLevel,
   type HubConnection,
 } from "@microsoft/signalr";
-import type { Item, ItemGroupSettings } from "../api/types";
+import type { Item, ItemGroupSettings, Member } from "../api/types";
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "reconnecting";
 
@@ -14,7 +14,7 @@ export interface GroupEventHandlers {
   itemCreated?: (groupId: string, item: Item) => void;
   itemUpdated?: (groupId: string, item: Item) => void;
   itemDeleted?: (groupId: string, itemId: string) => void;
-  memberAdded?: (groupId: string, memberId: string) => void;
+  memberAdded?: (groupId: string, member: Member) => void;
   memberRemoved?: (groupId: string, memberId: string) => void;
   groupRenamed?: (groupId: string, name: string) => void;
   groupSettingsChanged?: (groupId: string, settings: ItemGroupSettings) => void;
@@ -126,8 +126,8 @@ export function createChecklistHub(build: typeof buildConnection = buildConnecti
     conn.on("ItemDeleted", (groupId: string, itemId: string) => {
       emit(groupId, (h) => h.itemDeleted?.(groupId, itemId));
     });
-    conn.on("MemberAdded", (groupId: string, memberId: string) => {
-      emit(groupId, (h) => h.memberAdded?.(groupId, memberId));
+    conn.on("MemberAdded", (groupId: string, member: Member) => {
+      emit(groupId, (h) => h.memberAdded?.(groupId, member));
     });
     conn.on("MemberRemoved", (groupId: string, memberId: string) => {
       emit(groupId, (h) => h.memberRemoved?.(groupId, memberId));

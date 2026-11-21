@@ -17,16 +17,17 @@ public sealed class GetMembersTests
         await using SqlConnection db = await TestDatabase.CreateAsync();
         await db.InsertItemGroup(itemGroupId, userId, otherUserId);
 
-        IReadOnlyList<Guid>? members = await new GetMembers(new SqlMembership(db)).Execute(
+        IReadOnlyList<Member>? members = await new GetMembers(new SqlMembership(db)).Execute(
             new Caller(userId),
             itemGroupId,
             TestContext.Current.CancellationToken
         );
 
         Assert.NotNull(members);
-        Assert.Equal(2, members.Count);
-        Assert.Contains(userId, members);
-        Assert.Contains(otherUserId, members);
+        Assert.Equal(
+            new[] { userId, otherUserId }.Order(),
+            members.Select(member => member.Id).Order()
+        );
     }
 
     [Fact]
@@ -36,7 +37,7 @@ public sealed class GetMembersTests
         await using SqlConnection db = await TestDatabase.CreateAsync();
         await db.InsertItemGroup(itemGroupId, Guid.NewGuid());
 
-        IReadOnlyList<Guid>? members = await new GetMembers(new SqlMembership(db)).Execute(
+        IReadOnlyList<Member>? members = await new GetMembers(new SqlMembership(db)).Execute(
             new Caller(Guid.NewGuid()),
             itemGroupId,
             TestContext.Current.CancellationToken
@@ -57,7 +58,7 @@ public sealed class GetMembersTests
             new { ItemGroupId = itemGroupId }
         );
 
-        IReadOnlyList<Guid>? members = await new GetMembers(new SqlMembership(db)).Execute(
+        IReadOnlyList<Member>? members = await new GetMembers(new SqlMembership(db)).Execute(
             new Caller(userId),
             itemGroupId,
             TestContext.Current.CancellationToken
