@@ -64,7 +64,7 @@ Client/
     NotFoundPage.tsx         - Route module for unknown addresses
     api/
       http.ts                - fetch wrapper: bearer token, X-SignalR-Connection-Id, ApiError, 401 → sign out
-      auth.ts                - The account endpoints: signUp, signIn (no token; 401 is an answer there)
+      auth.ts                - The account endpoints: signUp, signIn, requestPasswordReset, resetPassword (no token; 401 is an answer there)
       checklists.ts          - One function per API endpoint
       routeData.ts           - loadRouteData(): maps API errors to redirects and route error responses
       types.ts               - Item, ItemGroup, ItemGroupSettings, request inputs
@@ -73,6 +73,8 @@ Client/
       accountRules.ts        - The account rules (name, email, new password), to explain problems before sending
       SignInPage.tsx         - Route module: sign-in form, email and password (clientLoader + clientAction)
       SignUpPage.tsx         - Route module: sign-up form, name, email and password
+      ForgotPasswordPage.tsx - Route module: ask for a link to choose a new password
+      ResetPasswordPage.tsx  - Route module: choose a new password from the emailed link
       ProtectedLayout.tsx    - Route module: clientMiddleware that requires a session
       redirects.ts           - signInPath(), safeRedirect() for ?redirectTo=
     realtime/
@@ -134,6 +136,8 @@ The first visit after dependencies change can fail with "504 Outdated Optimize D
 | ---------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | `/sign-in`       | Sign in    | Email and password. Shows a notice when the previous session expired. Links to signing up                                         |
 | `/sign-up`       | Sign up    | Name, email and password. Signs the new account in straight away                                                                  |
+| `/forgot-password` | Forgot password | Email. Says the same whether or not an account uses it                                                                      |
+| `/reset-password`  | New password    | Opened from the emailed link (`?user=…&code=…`). Afterwards, sign-in says the password changed                              |
 | `/`              | Your lists | Cards sorted by name with open item count and a preview. Create a list. Filter appears above 6 lists                              |
 | `/lists/:listId` | List       | Progress, add item, search, All / To do / Done filter, edit/delete items, [reservations](#reservations), rename/delete list, [settings](#list-settings), members |
 | `*`              | Not found  | `/lists/<not-a-guid>` shows the list route's own "List not found"                                                                 |
@@ -151,6 +155,8 @@ The client uses React Router's **framework mode** in **SPA mode** (`ssr: false` 
 ```ts
 route("sign-in", "auth/SignInPage.tsx"),
 route("sign-up", "auth/SignUpPage.tsx"),
+route("forgot-password", "auth/ForgotPasswordPage.tsx"),
+route("reset-password", "auth/ResetPasswordPage.tsx"),
 layout("auth/ProtectedLayout.tsx", [
   index("lists/ListsPage.tsx"),
   route("lists/:listId", "list/ListPage.tsx"),
@@ -164,6 +170,8 @@ route("*", "NotFoundPage.tsx"),
 | `ProtectedLayout.tsx` | `clientMiddleware` (redirect to `/sign-in?redirectTo=…` without a session), `default`                 |
 | `SignInPage.tsx`      | `clientLoader` (skip if signed in), `clientAction` (`POST /api/auth/sign-in`), `default`              |
 | `SignUpPage.tsx`      | `clientLoader` (skip if signed in), `clientAction` (`POST /api/auth/sign-up`), `default`              |
+| `ForgotPasswordPage.tsx` | `clientAction` (`POST /api/auth/forgot-password`), `default`                                       |
+| `ResetPasswordPage.tsx`  | `clientLoader` (is the link complete?), `clientAction` (`POST /api/auth/reset-password`, then sign this tab out and go to sign-in), `default` |
 | `ListsPage.tsx`       | `clientLoader` (`GET /api/list`), `clientAction` (create list → redirect), `default`, `ErrorBoundary` |
 | `ListPage.tsx`        | `clientLoader` (`GET /api/list/{id}`; 404 for non-GUIDs), `default`, `ErrorBoundary`                  |
 
@@ -184,7 +192,8 @@ route("*", "NotFoundPage.tsx"),
 People have accounts with a name, an email address and a password ([accounts.md](accounts.md)). The sign-up and sign-in pages post to `/api/auth`, which answers with a token the API signed and the user it's for. The session store keeps `{ accessToken, expiresAt, user }`; the API reads the user's ID from the token (see [authentication.md](authentication.md)).
 
 - **Sign-up** asks for a name ("Other members of your lists see it"), an email ("You sign in with it. Nobody else sees it") and a password of at least 12 characters, and signs the new account in. An email that already has an account gets an alert with a link to sign in instead.
-- **Sign-in** asks for the email and password. A wrong one gets "The email or password is wrong", whichever it was, and a locked-out account (423) or the rate limit (429) gets its own message.
+- **Sign-in** asks for the email and password. A wrong one gets "The email or password is wrong", whichever it was, and a locked-out account (423) or the rate limit (429) gets its own message. **Forgot your password?** leads to the recovery pages.
+- **Recovery:** `/forgot-password` asks for the email and always answers, in a status message, "If an account uses …, we've sent it a link to choose a new password", like the server. The email's link opens `/reset-password?user=…&code=…`, which asks for a new password. A spent or expired link gets an alert with **Ask for a new link**; a link missing its code says it's incomplete and shows no form. After the change, this tab signs out and sign-in says "Your password is changed".
 - `auth/accountRules.ts` copies the server's rules, so each problem shows next to its field, with `aria-invalid` and `aria-describedby`, before anything is sent, and focus moves to the first field with a problem.
 - Passwords use `PasswordField`: a visible label, the right `autocomplete` (`current-password` or `new-password`) so password managers help, and a **Show password** toggle button (`aria-pressed`) that shows the password as typed.
 - The account requests go through `apiRequest` with `anonymous: true`: no token is sent, and a 401 is an answer, not an expired session.
@@ -387,7 +396,7 @@ The production SPA (`react-router build`) is served the way a static host serves
 Only the network is replaced, by `FakeBackend` (`integration/support/fakeBackend.ts`), installed through Playwright's routing for every test:
 
 - **REST API:** an in-memory implementation of [checklist.md](checklist.md), including membership checks (403), conflicts (409), `completedAt`, settings and the reservation rules (freeing a removed member's items included). It authenticates the bearer token on every request (401 when missing or expired).
-- **Accounts:** `/api/auth/sign-up` and `/api/auth/sign-in` answer like the real ones (201, 200, 401, 409), with an unsigned JWT whose `sub` is the account's ID. `backend.accounts` starts with `ME` (Robin, robin@example.com) and `OTHER` (Kim, kim@example.com), both with the password `PASSWORD`; `backend.authUnreachable` makes the endpoints unreachable.
+- **Accounts:** `/api/auth/sign-up` and `/api/auth/sign-in` answer like the real ones (201, 200, 401, 409), with an unsigned JWT whose `sub` is the account's ID. `backend.accounts` starts with `ME` (Robin, robin@example.com) and `OTHER` (Kim, kim@example.com), both with the password `PASSWORD`; `backend.authUnreachable` makes the endpoints unreachable. `/api/auth/forgot-password` records the email it would send in `backend.resetEmails` (only for an account), and `/api/auth/reset-password` accepts that email's code once.
 - **SignalR:** negotiate (version 1) returns a connection ID and a separate token, and the WebSocket must present that token (`?id=`). Over it, `page.routeWebSocket` speaks the hub's JSON protocol: handshake, `JoinGroup` (members only) and `LeaveGroup`, pings and server-pushed events. Like the real server, every change is broadcast to the list's group except the connection named in `X-SignalR-Connection-Id`; `backend.connectionIds(userId)` returns the IDs it handed out.
 - `backend.as(OTHER)` makes changes as another member through the same code paths, so the page receives real events. `deleteListAutomatically()` stands in for the cleanup service.
 - `failNext()` fails a request with a status; `holdNext()` holds one to look at loading states; `dropHubConnections()` simulates a lost connection. `backend.calls` records every request.
@@ -407,8 +416,8 @@ Projects: `desktop` runs everything except `@mobile` tests; `mobile` (Pixel 7) r
 
 The whole application runs locally and nothing is faked. `e2e/support/globalSetup.ts` calls `startStack()` (`e2e/support/stack.ts`) once per run:
 
-1. **Containers:** SQL Server, using the image from `Aspire/Program.cs`, started with Testcontainers on a random port and removed afterwards. The database is created the way Aspire would.
-2. **Backend:** Api is built into a temporary folder (so a running dev instance doesn't matter) and started in Production mode on a free port, with the connection string Aspire would pass, a signing key of its own for each run, and an account rate limit high enough for every test's sign-ups, which all come from one address.
+1. **Containers:** SQL Server and Mailpit, using the images from `Aspire/Program.cs`, started with Testcontainers on random ports and removed afterwards. The database is created the way Aspire would.
+2. **Backend:** Api is built into a temporary folder (so a running dev instance doesn't matter) and started in Production mode on a free port, with the connection string Aspire would pass, a signing key of its own for each run, an account rate limit high enough for every test's sign-ups, which all come from one address, and Mailpit as its SMTP server, with links pointing at the client.
 3. **Client:** the production build is served with `vite preview` on port 4174, using the same proxy as the dev server, with the `services__…` variables pointed at Api. The browser reaches Api only through it, as in local development.
 4. Setup waits until `/api/list` answers 401, first from Api and then through the client's proxy, so the pieces are connected before tests start. The containers and builds start in parallel; the whole stack is ready in about 15 seconds.
 
@@ -416,12 +425,12 @@ Container, Api and client output goes to `test-results/e2e-logs/`.
 
 Fixtures (`e2e/support/test.ts`):
 
-- `newUser(name?)` opens a browser context of its own (its own session) and signs up a fresh user, called "Person 1", "Person 2" and so on unless named, with an email of its own, through the real sign-up page. `user.id` is the ID the server gave the account, and `user.signIn()` signs back in with the email and password. Every test uses new users, so tests never see each other's lists although they share one database, and they run in parallel.
+- `newUser(name?)` opens a browser context of its own (its own session) and signs up a fresh user, called "Person 1", "Person 2" and so on unless named, with an email of its own, through the real sign-up page. `user.id` is the ID the server gave the account, and `user.signIn()` signs back in with the email and password. `resetLinkSentTo(email)` (`e2e/support/mail.ts`) waits for the reset email in Mailpit and returns its link. Every test uses new users, so tests never see each other's lists although they share one database, and they run in parallel.
 - `User` has helpers that act through the UI: `createList`, `openList`, `addItem`, `toggle` (waits for the server to save, since the page updates first), `saveSettings`, `addMember`, `reserve` (through the reservation dialog, waiting for the server), and `item(name)`, an item's checkbox, whose description includes its reservation.
 - `receivingLiveUpdates(listId)` waits until the server has accepted the page's `JoinGroup`. With no fake backend to ask, it reads the page's real SignalR WebSocket frames, read-only.
 - Uncaught page errors fail the test.
 
-The specs cover signing up, signing out and back in with a password the server checked, list and item changes surviving reloads (stored in SQL Server), sharing, live sync between members, caller exclusion (your own changes aren't reported back to you), removing, leaving and deleting, privacy (403 for non-members), settings shared between members, and reservations: for yourself and others, taking one over, protected lists, and freeing a member's items when they leave or are removed.
+The specs cover signing up, signing out and back in with a password the server checked, recovering a forgotten password through the emailed link, list and item changes surviving reloads (stored in SQL Server), sharing, live sync between members, caller exclusion (your own changes aren't reported back to you), removing, leaving and deleting, privacy (403 for non-members), settings shared between members, and reservations: for yourself and others, taking one over, protected lists, and freeing a member's items when they leave or are removed.
 
 `autoDelete.spec.ts` checks the server's cleanup service end to end. Auto-delete waits at least a day, so `runSql()` (`e2e/support/database.ts`, using `docker exec` and `sqlcmd`) moves the completion back to a day minus 30 seconds. The list is due shortly after both pages reload and subscribe, and the service (which runs every minute) deletes it within about 90 seconds. Use `runSql()` only to arrange what the UI can't.
 

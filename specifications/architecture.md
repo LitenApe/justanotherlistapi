@@ -60,8 +60,8 @@ Because `Checklist` has no package references, the compiler stops the inside fro
 
 | Folder      | Contents                                                                                                                                                                |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Domain/`   | The records the API and SignalR send (`ItemGroup`, `ItemGroupSettings`, `Item`, `User`), `Caller`, the values use cases take (`Name`, `ItemInput`, `ItemGroupSettingsInput`, `DisplayName`, `EmailAddress`, `Password`), the reservation rule (`ReservationChange`) and what signing in deals in (`Session`, `AccessToken`, `PasswordCheck`) |
-| `Ports/`    | The interfaces the inside needs from the outside: `IMembership`, `IItemGroupStore`, `IItemStore`, `IChecklistNotifier`, `IAuditTrail`, `IAccounts`, `ITokenIssuer`        |
+| `Domain/`   | The records the API and SignalR send (`ItemGroup`, `ItemGroupSettings`, `Item`, `User`), `Caller`, the values use cases take (`Name`, `ItemInput`, `ItemGroupSettingsInput`, `DisplayName`, `EmailAddress`, `Password`), the reservation rule (`ReservationChange`) and what signing in deals in (`Session`, `AccessToken`, `PasswordCheck`, `PasswordReset`) |
+| `Ports/`    | The interfaces the inside needs from the outside: `IMembership`, `IItemGroupStore`, `IItemStore`, `IChecklistNotifier`, `IAuditTrail`, `IAccounts`, `ITokenIssuer`, `IMailer` |
 | `UseCases/` | One class per operation, in a folder per slice (`ItemGroup`, `Item`, `Member`, `Account`). Namespace `Checklist.UseCases` for all of them                               |
 
 ### Domain
@@ -89,8 +89,9 @@ Each port is named after what the inside needs, and each method covers one atomi
 | `IItemStore`         | `Create`, `Update` (returns the item as stored, `null` when it's gone), `Delete`, `ChangeReservation` (decides with `ReservationChange.Decide`, returns a `ReservationResult`); items in other lists are left alone | `SqlItemStore`                |
 | `IChecklistNotifier` | `NotifyItemCreated` … `NotifyGroupDeleted`, each with the connection to leave out                                                                  | `ChecklistNotifier` (SignalR) |
 | `IAuditTrail`        | `ItemGroupAutoDeleted`: audit entries that no request is behind                                                                                    | `AuditTrail` (audit log)      |
-| `IAccounts`          | `Create` (`null` when another account uses the email), `CheckPassword` (counts wrong ones towards a lockout)                                       | `IdentityAccounts` (ASP.NET Core Identity on `SqlAccountStore`) |
+| `IAccounts`          | `Create` (`null` when another account uses the email), `CheckPassword` (counts wrong ones towards a lockout), `CreateResetCode` (`null` without an account), `ResetPassword` (`false` for a spent code; ends the lockout) | `IdentityAccounts` (ASP.NET Core Identity on `SqlAccountStore`) |
 | `ITokenIssuer`       | `Issue`: a signed token for a user, and when it expires                                                                                            | `JwtTokenIssuer`              |
+| `IMailer`            | `SendPasswordReset`: failures are the adapter's to log, so asking for a reset answers the same either way                                         | `SmtpMailer` (SMTP)           |
 
 ### Use Cases
 
@@ -100,7 +101,7 @@ Each port is named after what the inside needs, and each method covers one atomi
 - Notifications go out after the change, with `caller.ConnectionId` as the connection to leave out.
 - The current time comes from `TimeProvider`, which is part of .NET, and goes to ports as `now`.
 - No HTTP types, no SQL, no transactions, no `AuditContext`.
-- The account use cases (`SignUp`, `SignIn`) run before anyone is signed in, so they take no `Caller`. `SignUp` returns the new `Session`, or `null` when the email is taken; `SignIn` returns a nested `Result`: its `Outcome`, with the `Session` when it worked.
+- The account use cases (`SignUp`, `SignIn`, `RequestPasswordReset`, `ResetPassword`) run before anyone is signed in, so they take no `Caller`. `SignUp` returns the new `Session`, or `null` when the email is taken; `SignIn` returns a nested `Result`: its `Outcome`, with the `Session` when it worked.
 
 ```csharp
 public sealed class RemoveMember(IMembership membership, IChecklistNotifier notifier)
@@ -133,6 +134,7 @@ The adapters are grouped by kind, each kind in a folder and namespace of its own
 | `Api/Realtime/`   | Driving: `ChecklistHub`. Driven: `ChecklistNotifier`, for `IChecklistNotifier`                                                                                                     |
 | `Api/Background/` | Driving: `ChecklistCleanupService`                                                                                                                                                 |
 | `Api/Sql/`        | Driven: `SqlItemGroupStore`, `SqlItemStore`, `SqlMembership`; the schema (`DatabaseInitializer`, `ChecklistSchemaInitializer`)                                                     |
+| `Api/Email/`      | Driven: `SmtpMailer` for `IMailer`, with its settings in `MailOptions` (`Smtp` section and `App:ClientUrl`)                                                                         |
 | `Api/Accounts/`   | Driven: `IdentityAccounts` for `IAccounts`, which runs ASP.NET Core Identity over `SqlAccountStore` (Identity's store interfaces on the `Users` table, with Dapper); `JwtTokenIssuer` for `ITokenIssuer`, with its settings in `AuthOptions`. Identity's `Account` type never leaves this folder |
 | `Api/AuditLog/`   | The audit log: `AuditEndpointFilter` around every endpoint, `AuthenticationAudit` for rejected tokens, `RateLimitAudit` for requests over the rate limit, `AuditTrail` for `IAuditTrail`, `ChannelAuditWriter` and the table's schema |
 | `Api/Extensions/` | `GetUserId()`: the user ID in a token, shared by the driving adapters and the audit log                                                                                            |
@@ -201,6 +203,8 @@ Moving such rules into C# would mean loading, changing and saving a row, with op
 | Passwords are stored hashed, never as typed                             | Identity's `PasswordHasher`, through `IdentityAccounts`             |
 | Five wrong passwords in a row lock an account for five minutes          | Identity, set up in `AddAccounts()`; `SqlAccountStore` counts in one statement |
 | A client may call the account endpoints 20 times a minute               | `AuthRateLimit`, a fixed window per IP address                      |
+| A reset code works for an hour, and once                                | Identity's token provider (lifespan set in `AddAccounts()`) and the security stamp a new password changes |
+| Asking for a reset never tells whether an account exists                | `RequestPasswordReset`, `ForgotPasswordEndpoint` (always 202) and `SmtpMailer` (logs failures) |
 | Names aren't blank                                                      | `Name.TryCreate`, which endpoint adapters call before anything else |
 | Settings stay in range                                                  | `ItemGroupSettingsInput.TryCreate`, likewise                        |
 | An item added as complete counts as completed now                       | `CreateItem`, with the time from `TimeProvider`                     |
@@ -215,13 +219,13 @@ Moving such rules into C# would mean loading, changing and saving a row, with op
 
 ## Testing
 
-All backend tests run against a real SQL Server (Testcontainers). There are no in-memory fakes of the ports that keep data, because they would have to copy the rules the SQL adapters enforce. The one fake is `FakeTokenIssuer`, whose tokens name their user, so an account use-case test can tell who a session is for.
+All backend tests run against a real SQL Server (Testcontainers). There are no in-memory fakes of the ports that keep data, because they would have to copy the rules the SQL adapters enforce. The fakes are `FakeTokenIssuer`, whose tokens name their user, so an account use-case test can tell who a session is for, and `CapturingMailer`, which keeps the emails the app would send; `ApiFactory` uses it too (`factory.Mail`).
 
 | Kind                  | Where                                              | What it covers                                                                                                                                                                                                                                                      |
 | --------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Domain tests          | `Api.Tests/Checklist/Domain/`                      | Domain values such as `Name`, and rules such as `ReservationChange.Decide`, without a database                                                                                                                                                                     |
 | Use-case tests        | `Api.Tests/Checklist/<Slice>/<Operation>.Tests.cs` | The use case built with the real SQL adapters on a `TestDatabase` connection, `CapturingNotifier` and, when the time matters, `FixedTimeProvider`: outcome, stored data, notifications. The account use cases get the real Identity adapter from `TestAccounts.CreateServices(db)` |
-| Account adapter tests | `Api.Tests/Accounts/`                              | `SqlAccountStore` one method at a time, and the tokens `JwtTokenIssuer` signs                                                                                                                                                                                      |
+| Account adapter tests | `Api.Tests/Accounts/`                              | `SqlAccountStore` one method at a time, the tokens `JwtTokenIssuer` signs, and the email `SmtpMailer` writes                                                                                                                                                       |
 | SQL adapter tests     | `Api.Tests/Sql/`                                   | One port method at a time, including the rules in the table above                                                                                                                                                                                                   |
 | Adapter helpers       | `Api.Tests/Http/`                                  | Small pieces of the HTTP adapter, such as `ToCaller`                                                                                                                                                                                                                |
 | HTTP tests            | `*.Http.Tests.cs`                                  | The whole app through `ApiFactory`: routes, status codes, auditing, and races between concurrent requests                                                                                                                                                           |

@@ -77,7 +77,8 @@ export default function SignUpPage({ loaderData, actionData }: Route.ComponentPr
           <div className="alert" role="alert">
             <Icon name="alert" />
             <p>
-              An account already uses that email. <Link to={signIn}>Sign in instead</Link>.
+              An account already uses that email. <Link to={signIn}>Sign in instead</Link>, or{" "}
+              <Link to="/forgot-password">choose a new password</Link> if you forgot it.
             </p>
           </div>
         )}

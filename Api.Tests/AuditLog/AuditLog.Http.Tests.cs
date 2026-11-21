@@ -28,6 +28,20 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
     [
         new("SignUp", "Account", HttpMethod.Post, "/api/auth/sign-up", new { Name = "" }),
         new("SignIn", "Account", HttpMethod.Post, "/api/auth/sign-in", new { Email = "" }),
+        new(
+            "RequestPasswordReset",
+            "Account",
+            HttpMethod.Post,
+            "/api/auth/forgot-password",
+            new { Email = "" }
+        ),
+        new(
+            "ResetPassword",
+            "Account",
+            HttpMethod.Post,
+            "/api/auth/reset-password",
+            new { UserId = auditedMemberId }
+        ),
         new("GetItemGroups", "ItemGroup", HttpMethod.Get, "/api/list"),
         new("GetItemGroup", "ItemGroup", HttpMethod.Get, $"/api/list/{auditedGroupId}"),
         new("CreateItemGroup", "ItemGroup", HttpMethod.Post, "/api/list", new { Name = "" }),

@@ -42,6 +42,8 @@ export class FakeBackend {
   tokenLifetimeSeconds = 3600;
   /** Makes the account endpoints unreachable, like a server that's down. */
   authUnreachable = false;
+  /** The password reset emails the server would have sent, oldest first. */
+  readonly resetEmails: { email: string; userId: string; code: string; used: boolean }[] = [];
 
   private readonly hubClients = new Set<HubClient>();
   /** Negotiated connections waiting for their WebSocket, by connection token. */
@@ -193,7 +195,7 @@ export class FakeBackend {
     body: unknown,
   ): { status: number; json?: unknown } {
     if (method !== "POST") return { status: 405 };
-    const { name, email, password } = (body ?? {}) as Partial<Record<string, string>>;
+    const { name, email, password, userId, code } = (body ?? {}) as Partial<Record<string, string>>;
 
     if (path === "/api/auth/sign-in") {
       if (!email?.includes("@") || !password) return { status: 400 };
@@ -216,6 +218,32 @@ export class FakeBackend {
       };
       this.accounts.push(account);
       return { status: 201, json: this.session(account) };
+    }
+
+    if (path === "/api/auth/forgot-password") {
+      if (!email?.includes("@")) return { status: 400 };
+      // The same answer either way, so nobody learns whether the account exists.
+      const account = this.account(email);
+      if (account) {
+        this.resetEmails.push({
+          email: account.email,
+          userId: account.id,
+          code: crypto.randomUUID(),
+          used: false,
+        });
+      }
+      return { status: 202 };
+    }
+
+    if (path === "/api/auth/reset-password") {
+      // Like the real API: a code works once, and only the account's newest one.
+      const sent = this.resetEmails.findLast((reset) => reset.userId === userId);
+      if (!sent || sent.used || sent.code !== code || (password?.length ?? 0) < 12) {
+        return { status: 400 };
+      }
+      sent.used = true;
+      this.accountById(sent.userId).password = password ?? "";
+      return { status: 204 };
     }
 
     return { status: 404 };

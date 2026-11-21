@@ -33,7 +33,14 @@ internal static class AccountsServiceCollectionExtensions
                 options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
             })
             .AddUserStore<SqlAccountStore>()
-            .AddSignInManager();
+            .AddSignInManager()
+            .AddDefaultTokenProviders();
+
+        // Reset codes work for an hour. Each is also tied to the account's security stamp, which
+        // the new password changes, so a code works once.
+        services.Configure<DataProtectionTokenProviderOptions>(options =>
+            options.TokenLifespan = TimeSpan.FromHours(1)
+        );
 
         services.AddScoped<IAccounts, IdentityAccounts>();
         services.AddSingleton<ITokenIssuer, JwtTokenIssuer>();

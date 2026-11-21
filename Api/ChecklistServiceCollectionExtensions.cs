@@ -1,5 +1,6 @@
 using Api.Accounts;
 using Api.AuditLog;
+using Api.Email;
 using Api.Realtime;
 using Api.Sql;
 using Checklist.Ports;
@@ -23,10 +24,13 @@ internal static class ChecklistServiceCollectionExtensions
         services.AddSingleton<IChecklistNotifier, ChecklistNotifier>();
         services.AddSingleton<IAuditTrail, AuditTrail>();
         services.AddAccounts();
+        services.AddSingleton<IMailer, SmtpMailer>();
 
         // Use cases
         services.AddScoped<SignUp>();
         services.AddScoped<SignIn>();
+        services.AddScoped<RequestPasswordReset>();
+        services.AddScoped<ResetPassword>();
         services.AddScoped<GetItemGroups>();
         services.AddScoped<GetItemGroup>();
         services.AddScoped<CreateItemGroup>();

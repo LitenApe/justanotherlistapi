@@ -19,6 +19,8 @@ public static class AccountApiEndpointRouteBuilderExtension
 
         SignUpEndpoint.MapEndpoint(accountGroup);
         SignInEndpoint.MapEndpoint(accountGroup);
+        ForgotPasswordEndpoint.MapEndpoint(accountGroup);
+        ResetPasswordEndpoint.MapEndpoint(accountGroup);
 
         return app;
     }
