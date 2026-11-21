@@ -148,6 +148,44 @@ public sealed class ChecklistSchemaInitializerTests
         await AssertRejectsHalfAReservation(db, itemId);
     }
 
+    [Fact]
+    public async Task CreateSchemaAsync_AddsTheUsersTable_ToDatabasesCreatedBeforeAccounts()
+    {
+        // Arrange: the schema as it was before accounts existed.
+        await using SqlConnection db = await TestDatabase.CreateEmptyAsync();
+        await db.ExecuteAsync(
+            """
+            CREATE TABLE ItemGroups (Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY, Name NVARCHAR(MAX) NOT NULL);
+            CREATE TABLE Members (
+                MemberId    UNIQUEIDENTIFIER NOT NULL,
+                ItemGroupId UNIQUEIDENTIFIER NOT NULL,
+                PRIMARY KEY (MemberId, ItemGroupId)
+            );
+            """
+        );
+
+        // Act: run twice to confirm the upgrade is idempotent.
+        await ChecklistSchemaInitializer.CreateSchemaAsync(
+            db,
+            TestContext.Current.CancellationToken
+        );
+        await ChecklistSchemaInitializer.CreateSchemaAsync(
+            db,
+            TestContext.Current.CancellationToken
+        );
+
+        // Assert: the table is there, and holds one account per email, ignoring case.
+        const string insert = """
+            INSERT INTO Users (Id, Name, Email, NormalizedEmail, PasswordHash, SecurityStamp, CreatedAt)
+            VALUES (NEWID(), 'Kim', @Email, UPPER(@Email), 'hash', 'STAMP', SYSDATETIMEOFFSET())
+            """;
+        await db.ExecuteAsync(insert, new { Email = "kim@example.com" });
+        SqlException duplicate = await Assert.ThrowsAsync<SqlException>(() =>
+            db.ExecuteAsync(insert, new { Email = "KIM@example.com" })
+        );
+        Assert.Contains("UX_Users_NormalizedEmail", duplicate.Message, StringComparison.Ordinal);
+    }
+
     /// <summary>An item is reserved for someone by someone, or free: never one without the other.</summary>
     private static async Task AssertRejectsHalfAReservation(SqlConnection db, Guid itemId)
     {

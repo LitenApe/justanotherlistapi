@@ -10,7 +10,7 @@ public sealed record AuditEntry(
     Guid? UserId,
     /// <summary>Real client IP address after ForwardedHeaders middleware resolves X-Forwarded-For. NULL when not available.</summary>
     string? IpAddress,
-    /// <summary>Discriminator for the resource type being acted upon (e.g. "ItemGroup", "Item"). NULL for AuthenticationFailed events.</summary>
+    /// <summary>Discriminator for the resource type being acted upon (e.g. "ItemGroup", "Item", "Account"). NULL for AuthenticationFailed events.</summary>
     string? ResourceType,
     /// <summary>Name of the operation, matching the .WithName() value on the endpoint, or "AuthenticationFailed" for JWT failures.</summary>
     string Operation,
@@ -18,9 +18,9 @@ public sealed record AuditEntry(
     Guid? ResourceId,
     /// <summary>Secondary resource identifier. The itemId for Item operations. NULL for ItemGroup and Member operations.</summary>
     Guid? SubResourceId,
-    /// <summary>The user being affected by the operation. Populated only for AddMember and RemoveMember.</summary>
+    /// <summary>The user being affected by the operation: the member for AddMember, RemoveMember, ReserveItem and UnreserveItem, the account for SignUp and SignIn. NULL otherwise.</summary>
     Guid? TargetUserId,
-    /// <summary>Result of the operation: Success, BadRequest, NotFound, Conflict, Forbidden, MissingClaim, or AuthenticationFailed.</summary>
+    /// <summary>Result of the operation: Success, BadRequest, NotFound, Conflict, Forbidden, MissingClaim, InvalidCredentials, LockedOut, TooManyRequests, or AuthenticationFailed.</summary>
     string Outcome,
     /// <summary>Human-readable reason for failure. Populated for MissingClaim and AuthenticationFailed outcomes.</summary>
     string? FailureReason

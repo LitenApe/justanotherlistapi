@@ -42,6 +42,21 @@ internal static class ChecklistSchemaInitializer
             PRIMARY KEY (MemberId, ItemGroupId),
             FOREIGN KEY (ItemGroupId) REFERENCES ItemGroups(Id) ON DELETE CASCADE
         );
+
+        -- Accounts, kept by ASP.NET Core Identity through SqlAccountStore. Databases created
+        -- before accounts existed get the table here too.
+        IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'Users' AND schema_id = SCHEMA_ID('dbo'))
+        CREATE TABLE Users (
+            Id                UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+            Name              NVARCHAR(50)     NOT NULL,
+            Email             NVARCHAR(254)    NOT NULL,
+            NormalizedEmail   NVARCHAR(254)    NOT NULL,
+            PasswordHash      NVARCHAR(MAX)    NOT NULL,
+            SecurityStamp     NVARCHAR(64)     NOT NULL,
+            LockoutEnd        DATETIMEOFFSET   NULL,
+            AccessFailedCount INT              NOT NULL DEFAULT 0,
+            CreatedAt         DATETIMEOFFSET   NOT NULL
+        );
         """;
 
     /// <summary>Brings tables created by earlier versions up to date, column by column.</summary>
@@ -91,6 +106,11 @@ internal static class ChecklistSchemaInitializer
 
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Members_MemberId_ItemGroupId' AND object_id = OBJECT_ID('dbo.Members'))
             CREATE INDEX IX_Members_MemberId_ItemGroupId ON Members(MemberId, ItemGroupId);
+
+        -- One account per email, ignoring case: sign-in looks accounts up by it, and it settles
+        -- two sign-ups with one email at the same moment.
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_Users_NormalizedEmail' AND object_id = OBJECT_ID('dbo.Users'))
+            CREATE UNIQUE INDEX UX_Users_NormalizedEmail ON Users(NormalizedEmail);
         """;
 
     internal static async Task CreateSchemaAsync(

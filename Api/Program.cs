@@ -1,5 +1,6 @@
 using System.Data;
 using Api;
+using Api.Accounts;
 using Api.AuditLog;
 using Api.Background;
 using Api.DevSeed;
@@ -69,6 +70,17 @@ builder.Services.AddSingleton(TimeProvider.System);
 // Background job: deletes the lists whose auto-delete countdown has run out, once a minute
 builder.Services.AddHostedService<ChecklistCleanupService>();
 
+// Accounts: the tokens the API issues, and how often anyone may try to get one
+builder
+    .Services.AddOptions<AuthOptions>()
+    .BindConfiguration(AuthOptions.Section)
+    .Validate(
+        options => options.HasUsableSigningKey(),
+        $"Auth:SigningKey must be a base64-encoded secret of at least {AuthOptions.MinKeyBytes} bytes."
+    )
+    .ValidateOnStart();
+builder.Services.AddAuthRateLimit(builder.Configuration);
+
 // Authentication & Authorization
 builder
     .Services.AddAuthentication()
@@ -133,8 +145,9 @@ builder.Services.AddOpenApi(opt =>
                 **Item groups** are shared lists that multiple users can collaborate on.
                 **Items** are tasks within a group that can be marked as complete.
                 **Members** are users who have access to an item group.
+                **Accounts** are how people sign up and sign in, under `/api/auth`.
 
-                All endpoints require a valid Bearer token.
+                All endpoints except the account ones require a valid Bearer token.
                 """;
             return Task.CompletedTask;
         }
@@ -163,9 +176,11 @@ if (!app.Environment.IsEnvironment("Testing"))
 {
     app.UseHttpsRedirection();
 }
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapAccountApi();
 app.MapChecklistApi();
 app.MapHub<ChecklistHub>("/hubs/checklist");
 

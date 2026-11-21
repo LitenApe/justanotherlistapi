@@ -25,7 +25,13 @@ internal sealed partial class AuditEndpointFilter(
         [GetMembersEndpoint.Operation] = "ItemGroup",
         [AddMemberEndpoint.Operation] = "ItemGroup",
         [RemoveMemberEndpoint.Operation] = "ItemGroup",
+        [SignUpEndpoint.Operation] = "Account",
+        [SignInEndpoint.Operation] = "Account",
     };
+
+    /// <summary>The resource type audited for <paramref name="operation"/>, if it has one.</summary>
+    internal static string? ResourceTypeOf(string operation) =>
+        resourceTypes.GetValueOrDefault(operation);
 
     public async ValueTask<object?> InvokeAsync(
         EndpointFilterInvocationContext context,
@@ -109,7 +115,7 @@ internal sealed partial class AuditEndpointFilter(
     {
         try
         {
-            string outcome = MapOutcome(statusCode);
+            string outcome = MapOutcome(statusCode, operation);
             string? failureReason = string.Equals(outcome, "MissingClaim", StringComparison.Ordinal)
                 ? "Required user identifier claim is missing."
                 : null;
@@ -164,15 +170,21 @@ internal sealed partial class AuditEndpointFilter(
             : null;
     }
 
-    private static string MapOutcome(int statusCode) =>
+    // A 401 from signing in means a wrong email or password; from anywhere else, a token
+    // without a user ID.
+    private static string MapOutcome(int statusCode, string operation) =>
         statusCode switch
         {
             >= 200 and <= 299 => "Success",
             400 => "BadRequest",
+            401 when string.Equals(operation, SignInEndpoint.Operation, StringComparison.Ordinal) =>
+                "InvalidCredentials",
             401 => "MissingClaim",
             403 => "Forbidden",
             404 => "NotFound",
             409 => "Conflict",
+            423 => "LockedOut",
+            429 => "TooManyRequests",
             _ => "Unknown",
         };
 

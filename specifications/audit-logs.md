@@ -100,6 +100,7 @@ Api/
     ChannelAuditWriter.cs       ← singleton background writer (IHostedService)
     AuditEndpointFilter.cs      ← IEndpointFilter; captures outcome via Response.OnStarting
     AuthenticationAudit.cs      ← OnAuthenticationFailed handler; audits rejected tokens
+    RateLimitAudit.cs           ← OnRejected handler; audits requests over the rate limit
     AuditTrail.cs               ← IAuditTrail; audits changes no request made (auto-delete)
     AuditLogSchemaInitializer.cs← DDL for the AuditLog table (idempotent IF NOT EXISTS)
   Program.cs                    ← registers services; points OnAuthenticationFailed at AuthenticationAudit
@@ -160,6 +161,7 @@ CREATE TABLE AuditLog (
 |---|---|
 | `'ItemGroup'` | All ItemGroup and Member operations |
 | `'Item'` | All Item operations |
+| `'Account'` | The account operations under `/api/auth`: `SignUp`, `SignIn` |
 | NULL | `AuthenticationFailed` — no resource involved |
 
 ### `Outcome` Values
@@ -169,13 +171,16 @@ CREATE TABLE AuditLog (
 | `Success` | 200, 201, 204 | Operation completed successfully |
 | `BadRequest` | 400 | Validation failed (e.g. blank name) |
 | `MissingClaim` | 401 | JWT was valid but the `sub`/`NameIdentifier` claim is absent |
+| `InvalidCredentials` | 401 | `SignIn` only: no account uses the email, or the password is wrong |
 | `Forbidden` | 403 | Authenticated user is not a member of the target group |
 | `NotFound` | 404 | Resource does not exist |
 | `Conflict` | 409 | Duplicate member, attempt to remove the last member of a group, or a reservation change the rules refused (out of date, protected, or for a non-member) |
+| `LockedOut` | 423 | `SignIn` refused because five wrong passwords in a row locked the account |
+| `TooManyRequests` | 429 | The client went over the account endpoints' rate limit; written by `RateLimitAudit`, since the request never reaches the endpoint |
 | `AuthenticationFailed` | 401 | Bearer token was presented but rejected by JWT middleware |
 | `Unknown` | other | Unrecognised status code — should not occur in normal operation |
 
-`Unauthorized` is not used as an `Outcome` value. HTTP 401 maps to either `MissingClaim` (valid JWT, missing claim) or `AuthenticationFailed` (invalid JWT), which are meaningfully distinct for security analysis.
+`Unauthorized` is not used as an `Outcome` value. HTTP 401 maps to `MissingClaim` (valid JWT, missing claim), `AuthenticationFailed` (invalid JWT) or, from `SignIn`, `InvalidCredentials` (a wrong email or password), which are meaningfully distinct for security analysis.
 
 ### Indexes
 
@@ -229,11 +234,24 @@ Audit rows are stored indefinitely. Deletion is a manual administrative action o
 | `AddMember` | `'ItemGroup'` | `itemGroupId` | NULL | `memberId` |
 | `RemoveMember` | `'ItemGroup'` | `itemGroupId` | NULL | `memberId` |
 
+### Accounts
+
+| Operation | `ResourceType` | `ResourceId` | `SubResourceId` | `TargetUserId` |
+|---|---|---|---|---|
+| `SignUp` | `'Account'` | NULL | NULL | The new account, on success |
+| `SignIn` | `'Account'` | NULL | NULL | The account, on success |
+
+These requests carry no token, so `UserId` is NULL. Emails, passwords and tokens are never stored: an attempt on an account that failed shows only its IP address and outcome. See [accounts.md](accounts.md).
+
 ### Authentication
 
 | Operation | `ResourceType` | `UserId` | `ResourceId` | Extra fields |
 |---|---|---|---|---|
 | `AuthenticationFailed` | NULL | NULL | NULL | `IpAddress`, `TraceId`, `FailureReason` (JWT exception message) |
+
+### Rate limit
+
+A request over the account endpoints' rate limit is answered `429` before it reaches the endpoint, so `AuditEndpointFilter` never sees it. `RateLimitAudit.OnRejected`, the rate limiter's rejection callback, writes its entry instead: the endpoint's operation and resource type, `UserId` and `IpAddress` as usual, no IDs, and the outcome `TooManyRequests`.
 
 ---
 
@@ -299,15 +317,20 @@ Three registrations ensure one shared instance is reachable as `ChannelAuditWrit
 
 ### `AuditEndpointFilter`
 
-`AuditEndpointFilter` is registered once on the entire Checklist route group:
+`AuditEndpointFilter` is registered once on each route group, the Checklist group and the account group:
 
 ```csharp
 app.MapGroup("/api/list")
    .RequireAuthorization()
    .AddEndpointFilter<AuditEndpointFilter>();
+
+app.MapGroup("/api/auth")
+   .AllowAnonymous()
+   .RequireRateLimiting(AuthRateLimit.Policy)
+   .AddEndpointFilter<AuditEndpointFilter>();
 ```
 
-Every request that reaches a Checklist endpoint — whether it succeeds or is rejected by the handler — produces exactly one audit entry.
+Every request that reaches a Checklist or account endpoint — whether it succeeds or is rejected by the handler — produces exactly one audit entry.
 
 **Why `Response.OnStarting` instead of inspecting the `IResult` return value**
 
@@ -316,15 +339,18 @@ Minimal API handlers declared as `Results<T1, T2, ...>` return a struct wrapper 
 **Outcome mapping:**
 
 ```csharp
-int statusCode => statusCode switch
+statusCode switch
 {
-    >= 200 and <= 299 => "Success",
-    400               => "BadRequest",
-    401               => "MissingClaim",
-    403               => "Forbidden",
-    404               => "NotFound",
-    409               => "Conflict",
-    _                 => "Unknown",
+    >= 200 and <= 299                        => "Success",
+    400                                      => "BadRequest",
+    401 when operation is SignIn             => "InvalidCredentials",
+    401                                      => "MissingClaim",
+    403                                      => "Forbidden",
+    404                                      => "NotFound",
+    409                                      => "Conflict",
+    423                                      => "LockedOut",
+    429                                      => "TooManyRequests",
+    _                                        => "Unknown",
 };
 ```
 
@@ -488,7 +514,7 @@ For handlers where all context (IDs, user) is already in route values, `AuditCon
 
 **4. Add the endpoint to `auditedEndpoints` in `AuditLog.Http.Tests.cs`**
 
-`AuditedEndpoints_CoverEveryChecklistEndpoint` fails until every endpoint under `/api/list` is listed there. `EveryEndpoint_CapturesItsOperationResourceTypeAndRouteIds` then checks that its entry carries the expected operation name, resource type and the IDs in its request (route, query or body). Operation names are stored in `AuditLog.Operation`, so never rename an existing one: old rows would no longer match.
+`AuditedEndpoints_CoverEveryListAndAccountEndpoint` fails until every endpoint under `/api/list` and `/api/auth` is listed there. `EveryEndpoint_CapturesItsOperationResourceTypeAndRouteIds` then checks that its entry carries the expected operation name, resource type and the IDs in its request (route, query or body). Operation names are stored in `AuditLog.Operation`, so never rename an existing one: old rows would no longer match.
 
 ---
 

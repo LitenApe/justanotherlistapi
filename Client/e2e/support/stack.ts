@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { createWriteStream } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
 import { createServer } from "node:net";
@@ -79,6 +80,8 @@ export async function startStack(): Promise<RunningStack> {
           "TrustServerCertificate=True",
         ].join(";"),
         OAuth__Authority: `${oauthUrl}/default`,
+        // Production refuses to start without a signing key; each run gets its own.
+        Auth__SigningKey: randomBytes(32).toString("base64"),
         // No telemetry collector runs during tests.
         OTEL_SDK_DISABLED: "true",
       },

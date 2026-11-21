@@ -21,11 +21,13 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
     private static readonly Guid auditedItemId = Guid.NewGuid();
     private static readonly Guid auditedMemberId = Guid.NewGuid();
 
-    // Every endpoint under /api/list, with the operation name and resource type its audit entry
-    // must carry. AuditLog.Operation stores the names, so renaming one (or the class its
-    // nameof() refers to) would split that operation's history in two.
+    // Every endpoint under /api/list and /api/auth, with the operation name and resource type its
+    // audit entry must carry. AuditLog.Operation stores the names, so renaming one (or the class
+    // its nameof() refers to) would split that operation's history in two.
     private static readonly AuditedEndpoint[] auditedEndpoints =
     [
+        new("SignUp", "Account", HttpMethod.Post, "/api/auth/sign-up", new { Name = "" }),
+        new("SignIn", "Account", HttpMethod.Post, "/api/auth/sign-in", new { Email = "" }),
         new("GetItemGroups", "ItemGroup", HttpMethod.Get, "/api/list"),
         new("GetItemGroup", "ItemGroup", HttpMethod.Get, $"/api/list/{auditedGroupId}"),
         new("CreateItemGroup", "ItemGroup", HttpMethod.Post, "/api/list", new { Name = "" }),
@@ -133,13 +135,14 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
     }
 
     [Fact]
-    public void AuditedEndpoints_CoverEveryChecklistEndpoint()
+    public void AuditedEndpoints_CoverEveryListAndAccountEndpoint()
     {
         IEnumerable<string?> mapped = factory
             .Services.GetRequiredService<EndpointDataSource>()
             .Endpoints.OfType<RouteEndpoint>()
             .Where(e =>
                 e.RoutePattern.RawText?.StartsWith("/api/list", StringComparison.Ordinal) == true
+                || e.RoutePattern.RawText?.StartsWith("/api/auth", StringComparison.Ordinal) == true
             )
             .Select(e => e.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName);
 
@@ -483,6 +486,64 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
         Assert.NotNull(entry.FailureReason);
         Assert.Null(entry.UserId);
         Assert.Null(entry.ResourceType);
+    }
+
+    [Fact]
+    public async Task SignUp_CapturesTheNewAccountAsTarget_AndNeitherEmailNorPassword()
+    {
+        var writer = new CapturingAuditWriter();
+        await using WebApplicationFactory<Program> webFactory = WithAuditWriter(writer);
+        string email = TestAccounts.UniqueEmail();
+
+        HttpResponseMessage response = await webFactory
+            .CreateClient()
+            .PostAsJsonAsync(
+                "/api/auth/sign-up",
+                new
+                {
+                    Name = "Kim",
+                    Email = email,
+                    Password = TestAccounts.KnownPassword,
+                },
+                TestContext.Current.CancellationToken
+            );
+
+        Guid newUserId = (
+            await response.Content.ReadFromJsonAsync<Api.Http.SessionResponse>(
+                TestContext.Current.CancellationToken
+            )
+        )!
+            .User
+            .Id;
+        AuditEntry entry = Assert.Single(writer.Entries);
+        Assert.Equal(
+            ("SignUp", "Account", "Success", (Guid?)newUserId),
+            (entry.Operation, entry.ResourceType, entry.Outcome, entry.TargetUserId)
+        );
+        string stored = JsonSerializer.Serialize(entry);
+        Assert.DoesNotContain(email, stored, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(TestAccounts.KnownPassword, stored, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SignIn_CapturesInvalidCredentials_ForAWrongPassword()
+    {
+        var writer = new CapturingAuditWriter();
+        await using WebApplicationFactory<Program> webFactory = WithAuditWriter(writer);
+
+        await webFactory
+            .CreateClient()
+            .PostAsJsonAsync(
+                "/api/auth/sign-in",
+                new { Email = TestAccounts.UniqueEmail(), Password = "a guess at it" },
+                TestContext.Current.CancellationToken
+            );
+
+        AuditEntry entry = Assert.Single(writer.Entries);
+        Assert.Equal(
+            ("SignIn", "InvalidCredentials", (string?)null, (Guid?)null),
+            (entry.Operation, entry.Outcome, entry.FailureReason, entry.TargetUserId)
+        );
     }
 
     private static Guid? IdInRequest(AuditedEndpoint endpoint, Guid id) =>
