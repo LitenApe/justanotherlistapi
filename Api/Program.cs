@@ -11,6 +11,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using OpenTelemetry;
 using OpenTelemetry.Trace;
 using Scalar.AspNetCore;
@@ -81,54 +83,47 @@ builder
     .ValidateOnStart();
 builder.Services.AddAuthRateLimit(builder.Configuration);
 
-// Authentication & Authorization
+// Authentication & Authorization: the API accepts the tokens it issued itself, and no others
+builder.Services.AddAuthentication().AddJwtBearer();
 builder
-    .Services.AddAuthentication()
-    .AddJwtBearer(options =>
-    {
-        string? authority = builder.Configuration["OAuth:Authority"];
-        if (!string.IsNullOrEmpty(authority))
+    .Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+    .Configure<IOptions<AuthOptions>>(
+        (options, auth) =>
         {
-            options.Authority = authority;
-            options.RequireHttpsMetadata = !authority.StartsWith(
-                "http://",
-                StringComparison.OrdinalIgnoreCase
-            );
-        }
-
-        string? audience = builder.Configuration["OAuth:Audience"];
-        if (!string.IsNullOrEmpty(audience))
-        {
-            options.Audience = audience;
-        }
-        else
-        {
-            // No audience configured — disable validation. Set OAuth:Audience in production.
-            options.TokenValidationParameters.ValidateAudience = false;
-        }
-
-        options.Events = new JwtBearerEvents
-        {
-            OnMessageReceived = context =>
+            AuthOptions settings = auth.Value;
+            options.TokenValidationParameters = new TokenValidationParameters
             {
-                if (
-                    context.Request.Path.StartsWithSegments(
-                        "/hubs",
-                        StringComparison.OrdinalIgnoreCase
-                    )
-                    && context.Request.Query.TryGetValue(
-                        "access_token",
-                        out Microsoft.Extensions.Primitives.StringValues token
-                    )
-                )
+                ValidIssuer = settings.Issuer,
+                ValidAudience = settings.Audience,
+                IssuerSigningKey = settings.CreateSigningKey(),
+                ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
+                // The API checks its own tokens, so clocks can't disagree by much.
+                ClockSkew = TimeSpan.FromSeconds(30),
+            };
+
+            options.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = context =>
                 {
-                    context.Token = token;
-                }
-                return Task.CompletedTask;
-            },
-            OnAuthenticationFailed = AuthenticationAudit.OnAuthenticationFailed,
-        };
-    });
+                    if (
+                        context.Request.Path.StartsWithSegments(
+                            "/hubs",
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                        && context.Request.Query.TryGetValue(
+                            "access_token",
+                            out Microsoft.Extensions.Primitives.StringValues token
+                        )
+                    )
+                    {
+                        context.Token = token;
+                    }
+                    return Task.CompletedTask;
+                },
+                OnAuthenticationFailed = AuthenticationAudit.OnAuthenticationFailed,
+            };
+        }
+    );
 builder.Services.AddAuthorization();
 
 // API Documentation
@@ -192,19 +187,8 @@ if (app.Environment.IsDevelopment())
 app.MapOpenApi();
 app.MapScalarApiReference(opt =>
 {
-    string? authority = app.Configuration["OAuth:Authority"];
-    if (!string.IsNullOrEmpty(authority))
-    {
-        opt.AddPreferredSecuritySchemes("OAuth2")
-            .AddClientCredentialsFlow("OAuth2", flow =>
-            {
-                flow.WithClientId("00000000-0000-0000-0000-000000000001").WithClientSecret("dev");
-            });
-    }
-    else
-    {
-        opt.AddPreferredSecuritySchemes("Bearer");
-    }
+    // Paste the accessToken that POST /api/auth/sign-in answers with.
+    opt.AddPreferredSecuritySchemes("Bearer");
     opt.WithDocumentDownloadType(DocumentDownloadType.Both)
         .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.Curl);
 });

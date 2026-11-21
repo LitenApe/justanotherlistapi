@@ -6,18 +6,18 @@
 | -------------- | ------------------------------------------------------------------------------ |
 | Build          | `dotnet build` (runs CSharpier format check; formatting issues fail the build) |
 | Test           | `dotnet test` (requires Docker; Testcontainers starts SQL Server)              |
-| Run full stack | `dotnet run --project Aspire` (SQL Server + mock OAuth + backend + client)     |
+| Run full stack | `dotnet run --project Aspire` (SQL Server + backend + client); sign up in the app |
 | Format         | `dotnet csharpier .` (local tool; restore with `dotnet tool restore`)          |
 | Client check   | `cd Client && npm run check` (typecheck + ESLint + Prettier + all tests)      |
 | Client tests   | `npm run test:unit` / `test:browser` / `test:integration` in `Client/`         |
-| End-to-end     | `cd Client && npm run test:e2e` (Docker + .NET SDK; real Api, SQL, OAuth)      |
+| End-to-end     | `cd Client && npm run test:e2e` (Docker + .NET SDK; real Api and SQL Server)   |
 | Client format  | `cd Client && npm run format`                                                  |
 
 ## Architecture
 
-- **Aspire/** — .NET Aspire AppHost; orchestrates SQL Server, mock OAuth container, Api backend and Vite client for local dev
+- **Aspire/** — .NET Aspire AppHost; orchestrates SQL Server, Api backend and Vite client for local dev
 - **Checklist/** — the inside of the hexagon: domain records and values, ports and use cases. No library packages and no project references, so it can't depend on ASP.NET Core, Dapper or SignalR
-- **Api/** — ASP.NET Core 11 backend (Minimal APIs, Dapper, SQL Server, JWT Bearer auth): the adapters around `Checklist`, grouped by kind (`Http/`, `Realtime/`, `Background/`, `Sql/`, `AuditLog/`), plus the composition root `Program.cs`
+- **Api/** — ASP.NET Core 11 backend (Minimal APIs, Dapper, SQL Server, accounts with ASP.NET Core Identity, JWTs it issues and checks itself): the adapters around `Checklist`, grouped by kind (`Http/`, `Realtime/`, `Background/`, `Sql/`, `Accounts/`, `AuditLog/`), plus the composition root `Program.cs`
 - **Api.Tests/** — xUnit tests against SQL Server via Testcontainers (requires Docker)
 - **Client/** — React 19 + TypeScript, React Router framework mode in SPA mode (`ssr: false`), SignalR; served at http://localhost:5173 under Aspire
 
@@ -71,14 +71,15 @@ Every operation follows [specifications/architecture.md](specifications/architec
 - Tests come in three kinds (details in specifications/client.md#testing); never use `vi.mock`, module mocks or jsdom:
   - **Unit** `src/**/*.unit.test.ts`: pure logic in Node, nothing faked
   - **Browser** `src/**/*.browser.test.tsx`: one component/module in real Chromium (`vitest-browser-react`, `page`/`userEvent` from `vitest/browser`); only prop callbacks and, if needed, timers are faked; `expectNoAxeViolations()` checks contrast too
-  - **Integration** `integration/*.spec.ts`: Playwright against the production build; only the network (`FakeBackend`: REST, OAuth, SignalR over `routeWebSocket`) and timers may be faked. Use `app.signIn()`/`app.openList()`, `backend.as(OTHER)` for other members, `app.subscribed(id)` before their changes, `expectAccessible(page)` for new pages and dialogs
-  - **End-to-end** `e2e/*.spec.ts`: Playwright against the whole application started by `e2e/support/stack.ts` (SQL Server + mock OAuth in Testcontainers, real Api, production client via `vite preview`); nothing faked. Use `newUser()` (fresh random user in its own browser context) and its UI helpers, `receivingLiveUpdates(id)` before relying on another member's change, and `runSql()` only to arrange what the UI can't
+  - **Integration** `integration/*.spec.ts`: Playwright against the production build; only the network (`FakeBackend`: REST, the account endpoints, SignalR over `routeWebSocket`) and timers may be faked. Use `app.signIn()`/`app.openList()` (accounts `ME` and `OTHER`, password `PASSWORD`), `backend.as(OTHER)` for other members, `app.subscribed(id)` before their changes, `expectAccessible(page)` for new pages and dialogs
+  - **End-to-end** `e2e/*.spec.ts`: Playwright against the whole application started by `e2e/support/stack.ts` (SQL Server in Testcontainers, real Api, production client via `vite preview`); nothing faked. Use `newUser(name?)` (signs up a fresh user in its own browser context) and its UI helpers, `receivingLiveUpdates(id)` before relying on another member's change, and `runSql()` only to arrange what the UI can't
 - Query by role and accessible name, and assert focus, the way assistive technology sees the page
 
 ## Pitfalls
 
 - `dotnet build` fails on formatting issues (CSharpier). Run `dotnet csharpier .` to fix before committing.
 - The Api refuses to start without `Auth:SigningKey` (a base64 secret of at least 32 bytes). Development has one in `appsettings.Development.json`, `ApiFactory` sets its own, and `e2e/support/stack.ts` makes one per run.
+- The account endpoints allow 20 requests a minute per IP address. Tests all come from one address, so `ApiFactory` and `e2e/support/stack.ts` raise `Auth:RateLimit:PermitLimit`; a test that signs up many users elsewhere will hit 429.
 - **Central package management** via `Directory.Packages.props` — project `PackageReference` items must omit `Version`. Update versions only in `Directory.Packages.props`.
 - **Warnings as errors** — all compiler warnings (including Roslynator/Meziantou analyzers) fail the build.
 - **Nullable reference types** enabled everywhere; do not add `#nullable disable`.

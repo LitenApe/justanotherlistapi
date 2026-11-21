@@ -6,12 +6,23 @@ import type {
   ItemGroupSettingsInput,
   ItemInput,
 } from "../../src/api/types";
-import { defaultSettings } from "../../src/test/builders";
+import { defaultSettings, ME, OTHER } from "../../src/test/builders";
+
+/** The password of every account the fake starts with. */
+export const PASSWORD = "correct horse battery";
+
+/** An account the fake API knows, password and all. */
+export interface FakeAccount {
+  id: string;
+  name: string;
+  email: string;
+  password: string;
+}
 
 /**
  * An in-memory stand-in for everything on the other side of the network: the
- * checklist REST API (specifications/checklist.md), the mock OAuth token
- * endpoint and the SignalR hub. It is installed with Playwright's network
+ * checklist REST API (specifications/checklist.md), the account endpoints
+ * (specifications/accounts.md) and the SignalR hub. It is installed with Playwright's network
  * routing, so the app runs unchanged and only the network is faked.
  *
  * Like the real server, every change is broadcast to the list's SignalR group,
@@ -22,10 +33,15 @@ export class FakeBackend {
   readonly lists: ItemGroup[] = [];
   /** Every REST request the app made, in order. */
   readonly calls: ApiCall[] = [];
+  /** Who can sign in. ME and OTHER have accounts from the start. */
+  readonly accounts: FakeAccount[] = [
+    { id: ME, name: "Robin", email: "robin@example.com", password: PASSWORD },
+    { id: OTHER, name: "Kim", email: "kim@example.com", password: PASSWORD },
+  ];
   /** How long issued tokens stay valid. */
   tokenLifetimeSeconds = 3600;
-  /** Makes the token endpoint unreachable, like a stopped OAuth server. */
-  signInServerDown = false;
+  /** Makes the account endpoints unreachable, like a server that's down. */
+  authUnreachable = false;
 
   private readonly hubClients = new Set<HubClient>();
   /** Negotiated connections waiting for their WebSocket, by connection token. */
@@ -34,7 +50,6 @@ export class FakeBackend {
   private readonly holds: { method: string; pattern: RegExp; released: Promise<undefined> }[] = [];
 
   async install(page: Page): Promise<void> {
-    await page.route("**/default/token", (route) => this.token(route));
     await page.route("**/api/**", (route) => this.api(route));
     await page.route(/\/hubs\/checklist\/negotiate(\?|$)/, (route) => this.negotiate(route));
     await page.routeWebSocket(/\/hubs\/checklist/, (socket) => {
@@ -157,27 +172,63 @@ export class FakeBackend {
     }
   }
 
-  // ─── OAuth ────────────────────────────────────────────────────────────────
+  // ─── Accounts ─────────────────────────────────────────────────────────────
 
-  private async token(route: Route): Promise<void> {
-    if (this.signInServerDown) {
-      await route.abort("connectionrefused");
-      return;
+  /** The account that uses `email`, ignoring case, like the real API. */
+  account(email: string): FakeAccount | undefined {
+    const wanted = email.trim().toLowerCase();
+    return this.accounts.find((account) => account.email.toLowerCase() === wanted);
+  }
+
+  accountById(userId: string): FakeAccount {
+    const account = this.accounts.find((candidate) => candidate.id === userId);
+    if (!account) throw new Error(`No account has the ID ${userId}.`);
+    return account;
+  }
+
+  /** The account endpoints: they need no token, and answer like the real ones. */
+  private handleAuth(
+    method: string,
+    path: string,
+    body: unknown,
+  ): { status: number; json?: unknown } {
+    if (method !== "POST") return { status: 405 };
+    const { name, email, password } = (body ?? {}) as Partial<Record<string, string>>;
+
+    if (path === "/api/auth/sign-in") {
+      if (!email?.includes("@") || !password) return { status: 400 };
+      const account = this.account(email);
+      if (account?.password !== password) return { status: 401 };
+      return { status: 200, json: this.session(account) };
     }
-    // Like the mock OAuth server: the client ID becomes the subject.
-    const clientId = new URLSearchParams(route.request().postData() ?? "").get("client_id") ?? "";
+
+    if (path === "/api/auth/sign-up") {
+      const trimmedName = name?.trim() ?? "";
+      if (!trimmedName || !email?.includes("@") || (password?.length ?? 0) < 12) {
+        return { status: 400 };
+      }
+      if (this.account(email)) return { status: 409 };
+      const account = {
+        id: crypto.randomUUID(),
+        name: trimmedName,
+        email: email.trim(),
+        password: password ?? "",
+      };
+      this.accounts.push(account);
+      return { status: 201, json: this.session(account) };
+    }
+
+    return { status: 404 };
+  }
+
+  private session(account: FakeAccount) {
     const now = Math.floor(Date.now() / 1000);
-    await route.fulfill({
-      json: {
-        access_token: unsignedJwt({
-          sub: clientId,
-          iat: now,
-          exp: now + this.tokenLifetimeSeconds,
-        }),
-        token_type: "Bearer",
-        expires_in: this.tokenLifetimeSeconds,
-      },
-    });
+    const expiresAt = now + this.tokenLifetimeSeconds;
+    return {
+      accessToken: unsignedJwt({ sub: account.id, iat: now, exp: expiresAt }),
+      expiresAt: new Date(expiresAt * 1000).toISOString(),
+      user: { id: account.id, name: account.name, email: account.email },
+    };
   }
 
   private authenticate(authorization: string | undefined): string | null {
@@ -209,6 +260,15 @@ export class FakeBackend {
     if (failure) {
       this.failures.splice(this.failures.indexOf(failure), 1);
       await route.fulfill({ status: failure.status });
+      return;
+    }
+    if (path.startsWith("/api/auth/")) {
+      if (this.authUnreachable) {
+        await route.abort("connectionrefused");
+        return;
+      }
+      const response = this.handleAuth(method, path, body);
+      await route.fulfill(response.json === undefined ? { status: response.status } : response);
       return;
     }
     if (!userId) {

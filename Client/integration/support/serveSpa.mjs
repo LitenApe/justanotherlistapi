@@ -1,6 +1,6 @@
 // Serves build/client the way a static host serves the SPA in production:
-// files as-is, every other path falls back to index.html. API, hub and OAuth
-// paths return 404 so a request the tests forgot to fake fails loudly instead
+// files as-is, every other path falls back to index.html. API and hub paths
+// return 404 so a request the tests forgot to fake fails loudly instead
 // of receiving index.html.
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
@@ -9,7 +9,7 @@ import { extname, join, normalize } from "node:path";
 
 const root = join(import.meta.dirname, "..", "..", "build", "client");
 const port = Number(process.argv[2] ?? 4173);
-const backendPaths = /^\/(api|hubs|default)(\/|$)/;
+const backendPaths = /^\/(api|hubs)(\/|$)/;
 
 const types = {
   ".html": "text/html; charset=utf-8",

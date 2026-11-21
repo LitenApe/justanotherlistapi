@@ -272,7 +272,7 @@ function useLiveLists(loaded: ItemGroup[]) {
       },
       groupDeleted: removeList,
       memberRemoved: (groupId, memberId) => {
-        if (memberId === session?.userId) removeList(groupId);
+        if (memberId === session?.user.id) removeList(groupId);
       },
       resync: () => void revalidate(),
     },

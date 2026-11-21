@@ -8,31 +8,19 @@ IResourceBuilder<SqlServerServerResource> sql = builder
     .WithLifetime(ContainerLifetime.Persistent);
 IResourceBuilder<SqlServerDatabaseResource> db = sql.AddDatabase("database");
 
-IResourceBuilder<ContainerResource> oauth = builder
-    .AddContainer("oauth", "ghcr.io/navikt/mock-oauth2-server", "6.1.1")
-    .WithHttpEndpoint(port: 8080, targetPort: 8080, name: "http")
-    .WithHttpHealthCheck("/default/.well-known/openid-configuration")
-    .WithLifetime(ContainerLifetime.Persistent);
-
-// The path is relative to this AppHost's folder.
+// The path is relative to this AppHost's folder. Api signs people in itself (accounts.md),
+// with the development signing key from its appsettings.Development.json.
 IResourceBuilder<DotnetProjectResource> api = builder
     .AddDotnetProject("Api", "../Api/Api.csproj")
     .WaitFor(db)
-    .WaitFor(oauth)
-    .WithReference(db)
-    .WithEnvironment(
-        "OAuth__Authority",
-        ReferenceExpression.Create($"{oauth.GetEndpoint("http")}/default")
-    );
+    .WithReference(db);
 
-// The Vite dev server proxies /api and /hubs to Api and /default to the mock OAuth server.
+// The Vite dev server proxies /api and /hubs to Api.
 // A fixed port keeps the origin stable, so browser storage survives restarts.
 builder
     .AddViteApp("client", "../Client")
     .WithEndpoint("http", endpoint => endpoint.Port = 5173)
     .WithReference(api)
-    .WithReference(oauth.GetEndpoint("http"))
-    .WaitFor(api)
-    .WaitFor(oauth);
+    .WaitFor(api);
 
 builder.Build().Run();

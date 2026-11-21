@@ -13,13 +13,25 @@ export class ApiError extends Error {
 
 type Method = "GET" | "POST" | "PUT" | "DELETE";
 
+interface RequestOptions {
+  body?: unknown;
+  signal?: AbortSignal;
+  /**
+   * For the account endpoints, which are how people get a token: no token is
+   * sent, and a 401 is an answer (a wrong password), not an expired session.
+   */
+  anonymous?: boolean;
+  /** What to tell people for particular statuses, instead of the general messages. */
+  messages?: Partial<Record<number, string>>;
+}
+
 export async function apiRequest<T>(
   method: Method,
   path: string,
-  options: { body?: unknown; signal?: AbortSignal } = {},
+  options: RequestOptions = {},
 ): Promise<T> {
   const headers = new Headers({ Accept: "application/json" });
-  const session = sessionStore.getSession();
+  const session = options.anonymous ? null : sessionStore.getSession();
   if (session) headers.set("Authorization", `Bearer ${session.accessToken}`);
 
   const connectionId = checklistHub.getConnectionId();
@@ -40,13 +52,16 @@ export async function apiRequest<T>(
     throw new ApiError(0, "Can't reach the server. Check your connection and try again.");
   }
 
-  if (response.status === 401) {
+  if (response.status === 401 && !options.anonymous) {
     sessionStore.signOut("expired");
     throw new ApiError(401, "Your session has expired. Sign in again to continue.");
   }
 
   if (!response.ok) {
-    throw new ApiError(response.status, messageFor(response.status));
+    throw new ApiError(
+      response.status,
+      options.messages?.[response.status] ?? messageFor(response.status),
+    );
   }
 
   const text = await response.text();

@@ -27,7 +27,7 @@ JustAnotherList is an open-source, minimalist app for organising life into share
 | Runtime           | .NET 11                                                           |
 | Backend           | ASP.NET Core 11 (Minimal API)                                     |
 | Data access       | Dapper + SQL Server                                               |
-| Authentication    | JWT Bearer — delegated to an external OAuth 2.0 / OIDC provider   |
+| Authentication    | Accounts with ASP.NET Core Identity; the API issues and checks its own JWTs |
 | API docs          | Scalar (OpenAPI)                                                  |
 | Observability     | OpenTelemetry (traces + logs, OTLP export)                        |
 | Dev orchestration | .NET Aspire                                                       |
@@ -38,11 +38,11 @@ JustAnotherList is an open-source, minimalist app for organising life into share
 
 ```
 Aspire/                             - .NET Aspire AppHost — wires all services for local development
-  Program.cs                        - Registers SQL Server, mock OAuth container, Api project and Vite client
+  Program.cs                        - Registers SQL Server, the Api project and the Vite client
 Client/                             - React Router (framework mode, SPA) web client — see specifications/client.md
   src/root.tsx, src/routes.ts       - HTML document + app shell, and the route config
   src/api/                          - fetch wrapper and one function per API endpoint
-  src/auth/                         - Session store, dev sign-in against the mock OAuth server
+  src/auth/                         - Session store, sign-up and sign-in pages, the account rules
   src/realtime/                     - Single SignalR connection with per-list subscriptions
   src/components/                   - Layout, dialogs, toasts/live regions, icons
   src/lists/                        - "Your lists" overview page
@@ -80,7 +80,7 @@ Api/                                - ASP.NET Core backend: the adapters around 
   Extensions/
     ClaimsPrincipalExtension.cs     - GetUserId(): reads sub / NameIdentifier / user_id claim → Guid?
   Http/
-    BearerSecuritySchemeTransformer.cs  - Adds Bearer + OAuth2 security schemes to the OpenAPI document
+    BearerSecuritySchemeTransformer.cs  - Adds the Bearer security scheme to the OpenAPI document
     AccountApiEndpointRouteBuilderExtension.cs  - MapAccountApi(): maps the account routes under /api/auth
     Account/                        - Endpoint adapters: SignUp, SignIn
     AuthRateLimit.cs                - How often a client may call the account endpoints
@@ -152,7 +152,7 @@ Design and architecture documents for planned and implemented features live in t
 | [accounts.md](specifications/accounts.md)             | Accounts — the rules for names, emails and passwords, signing up and in, lockout, the tokens the API issues, the rate limit and the Users table |
 | [audit-logs.md](specifications/audit-logs.md)         | Audit Log feature — database schema, per-operation audit data, implementation design, and future extensibility                                     |
 | [authentication.md](specifications/authentication.md) | Authentication feature — JWT Bearer setup, token validation behavior, user identity claim resolution, and how users authenticate against the API   |
-| [client.md](specifications/client.md)                 | Web client — structure, dev sign-in, data flow, real-time updates, accessibility (WCAG 2.2 AA) and responsive design conventions                   |
+| [client.md](specifications/client.md)                 | Web client — structure, sign-up and sign-in, data flow, real-time updates, accessibility (WCAG 2.2 AA) and responsive design conventions                   |
 
 ## Requirements
 
@@ -160,7 +160,7 @@ Design and architecture documents for planned and implemented features live in t
 - Docker (or another OCI-compatible runtime)
 - Node.js 24 (for the web client; Aspire runs `npm install` and the React Router dev server)
 
-Docker is required because Aspire spins up SQL Server and the OAuth mock server as persistent containers at startup.
+Docker is required because Aspire spins up SQL Server as a persistent container at startup.
 
 ## Quickstart (local development)
 
@@ -178,22 +178,21 @@ Docker is required because Aspire spins up SQL Server and the OAuth mock server 
    dotnet run --project Aspire
    ```
 
-   Aspire starts and health-checks the following containers before launching the backend:
+   Aspire starts and health-checks this container before launching the backend:
 
-   | Container          | Image                                        | Port          | Lifetime   |
-   | ------------------ | -------------------------------------------- | ------------- | ---------- |
-   | SQL Server         | `mcr.microsoft.com/mssql/server:2025-latest` | auto-assigned | Persistent |
-   | mock-oauth2-server | `ghcr.io/navikt/mock-oauth2-server:6.1.1`    | `8080`        | Persistent |
+   | Container  | Image                                        | Port          | Lifetime   |
+   | ---------- | -------------------------------------------- | ------------- | ---------- |
+   | SQL Server | `mcr.microsoft.com/mssql/server:2025-latest` | auto-assigned | Persistent |
 
-   Both containers are **persistent** — data and the OAuth server survive restarts. The backend waits for both to be healthy before starting. Database tables are created automatically on first boot.
+   The container is **persistent**, so data survives restarts. The backend waits for it to be healthy before starting. Database tables are created automatically on first boot.
 
 3. Open the web client at **http://localhost:5173** (see [Using the web client](#using-the-web-client)), or open the Aspire dashboard URL printed in the console to reach the `Api` service and its Scalar UI at `/scalar/v1`.
 
 ## Using the web client
 
-The client signs in against the local mock OAuth server. Your **user ID** (a GUID) is your identity: the sign-in page prefills `00000000-0000-0000-0000-000000000001`, and **Generate a new user ID** creates another one.
+**Sign up** with a name, an email address and a password of at least 12 characters, then sign in with the email and password from then on. Emails aren't confirmed, so any address works locally.
 
-- Each browser tab keeps its own sign-in, so you can open a second tab with a different user ID to try sharing.
+- Each browser tab keeps its own sign-in, so you can sign up a second account in another tab to try sharing.
 - To share a list, ask the other person for their user ID (shown under **Account**) and paste it under **Add a member** on the list page.
 - Changes made by other members appear live.
 - **Settings** on the list page can hide done items after a while and delete the list once every item has been done for a while (at least a day). Both are off by default and apply to every member.
@@ -201,36 +200,33 @@ The client signs in against the local mock OAuth server. Your **user ID** (a GUI
 
 The client is built to WCAG 2.2 AA (keyboard and screen reader support, visible focus, sufficient contrast in light and dark mode) and works from 320px phone screens up to desktop. Details are in [specifications/client.md](specifications/client.md).
 
-To work on the client without Aspire, start Api and the OAuth server, then run `npm install` and `npm run dev` in `Client/`.
+To work on the client without Aspire, start Api, then run `npm install` and `npm run dev` in `Client/`.
 
 ## Getting a token locally
 
-When the app is running with Aspire, the Scalar UI at `/scalar/v1` is pre-configured with `client_id: 00000000-0000-0000-0000-000000000001` and `client_secret: dev`. Click **Authorize → Get Token** in Scalar to fetch a token directly from the mock server — no copy-pasting required.
-
-Alternatively, fetch a token manually:
+The API issues its own tokens. Sign up once (in the web client, or with `/api/auth/sign-up`), then sign in with the same email and password:
 
 ```bash
-curl -X POST http://localhost:8080/default/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=client_credentials&client_id=00000000-0000-0000-0000-000000000001&client_secret=dev"
+curl -X POST http://localhost:5093/api/auth/sign-in \
+  -H "Content-Type: application/json" \
+  -d '{"email":"kim@example.com","password":"correct horse battery"}'
 ```
 
-Copy the returned `access_token` and supply it as a `Bearer` token in any HTTP client. The `sub` claim will be used as the caller's user ID — it must be a valid `Guid` (the mock server generates one by default).
+Copy the returned `accessToken` and supply it as a `Bearer` token in any HTTP client, or paste it into the Bearer scheme in the Scalar UI at `/scalar/v1`. Tokens last 8 hours. The account endpoints allow 20 requests a minute from one address.
 
 ## Running without Aspire (alternative setup)
 
-If you prefer a local SQL Server install or an external endpoint, configure the connection string and OAuth authority directly in `Api/appsettings.Development.json` (this file is gitignored):
+If you prefer a local SQL Server install or an external endpoint, configure the connection string, for example with user secrets (`dotnet user-secrets set ConnectionStrings:database "…" --project Api`):
 
 ```json
 {
   "ConnectionStrings": {
     "database": "Server=localhost,1433;Database=JustAnotherListDb;User Id=sa;Password=Your_password123;TrustServerCertificate=True;"
-  },
-  "OAuth": {
-    "Authority": "https://your-provider.com/tenant"
   }
 }
 ```
+
+In Development the API signs tokens with the development key in `Api/appsettings.Development.json`. Any other environment must set `Auth:SigningKey` to a secret of its own.
 
 Then run the backend directly:
 
@@ -247,17 +243,16 @@ All runtime configuration for `Api` is resolved from `appsettings.json`, environ
 | Key                          | Required | Description                                                                                                                                    |
 | ---------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ConnectionStrings:database` | Yes      | SQL Server connection string. Injected by Aspire; set manually when running standalone.                                                        |
-| `OAuth:Authority`            | Yes      | OIDC issuer URL (e.g. `https://login.microsoftonline.com/{tenant}/v2.0`). Passed to `AddJwtBearer`. Aspire injects this as `OAuth__Authority`. |
-| `OAuth:Audience`             | No       | Expected JWT audience. If omitted, audience validation is disabled.                                                                            |
+| `Auth:SigningKey`            | Yes      | A base64-encoded secret of at least 32 random bytes that signs and checks the API's tokens. The app refuses to start without it. Development has one in `appsettings.Development.json`; keep every other environment's secret out of source control. |
+| `Auth:Issuer`, `Auth:Audience` | No     | The tokens' `iss` and `aud` claims. Both default to `JustAnotherList`.                                                                         |
+| `Auth:TokenLifetime`         | No       | How long a token works. Defaults to 8 hours (`08:00:00`).                                                                                      |
+| `Auth:RateLimit:PermitLimit` | No       | Requests per minute one address may make to the account endpoints. Defaults to 20.                                                             |
 
 > **Note:** `launchSettings.json` files are gitignored. Each developer's local launch profiles are not committed.
 
 ## Authentication
 
-The API validates JWT Bearer tokens issued by an external OAuth 2.0 / OIDC provider.
-
-- `RequireHttpsMetadata` is automatically disabled when `OAuth:Authority` starts with `http://` (supports the local mock server).
-- If `OAuth:Audience` is not set, audience validation is skipped.
+People sign up and sign in at `/api/auth` with an email address and a password, which ASP.NET Core Identity hashes and checks (five wrong passwords in a row lock an account for five minutes). The answer carries a JWT the API signed with `Auth:SigningKey`, and every other endpoint accepts those tokens and no others. See [specifications/accounts.md](specifications/accounts.md) and [specifications/authentication.md](specifications/authentication.md).
 
 ### User identity
 
@@ -340,19 +335,19 @@ The negotiate request authenticates with the usual `Authorization: Bearer` heade
 
 ## Tests
 
-Tests use xUnit against a real SQL Server started by [Testcontainers](https://dotnet.testcontainers.org/) — Docker must be running, but no manually started SQL Server or OAuth server is needed.
+Tests use xUnit against a real SQL Server started by [Testcontainers](https://dotnet.testcontainers.org/) — Docker must be running, but no manually started SQL Server is needed.
 
 ```bash
 dotnet test
 ```
 
-Client tests come in four kinds: **unit** tests of pure logic (Vitest in Node), **browser** tests of components in real Chromium (Vitest browser mode), **integration** tests of the production build in Playwright with only the network (REST, OAuth and the SignalR WebSocket) faked, and **end-to-end** tests of the whole application with nothing faked. The end-to-end setup starts SQL Server and the mock OAuth server in Docker, runs the real Api and serves the client build, and the tests check collaboration between real users through the backend and SignalR. Pages, dialogs and both themes are checked with axe-core, colour contrast included. See [specifications/client.md](specifications/client.md#testing).
+Client tests come in four kinds: **unit** tests of pure logic (Vitest in Node), **browser** tests of components in real Chromium (Vitest browser mode), **integration** tests of the production build in Playwright with only the network (REST, the account endpoints and the SignalR WebSocket) faked, and **end-to-end** tests of the whole application with nothing faked. The end-to-end setup starts SQL Server in Docker, runs the real Api and serves the client build, and the tests check collaboration between real users through the backend and SignalR. Pages, dialogs and both themes are checked with axe-core, colour contrast included. See [specifications/client.md](specifications/client.md#testing).
 
 ```bash
 cd Client
 npx playwright install chromium   # once
 npm run check      # typecheck + lint + format check + unit, browser and integration tests
-npm run test:e2e   # end-to-end: real Api, SQL Server and OAuth server (needs Docker)
+npm run test:e2e   # end-to-end: real Api and SQL Server (needs Docker)
 ```
 
 ### How tests work

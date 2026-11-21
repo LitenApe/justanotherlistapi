@@ -3,8 +3,8 @@ import { createSessionStore } from "./session";
 
 const session = (expiresInMs: number) => ({
   accessToken: "token",
-  userId: "00000000-0000-0000-0000-000000000001",
   expiresAt: Date.now() + expiresInMs,
+  user: { id: "00000000-0000-0000-0000-000000000001", name: "Robin", email: "robin@example.com" },
 });
 
 describe("sessionStore", () => {
@@ -17,11 +17,21 @@ describe("sessionStore", () => {
     store.setSession(session(60_000));
 
     const restored = createSessionStore(sessionStorage);
-    expect(restored.getSession()?.userId).toBe("00000000-0000-0000-0000-000000000001");
+    expect(restored.getSession()?.user).toEqual({
+      id: "00000000-0000-0000-0000-000000000001",
+      name: "Robin",
+      email: "robin@example.com",
+    });
   });
 
   it("drops stored sessions that have already expired", () => {
     sessionStorage.setItem("jal.session", JSON.stringify(session(-1)));
+    expect(createSessionStore(sessionStorage).getSession()).toBeNull();
+  });
+
+  it("drops sessions saved before accounts existed, which name no user", () => {
+    const { user, ...beforeAccounts } = session(60_000);
+    sessionStorage.setItem("jal.session", JSON.stringify({ ...beforeAccounts, userId: user.id }));
     expect(createSessionStore(sessionStorage).getSession()).toBeNull();
   });
 

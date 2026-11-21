@@ -126,10 +126,12 @@ function AccountMenu({ session }: { session: Session }) {
         }}
       >
         <h2 className={styles.accountHeading}>Your account</h2>
+        <p className={styles.accountName}>{session.user.name}</p>
+        <p className={`hint ${styles.accountEmail}`}>{session.user.email}</p>
         <p className="hint">Your user ID. Share it so others can add you to their lists.</p>
-        <code className={styles.userId}>{session.userId}</code>
+        <code className={styles.userId}>{session.user.id}</code>
         <div className={styles.accountActions}>
-          <CopyButton value={session.userId} label="Copy user ID" />
+          <CopyButton value={session.user.id} label="Copy user ID" />
           <button
             type="button"
             className="button button-small"

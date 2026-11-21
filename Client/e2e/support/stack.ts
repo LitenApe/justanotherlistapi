@@ -9,18 +9,16 @@ import {
   MSSQLServerContainer,
   type StartedMSSQLServerContainer,
 } from "@testcontainers/mssqlserver";
-import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 
 /**
- * The whole application, running locally for end-to-end tests: SQL Server and
- * the mock OAuth server in containers (the images Aspire/Program.cs uses), the
- * real Api backend, and the production client build behind the same proxy the
- * dev server uses. Nothing is faked.
+ * The whole application, running locally for end-to-end tests: SQL Server in a
+ * container (the image Aspire/Program.cs uses), the real Api backend, which
+ * signs people in itself, and the production client build behind the same
+ * proxy the dev server uses. Nothing is faked.
  */
 
 /** Keep in sync with Aspire/Program.cs. */
 const SQL_SERVER_IMAGE = "mcr.microsoft.com/mssql/server:2025-latest";
-const OAUTH_IMAGE = "ghcr.io/navikt/mock-oauth2-server:6.1.1";
 export const DATABASE = "JustAnotherList";
 export const SQLCMD = "/opt/mssql-tools18/bin/sqlcmd";
 
@@ -34,7 +32,6 @@ const apiBuildDir = join(tmpdir(), "justanotherlist-e2e", "api");
 export interface RunningStack {
   clientUrl: string;
   apiUrl: string;
-  oauthUrl: string;
   /** For tests that arrange data the UI can't, like backdating a completion. */
   database: { containerId: string; user: string; password: string };
   stop: () => Promise<void>;
@@ -50,21 +47,16 @@ export async function startStack(): Promise<RunningStack> {
 
   try {
     // Containers and both builds are independent, so they run side by side.
-    const [sql, oauth] = await Promise.all([
+    const [sql] = await Promise.all([
       startSqlServer(),
-      startOAuthServer(),
       buildApi(),
       run("client-build", process.execPath, [
         join(clientDir, "node_modules", "@react-router", "dev", "bin.cjs"),
         "build",
       ]),
     ]);
-    stoppers.push(
-      () => sql.stop(),
-      () => oauth.stop(),
-    );
+    stoppers.push(() => sql.stop());
 
-    const oauthUrl = `http://${oauth.getHost()}:${oauth.getMappedPort(8080).toString()}`;
     const apiUrl = `http://127.0.0.1:${(await freePort()).toString()}`;
 
     const api = startProcess("api", "dotnet", [join(apiBuildDir, "Api.dll")], {
@@ -79,9 +71,10 @@ export async function startStack(): Promise<RunningStack> {
           `Password=${sql.getPassword()}`,
           "TrustServerCertificate=True",
         ].join(";"),
-        OAuth__Authority: `${oauthUrl}/default`,
         // Production refuses to start without a signing key; each run gets its own.
         Auth__SigningKey: randomBytes(32).toString("base64"),
+        // Every test signs up its users from this one address, far more than 20 a minute.
+        Auth__RateLimit__PermitLimit: "100000",
         // No telemetry collector runs during tests.
         OTEL_SDK_DISABLED: "true",
       },
@@ -103,7 +96,7 @@ export async function startStack(): Promise<RunningStack> {
       {
         cwd: clientDir,
         // vite.config.ts reads these, exactly as Aspire sets them.
-        env: { services__Api__http__0: apiUrl, services__oauth__http__0: oauthUrl },
+        env: { services__Api__http__0: apiUrl },
         unset: ["services__Api__https__0"],
       },
     );
@@ -115,7 +108,6 @@ export async function startStack(): Promise<RunningStack> {
     return {
       clientUrl,
       apiUrl,
-      oauthUrl,
       database: { containerId: sql.getId(), user: sql.getUsername(), password: sql.getPassword() },
       stop,
     };
@@ -144,13 +136,6 @@ async function startSqlServer(): Promise<StartedMSSQLServerContainer> {
     throw new Error(`Couldn't create the database: ${created.output}`);
   }
   return sql;
-}
-
-function startOAuthServer(): Promise<StartedTestContainer> {
-  return new GenericContainer(OAUTH_IMAGE)
-    .withExposedPorts(8080)
-    .withWaitStrategy(Wait.forHttp("/default/.well-known/openid-configuration", 8080))
-    .start();
 }
 
 async function buildApi(): Promise<void> {

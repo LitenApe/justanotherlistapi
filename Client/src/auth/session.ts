@@ -1,8 +1,15 @@
+/** Someone with an account (specifications/accounts.md). */
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
 export interface Session {
   accessToken: string;
-  userId: string;
   /** Epoch milliseconds at which the access token expires. */
   expiresAt: number;
+  user: User;
 }
 
 export type SignOutReason = "user" | "expired";
@@ -25,8 +32,9 @@ export function createSessionStore(storage: Storage | undefined = safeSessionSto
     try {
       const raw = storage?.getItem(SESSION_KEY);
       if (!raw) return null;
-      const parsed = JSON.parse(raw) as Session;
-      return parsed.expiresAt > Date.now() ? parsed : null;
+      const parsed = JSON.parse(raw) as Partial<Session>;
+      // Sessions saved before accounts existed have no user: they count as signed out.
+      return isSession(parsed) && parsed.expiresAt > Date.now() ? parsed : null;
     } catch {
       return null;
     }
@@ -83,6 +91,16 @@ export function createSessionStore(storage: Storage | undefined = safeSessionSto
       return () => listeners.delete(listener);
     },
   };
+}
+
+function isSession(value: Partial<Session>): value is Session {
+  return (
+    typeof value.accessToken === "string" &&
+    typeof value.expiresAt === "number" &&
+    typeof value.user?.id === "string" &&
+    typeof value.user.name === "string" &&
+    typeof value.user.email === "string"
+  );
 }
 
 function safeSessionStorage(): Storage | undefined {
