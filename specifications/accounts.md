@@ -7,6 +7,7 @@
 - [Signing Up](#signing-up)
 - [Signing In](#signing-in)
 - [Recovering A Password](#recovering-a-password)
+- [Changing Your Name](#changing-your-name)
 - [Tokens](#tokens)
 - [Rate Limit](#rate-limit)
 - [Endpoints](#endpoints)
@@ -14,6 +15,7 @@
   - [POST /api/auth/sign-in — SignIn](#post-apiauthsign-in--signin)
   - [POST /api/auth/forgot-password — RequestPasswordReset](#post-apiauthforgot-password--requestpasswordreset)
   - [POST /api/auth/reset-password — ResetPassword](#post-apiauthreset-password--resetpassword)
+  - [PUT /api/me — ChangeName](#put-apime--changename)
 - [Email](#email)
 - [Database Schema](#database-schema)
 - [Where It Lives](#where-it-lives)
@@ -72,6 +74,10 @@ The link carries the user ID rather than the email, so the address never appears
 - **Tokens already issued keep working** until they expire, since JWTs are stateless (see [authentication.md](authentication.md#out-of-scope)).
 
 Reset codes are protected with ASP.NET Core Data Protection. Its keys must survive restarts and be shared by every instance of the app, or codes stop working when the app restarts: production must persist them (for example `PersistKeysToFileSystem` on a shared volume, or to a database or key vault). Development keeps them in the user profile.
+
+## Changing Your Name
+
+Signed-in people can change their name, under the same rule as at sign-up. Lists read members' names from their accounts whenever they load, so the other members see the new name the next time they open a list; no event is sent, so pages they have open keep the old name until then. The person's own page reloads its data at once.
 
 ## Tokens
 
@@ -175,6 +181,21 @@ The audit entry has no `TargetUserId`, so the log doesn't record whether the acc
 
 The audit entry's `TargetUserId` is the `userId` the request names, refused or not.
 
+#### `PUT /api/me` — ChangeName
+
+Needs a token, unlike the endpoints under `/api/auth`. Audited with the resource type `'User'`.
+
+```json
+{ "name": "Kim Lee" }
+```
+
+| Status             | When                                                              |
+| ------------------ | ----------------------------------------------------------------- |
+| `200 OK`           | The user, `{ id, name, email }`, with the new name                |
+| `400 Bad Request`  | A validation problem: `name` breaks its rule                      |
+| `401 Unauthorized` | No token, or a token without a user ID                            |
+| `404 Not Found`    | The signed-in user has no account (only possible for old tokens) |
+
 ---
 
 ## Email
@@ -223,6 +244,7 @@ CREATE UNIQUE INDEX UX_Users_NormalizedEmail ON Users(NormalizedEmail);
 | The rules for names, emails and passwords  | `DisplayName`, `EmailAddress`, `Password` in `Checklist/Domain/`                                         |
 | Signing up and signing in                  | The `SignUp` and `SignIn` use cases in `Checklist/UseCases/Account/`, through the `IAccounts` and `ITokenIssuer` ports |
 | Recovering a password                      | The `RequestPasswordReset` and `ResetPassword` use cases, through `IAccounts` and `IMailer`              |
+| Changing your name                         | The `ChangeName` use case, through `IAccounts.Rename`; `ChangeNameEndpoint` under `/api/me`              |
 | Hashing, checking, lockout and reset codes | `IdentityAccounts` (ASP.NET Core Identity), set up in `AddAccounts()`                                    |
 | Sending email                              | `SmtpMailer` in `Api/Email/`, with its settings in `MailOptions`                                         |
 | Keeping accounts                           | `SqlAccountStore`, Identity's store interfaces on `Users`                                               |

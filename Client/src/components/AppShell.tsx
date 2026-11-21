@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
-import { Link, Outlet, useLocation, useNavigation } from "react-router";
+import { Link, Outlet, useLocation, useNavigation, useRevalidator } from "react-router";
+import { accountApi } from "../api/account";
+import { errorMessage } from "../api/http";
+import { ChangeNameDialog } from "../auth/ChangeNameDialog";
 import { sessionStore, type Session } from "../auth/session";
 import { useSession } from "../auth/useSession";
 import { useConnectionStatus, useRealtimeConnection } from "../realtime/hooks";
 import { themeStore, useTheme } from "../theme/theme";
 import { Icon } from "./Icon";
+import { useToast } from "./Toasts";
 import styles from "./AppShell.module.css";
 
 const getAccessToken = () => sessionStore.getSession()?.accessToken ?? "";
@@ -104,10 +108,36 @@ function ThemeToggle() {
  */
 function AccountMenu({ session }: { session: Session }) {
   const [open, setOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const revalidator = useRevalidator();
+  const { announce } = useToast();
+
+  function closeRenaming() {
+    setRenaming(false);
+    // The button that opened the dialog was in the panel, which is closed by now.
+    toggleRef.current?.focus();
+  }
+
+  async function saveName(name: string): Promise<string | null> {
+    try {
+      const user = await accountApi.changeName(name);
+      sessionStore.rename(user.name);
+      closeRenaming();
+      announce(`Your name is now ${user.name}.`);
+      // Show it wherever this page lists you.
+      void revalidator.revalidate();
+      return null;
+    } catch (error) {
+      return `Couldn't change your name. ${errorMessage(error)}`;
+    }
+  }
 
   return (
     <div className={styles.account}>
       <button
+        ref={toggleRef}
         type="button"
         className={`button button-small ${styles.compactButton}`}
         popoverTarget="account-panel"
@@ -117,6 +147,7 @@ function AccountMenu({ session }: { session: Session }) {
         <span className={styles.compactLabel}>Account</span>
       </button>
       <div
+        ref={panelRef}
         id="account-panel"
         popover="auto"
         className={styles.accountPanel}
@@ -133,6 +164,17 @@ function AccountMenu({ session }: { session: Session }) {
             type="button"
             className="button button-small"
             onClick={() => {
+              panelRef.current?.hidePopover();
+              setRenaming(true);
+            }}
+          >
+            <Icon name="pencil" size={16} />
+            Change name
+          </button>
+          <button
+            type="button"
+            className="button button-small"
+            onClick={() => {
               sessionStore.signOut("user");
             }}
           >
@@ -141,6 +183,12 @@ function AccountMenu({ session }: { session: Session }) {
           </button>
         </div>
       </div>
+      <ChangeNameDialog
+        open={renaming}
+        currentName={session.user.name}
+        onSave={saveName}
+        onClose={closeRenaming}
+      />
     </div>
   );
 }

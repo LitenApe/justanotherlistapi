@@ -99,7 +99,7 @@ Membership is a join between a user (`MemberId: Guid`) and an item group (`ItemG
 | `Id`     | `Guid`    | The member's user ID                                                                         |
 | `Name`   | `string?` | The member's name. `null` for someone added before accounts existed who hasn't signed up since |
 
-Members never see each other's email addresses. Names aren't unique; clients tell two members with the same name apart (see [client.md](client.md#members-and-names)).
+Members never see each other's email addresses. Names aren't unique; clients tell two members with the same name apart (see [client.md](client.md#members-and-names)). Someone who changes their name ([accounts.md](accounts.md#changing-your-name)) shows with it the next time a list is loaded; no event goes out for it.
 
 ---
 

@@ -99,4 +99,25 @@ test.describe("accounts", () => {
       page.getByRole("alert").filter({ hasText: "The email or password is wrong." }),
     ).toBeVisible();
   });
+
+  test("a new name shows for the other members once they load the list again", async ({
+    newUser,
+  }) => {
+    const alice = await newUser("Alice");
+    const bob = await newUser("Bob");
+    const listId = await alice.createList("Trip");
+    await alice.addMember(bob);
+    await bob.openList(listId);
+    await expect(bob.members().getByText("Alice", { exact: true })).toBeVisible();
+
+    await alice.page.getByRole("button", { name: "Account" }).click();
+    await alice.page.getByRole("button", { name: "Change name" }).click();
+    const dialog = alice.page.getByRole("dialog", { name: "Change your name" });
+    await dialog.getByLabel("Name").fill("Alice Smith");
+    await dialog.getByRole("button", { name: "Save" }).click();
+    await expect(alice.members().getByText("Alice Smith", { exact: true })).toBeVisible();
+
+    await bob.page.reload();
+    await expect(bob.members().getByText("Alice Smith", { exact: true })).toBeVisible();
+  });
 });

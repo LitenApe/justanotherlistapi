@@ -250,6 +250,21 @@ export class FakeBackend {
     return { status: 404 };
   }
 
+  /** Like the real API: lists show the new name from their next load; no event goes out. */
+  private changeName(userId: string, body: unknown): { status: number; json?: unknown } {
+    const name = ((body ?? {}) as { name?: string }).name?.trim() ?? "";
+    if (!name || name.length > 50) return { status: 400 };
+    const account = this.accounts.find((candidate) => candidate.id === userId);
+    if (!account) return { status: 404 };
+    account.name = name;
+    for (const list of this.lists) {
+      list.members = list.members.map((member) =>
+        member.id === userId ? { ...member, name } : member,
+      );
+    }
+    return { status: 200, json: { id: account.id, name: account.name, email: account.email } };
+  }
+
   private session(account: FakeAccount) {
     const now = Math.floor(Date.now() / 1000);
     const expiresAt = now + this.tokenLifetimeSeconds;
@@ -325,6 +340,7 @@ export class FakeBackend {
     connectionId: string | undefined,
   ): { status: number; json?: unknown } {
     const exclude = connectionId ?? null;
+    if (path === "/api/me" && method === "PUT") return this.changeName(userId, body);
     const [, api, resource, listId, second, third] = path.split("/");
     if (api !== "api" || resource !== "list") return { status: 404 };
 
