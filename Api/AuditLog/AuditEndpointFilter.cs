@@ -27,6 +27,8 @@ internal sealed partial class AuditEndpointFilter(
         [RemoveMemberEndpoint.Operation] = "ItemGroup",
         [SignUpEndpoint.Operation] = "Account",
         [SignInEndpoint.Operation] = "Account",
+        [ForgotPasswordEndpoint.Operation] = "Account",
+        [ResetPasswordEndpoint.Operation] = "Account",
     };
 
     /// <summary>The resource type audited for <paramref name="operation"/>, if it has one.</summary>

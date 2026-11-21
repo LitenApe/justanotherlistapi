@@ -34,6 +34,28 @@ export const authApi = {
       }),
     ),
 
+  /**
+   * Asks for a link to choose a new password. The server answers the same
+   * whether or not an account uses the email.
+   */
+  requestPasswordReset: (email: string) =>
+    apiRequest<undefined>("POST", "/api/auth/forgot-password", {
+      body: { email },
+      anonymous: true,
+      messages: { 429: TOO_MANY_REQUESTS },
+    }),
+
+  /** Sets a new password with the user ID and code from the emailed link. 400: the link is spent. */
+  resetPassword: (input: { userId: string; code: string; password: string }) =>
+    apiRequest<undefined>("POST", "/api/auth/reset-password", {
+      body: input,
+      anonymous: true,
+      messages: {
+        400: "This link has expired or was already used.",
+        429: TOO_MANY_REQUESTS,
+      },
+    }),
+
   /** Signs in. 401: wrong email or password; 423: locked out for a few minutes. */
   signIn: async (input: { email: string; password: string }) =>
     toSession(

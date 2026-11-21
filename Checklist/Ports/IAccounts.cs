@@ -26,4 +26,17 @@ public interface IAccounts
     /// the count again.
     /// </summary>
     Task<PasswordCheck> CheckPassword(EmailAddress email, string password, CancellationToken ct);
+
+    /// <summary>
+    /// A code that lets the owner of <paramref name="email"/> choose a new password, for an hour
+    /// and once, or <see langword="null"/> when no account uses the email.
+    /// </summary>
+    Task<PasswordReset?> CreateResetCode(EmailAddress email, CancellationToken ct);
+
+    /// <summary>
+    /// Sets a new password with a code from <see cref="CreateResetCode"/>, and ends any lockout.
+    /// Returns <see langword="false"/>, changing nothing, when the code isn't this account's, has
+    /// expired or was already used.
+    /// </summary>
+    Task<bool> ResetPassword(Guid userId, string code, Password password, CancellationToken ct);
 }

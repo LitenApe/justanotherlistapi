@@ -41,6 +41,12 @@ for (const theme of ["dark", "light"] as const) {
       await page.getByRole("button", { name: "Show password" }).click();
       await expectAccessible(page);
 
+      await page.goto("/forgot-password");
+      await expect(
+        page.getByRole("heading", { level: 1, name: "Forgot your password?" }),
+      ).toBeVisible();
+      await expectAccessible(page);
+
       const list = busyList();
       backend.seed(list, makeList("Garden"));
       await app.signIn();

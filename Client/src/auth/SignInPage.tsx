@@ -15,7 +15,11 @@ import { sessionStore } from "./session";
 export function clientLoader({ request }: Route.ClientLoaderArgs) {
   const returnTo = returnPathOf(request);
   if (sessionStore.getSession()) throw redirect(returnTo);
-  return { expired: sessionStore.getSignOutReason() === "expired", returnTo };
+  return {
+    expired: sessionStore.getSignOutReason() === "expired",
+    passwordChanged: new URL(request.url).searchParams.has("passwordChanged"),
+    returnTo,
+  };
 }
 
 export async function clientAction({ request }: Route.ClientActionArgs) {
@@ -60,6 +64,11 @@ export default function SignInPage({ loaderData, actionData }: Route.ComponentPr
         {loaderData.expired && (
           <p className="notice" role="status">
             Your session expired. Sign in again to continue.
+          </p>
+        )}
+        {loaderData.passwordChanged && (
+          <p className="notice" role="status">
+            Your password is changed. Sign in with the new one.
           </p>
         )}
 
@@ -120,6 +129,9 @@ export default function SignInPage({ loaderData, actionData }: Route.ComponentPr
         </Form>
 
         <ul className={styles.links}>
+          <li>
+            <Link to="/forgot-password">Forgot your password?</Link>
+          </li>
           <li>
             New here? <Link to={withReturnTo("/sign-up", loaderData.returnTo)}>Sign up</Link>
           </li>

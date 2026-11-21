@@ -52,14 +52,16 @@ Client/                             - React Router (framework mode, SPA) web cli
   src/test/                         - Fake API, fake SignalR connection, axe helper
 Checklist/                          - The inside of the hexagon, no packages — see specifications/architecture.md
   Domain/                           - ItemGroup, ItemGroupSettings, Item, User records (also the JSON and SignalR payloads), Caller, Name, ItemInput, ItemGroupSettingsInput, DisplayName, EmailAddress, Password, Session
-  Ports/                            - IMembership (who belongs to which list), IItemGroupStore (the lists), IItemStore (their items), IChecklistNotifier (realtime updates), IAuditTrail (audit entries without a request), IAccounts (accounts and passwords), ITokenIssuer (sign-in tokens)
-  UseCases/Account/                 - SignUp, SignIn
+  Ports/                            - IMembership (who belongs to which list), IItemGroupStore (the lists), IItemStore (their items), IChecklistNotifier (realtime updates), IAuditTrail (audit entries without a request), IAccounts (accounts and passwords), ITokenIssuer (sign-in tokens), IMailer (emails)
+  UseCases/Account/                 - SignUp, SignIn, RequestPasswordReset, ResetPassword
   UseCases/Item/                    - CreateItem, UpdateItem, DeleteItem
   UseCases/ItemGroup/               - GetItemGroups, GetItemGroup, CreateItemGroup, UpdateItemGroup, UpdateItemGroupSettings, DeleteItemGroup, AutoDeleteItemGroups
   UseCases/Member/                  - GetMembers, AddMember, RemoveMember, SubscribeToItemGroup (for the hub)
 Api/                                - ASP.NET Core backend: the adapters around Checklist
   Program.cs                        - App composition root: DI, middleware, auth, OpenAPI, DB init
   ChecklistServiceCollectionExtensions.cs  - AddChecklist(): registers use cases, plugs adapters into ports
+  Email/
+    SmtpMailer.cs                   - IMailer over SMTP: the password reset email and its link
   Accounts/
     IdentityAccounts.cs             - IAccounts on ASP.NET Core Identity: hashes and checks passwords, locks out guessing
     SqlAccountStore.cs              - Identity's store on the Users table, with Dapper
@@ -82,7 +84,7 @@ Api/                                - ASP.NET Core backend: the adapters around 
   Http/
     BearerSecuritySchemeTransformer.cs  - Adds the Bearer security scheme to the OpenAPI document
     AccountApiEndpointRouteBuilderExtension.cs  - MapAccountApi(): maps the account routes under /api/auth
-    Account/                        - Endpoint adapters: SignUp, SignIn
+    Account/                        - Endpoint adapters: SignUp, SignIn, RequestPasswordReset (forgot-password), ResetPassword
     AuthRateLimit.cs                - How often a client may call the account endpoints
     CallerExtensions.cs             - ToCaller(): the signed-in user and SignalR connection behind a request
     ChecklistApiEndpointRouteBuilderExtension.cs  - MapChecklistApi(): maps all routes under /api/list
@@ -160,7 +162,7 @@ Design and architecture documents for planned and implemented features live in t
 - Docker (or another OCI-compatible runtime)
 - Node.js 24 (for the web client; Aspire runs `npm install` and the React Router dev server)
 
-Docker is required because Aspire spins up SQL Server as a persistent container at startup.
+Docker is required because Aspire spins up SQL Server as a persistent container, and Mailpit to catch the app's emails, at startup.
 
 ## Quickstart (local development)
 
@@ -178,13 +180,14 @@ Docker is required because Aspire spins up SQL Server as a persistent container 
    dotnet run --project Aspire
    ```
 
-   Aspire starts and health-checks this container before launching the backend:
+   Aspire starts and health-checks these containers before launching the backend:
 
    | Container  | Image                                        | Port          | Lifetime   |
    | ---------- | -------------------------------------------- | ------------- | ---------- |
    | SQL Server | `mcr.microsoft.com/mssql/server:2025-latest` | auto-assigned | Persistent |
+   | Mailpit    | `axllent/mailpit:v1.34.0`                    | auto-assigned | Session    |
 
-   The container is **persistent**, so data survives restarts. The backend waits for it to be healthy before starting. Database tables are created automatically on first boot.
+   SQL Server is **persistent**, so data survives restarts. Mailpit catches every email the backend sends, such as password reset links: open its inbox from the `mail` resource in the Aspire dashboard. The backend waits for both to be healthy before starting. Database tables are created automatically on first boot.
 
 3. Open the web client at **http://localhost:5173** (see [Using the web client](#using-the-web-client)), or open the Aspire dashboard URL printed in the console to reach the `Api` service and its Scalar UI at `/scalar/v1`.
 
@@ -193,6 +196,7 @@ Docker is required because Aspire spins up SQL Server as a persistent container 
 **Sign up** with a name, an email address and a password of at least 12 characters, then sign in with the email and password from then on. Emails aren't confirmed, so any address works locally.
 
 - Each browser tab keeps its own sign-in, so you can sign up a second account in another tab to try sharing.
+- **Forgot your password?** on the sign-in page emails a link to choose a new one. Locally the email lands in Mailpit's inbox.
 - To share a list, ask the other person for their user ID (shown under **Account**) and paste it under **Add a member** on the list page.
 - Changes made by other members appear live.
 - **Settings** on the list page can hide done items after a while and delete the list once every item has been done for a while (at least a day). Both are off by default and apply to every member.
@@ -247,6 +251,8 @@ All runtime configuration for `Api` is resolved from `appsettings.json`, environ
 | `Auth:Issuer`, `Auth:Audience` | No     | The tokens' `iss` and `aud` claims. Both default to `JustAnotherList`.                                                                         |
 | `Auth:TokenLifetime`         | No       | How long a token works. Defaults to 8 hours (`08:00:00`).                                                                                      |
 | `Auth:RateLimit:PermitLimit` | No       | Requests per minute one address may make to the account endpoints. Defaults to 20.                                                             |
+| `Smtp:Host`, `Smtp:Port`     | No       | The SMTP server for password reset emails. Default `localhost:25`; Aspire points them at Mailpit. Also `Smtp:EnableSsl`, `Smtp:UserName`, `Smtp:Password` and `Smtp:From`. |
+| `App:ClientUrl`              | No       | The web client's address, which the links in emails start with. Default `http://localhost:5173`; Aspire sets it.                             |
 
 > **Note:** `launchSettings.json` files are gitignored. Each developer's local launch profiles are not committed.
 
@@ -341,13 +347,13 @@ Tests use xUnit against a real SQL Server started by [Testcontainers](https://do
 dotnet test
 ```
 
-Client tests come in four kinds: **unit** tests of pure logic (Vitest in Node), **browser** tests of components in real Chromium (Vitest browser mode), **integration** tests of the production build in Playwright with only the network (REST, the account endpoints and the SignalR WebSocket) faked, and **end-to-end** tests of the whole application with nothing faked. The end-to-end setup starts SQL Server in Docker, runs the real Api and serves the client build, and the tests check collaboration between real users through the backend and SignalR. Pages, dialogs and both themes are checked with axe-core, colour contrast included. See [specifications/client.md](specifications/client.md#testing).
+Client tests come in four kinds: **unit** tests of pure logic (Vitest in Node), **browser** tests of components in real Chromium (Vitest browser mode), **integration** tests of the production build in Playwright with only the network (REST, the account endpoints and the SignalR WebSocket) faked, and **end-to-end** tests of the whole application with nothing faked. The end-to-end setup starts SQL Server and Mailpit in Docker, runs the real Api and serves the client build, and the tests check collaboration between real users through the backend and SignalR. Pages, dialogs and both themes are checked with axe-core, colour contrast included. See [specifications/client.md](specifications/client.md#testing).
 
 ```bash
 cd Client
 npx playwright install chromium   # once
 npm run check      # typecheck + lint + format check + unit, browser and integration tests
-npm run test:e2e   # end-to-end: real Api and SQL Server (needs Docker)
+npm run test:e2e   # end-to-end: real Api, SQL Server and Mailpit (needs Docker)
 ```
 
 ### How tests work

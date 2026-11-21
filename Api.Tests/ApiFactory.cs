@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Api.AuditLog;
+using Checklist.Ports;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -30,6 +31,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     /// <summary>An open connection to the app's database, for arranging data and checking results.</summary>
     public SqlConnection Connection => connection;
+
+    /// <summary>The emails the app would have sent; the app under test sends none for real.</summary>
+    internal CapturingMailer Mail { get; } = new();
 
     async ValueTask IAsyncLifetime.InitializeAsync()
     {
@@ -82,6 +86,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.AddSingleton<IAuditWriter, NoOpAuditWriter>();
 
             services.RemoveChecklistCleanupService();
+
+            services.RemoveAll<IMailer>();
+            services.AddSingleton<IMailer>(Mail);
 
             services
                 .AddAuthentication("Test")

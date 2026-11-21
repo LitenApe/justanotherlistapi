@@ -161,7 +161,7 @@ CREATE TABLE AuditLog (
 |---|---|
 | `'ItemGroup'` | All ItemGroup and Member operations |
 | `'Item'` | All Item operations |
-| `'Account'` | The account operations under `/api/auth`: `SignUp`, `SignIn` |
+| `'Account'` | The account operations under `/api/auth`: `SignUp`, `SignIn`, `RequestPasswordReset`, `ResetPassword` |
 | NULL | `AuthenticationFailed` — no resource involved |
 
 ### `Outcome` Values
@@ -240,8 +240,10 @@ Audit rows are stored indefinitely. Deletion is a manual administrative action o
 |---|---|---|---|---|
 | `SignUp` | `'Account'` | NULL | NULL | The new account, on success |
 | `SignIn` | `'Account'` | NULL | NULL | The account, on success |
+| `RequestPasswordReset` | `'Account'` | NULL | NULL | NULL, so the log doesn't say whether an account uses the email |
+| `ResetPassword` | `'Account'` | NULL | NULL | The `userId` the request names, refused or not |
 
-These requests carry no token, so `UserId` is NULL. Emails, passwords and tokens are never stored: an attempt on an account that failed shows only its IP address and outcome. See [accounts.md](accounts.md).
+These requests carry no token, so `UserId` is NULL. Emails, passwords, tokens and reset codes are never stored: an attempt on an account that failed shows only its IP address and outcome. See [accounts.md](accounts.md).
 
 ### Authentication
 

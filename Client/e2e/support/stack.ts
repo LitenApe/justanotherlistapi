@@ -9,16 +9,19 @@ import {
   MSSQLServerContainer,
   type StartedMSSQLServerContainer,
 } from "@testcontainers/mssqlserver";
+import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 
 /**
- * The whole application, running locally for end-to-end tests: SQL Server in a
- * container (the image Aspire/Program.cs uses), the real Api backend, which
- * signs people in itself, and the production client build behind the same
- * proxy the dev server uses. Nothing is faked.
+ * The whole application, running locally for end-to-end tests: SQL Server and
+ * Mailpit in containers (the images Aspire/Program.cs uses), the real Api
+ * backend, which signs people in itself and emails reset links to Mailpit, and
+ * the production client build behind the same proxy the dev server uses.
+ * Nothing is faked.
  */
 
 /** Keep in sync with Aspire/Program.cs. */
 const SQL_SERVER_IMAGE = "mcr.microsoft.com/mssql/server:2025-latest";
+const MAILPIT_IMAGE = "axllent/mailpit:v1.34.0";
 export const DATABASE = "JustAnotherList";
 export const SQLCMD = "/opt/mssql-tools18/bin/sqlcmd";
 
@@ -32,6 +35,8 @@ const apiBuildDir = join(tmpdir(), "justanotherlist-e2e", "api");
 export interface RunningStack {
   clientUrl: string;
   apiUrl: string;
+  /** Mailpit's web address, whose API lists the emails Api sent. */
+  mailUrl: string;
   /** For tests that arrange data the UI can't, like backdating a completion. */
   database: { containerId: string; user: string; password: string };
   stop: () => Promise<void>;
@@ -47,16 +52,22 @@ export async function startStack(): Promise<RunningStack> {
 
   try {
     // Containers and both builds are independent, so they run side by side.
-    const [sql] = await Promise.all([
+    const [sql, mail] = await Promise.all([
       startSqlServer(),
+      startMailpit(),
       buildApi(),
       run("client-build", process.execPath, [
         join(clientDir, "node_modules", "@react-router", "dev", "bin.cjs"),
         "build",
       ]),
     ]);
-    stoppers.push(() => sql.stop());
+    stoppers.push(
+      () => sql.stop(),
+      () => mail.stop(),
+    );
 
+    const mailUrl = `http://${mail.getHost()}:${mail.getMappedPort(8025).toString()}`;
+    const clientUrl = `http://localhost:${CLIENT_PORT.toString()}`;
     const apiUrl = `http://127.0.0.1:${(await freePort()).toString()}`;
 
     const api = startProcess("api", "dotnet", [join(apiBuildDir, "Api.dll")], {
@@ -75,6 +86,10 @@ export async function startStack(): Promise<RunningStack> {
         Auth__SigningKey: randomBytes(32).toString("base64"),
         // Every test signs up its users from this one address, far more than 20 a minute.
         Auth__RateLimit__PermitLimit: "100000",
+        // Reset links go to Mailpit, and open the client the tests use.
+        Smtp__Host: mail.getHost(),
+        Smtp__Port: mail.getMappedPort(1025).toString(),
+        App__ClientUrl: clientUrl,
         // No telemetry collector runs during tests.
         OTEL_SDK_DISABLED: "true",
       },
@@ -101,13 +116,13 @@ export async function startStack(): Promise<RunningStack> {
       },
     );
     stoppers.push(() => stopProcess(client));
-    const clientUrl = `http://localhost:${CLIENT_PORT.toString()}`;
     // Through the client's proxy to Api: the pieces are connected.
     await waitForStatus(`${clientUrl}/api/list`, 401, client);
 
     return {
       clientUrl,
       apiUrl,
+      mailUrl,
       database: { containerId: sql.getId(), user: sql.getUsername(), password: sql.getPassword() },
       stop,
     };
@@ -136,6 +151,13 @@ async function startSqlServer(): Promise<StartedMSSQLServerContainer> {
     throw new Error(`Couldn't create the database: ${created.output}`);
   }
   return sql;
+}
+
+function startMailpit(): Promise<StartedTestContainer> {
+  return new GenericContainer(MAILPIT_IMAGE)
+    .withExposedPorts(1025, 8025)
+    .withWaitStrategy(Wait.forHttp("/readyz", 8025))
+    .start();
 }
 
 async function buildApi(): Promise<void> {

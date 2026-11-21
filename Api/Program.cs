@@ -4,6 +4,7 @@ using Api.Accounts;
 using Api.AuditLog;
 using Api.Background;
 using Api.DevSeed;
+using Api.Email;
 using Api.Http;
 using Api.Realtime;
 using Api.Sql;
@@ -82,6 +83,15 @@ builder
     )
     .ValidateOnStart();
 builder.Services.AddAuthRateLimit(builder.Configuration);
+
+// Email: password reset links, over SMTP (Mailpit in development)
+builder
+    .Services.AddOptions<MailOptions>()
+    .BindConfiguration(MailOptions.Section)
+    .Configure<IConfiguration>(
+        (options, configuration) =>
+            options.ClientUrl = configuration["App:ClientUrl"] ?? options.ClientUrl
+    );
 
 // Authentication & Authorization: the API accepts the tokens it issued itself, and no others
 builder.Services.AddAuthentication().AddJwtBearer();

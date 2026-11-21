@@ -8,6 +8,7 @@ export default async function globalSetup() {
   process.env.E2E_SQL_CONTAINER_ID = stack.database.containerId;
   process.env.E2E_SQL_USER = stack.database.user;
   process.env.E2E_SQL_PASSWORD = stack.database.password;
+  process.env.E2E_MAIL_URL = stack.mailUrl;
   console.log(
     `End-to-end stack ready in ${Math.round((Date.now() - started) / 1000).toString()}s: ` +
       `client ${stack.clientUrl}, Api ${stack.apiUrl}`,

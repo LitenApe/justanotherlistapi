@@ -6,18 +6,18 @@
 | -------------- | ------------------------------------------------------------------------------ |
 | Build          | `dotnet build` (runs CSharpier format check; formatting issues fail the build) |
 | Test           | `dotnet test` (requires Docker; Testcontainers starts SQL Server)              |
-| Run full stack | `dotnet run --project Aspire` (SQL Server + backend + client); sign up in the app |
+| Run full stack | `dotnet run --project Aspire` (SQL Server + Mailpit + backend + client); sign up in the app, emails land in Mailpit |
 | Format         | `dotnet csharpier .` (local tool; restore with `dotnet tool restore`)          |
 | Client check   | `cd Client && npm run check` (typecheck + ESLint + Prettier + all tests)      |
 | Client tests   | `npm run test:unit` / `test:browser` / `test:integration` in `Client/`         |
-| End-to-end     | `cd Client && npm run test:e2e` (Docker + .NET SDK; real Api and SQL Server)   |
+| End-to-end     | `cd Client && npm run test:e2e` (Docker + .NET SDK; real Api, SQL Server, Mailpit) |
 | Client format  | `cd Client && npm run format`                                                  |
 
 ## Architecture
 
-- **Aspire/** — .NET Aspire AppHost; orchestrates SQL Server, Api backend and Vite client for local dev
+- **Aspire/** — .NET Aspire AppHost; orchestrates SQL Server, Mailpit, Api backend and Vite client for local dev
 - **Checklist/** — the inside of the hexagon: domain records and values, ports and use cases. No library packages and no project references, so it can't depend on ASP.NET Core, Dapper or SignalR
-- **Api/** — ASP.NET Core 11 backend (Minimal APIs, Dapper, SQL Server, accounts with ASP.NET Core Identity, JWTs it issues and checks itself): the adapters around `Checklist`, grouped by kind (`Http/`, `Realtime/`, `Background/`, `Sql/`, `Accounts/`, `AuditLog/`), plus the composition root `Program.cs`
+- **Api/** — ASP.NET Core 11 backend (Minimal APIs, Dapper, SQL Server, accounts with ASP.NET Core Identity, JWTs it issues and checks itself): the adapters around `Checklist`, grouped by kind (`Http/`, `Realtime/`, `Background/`, `Sql/`, `Accounts/`, `Email/`, `AuditLog/`), plus the composition root `Program.cs`
 - **Api.Tests/** — xUnit tests against SQL Server via Testcontainers (requires Docker)
 - **Client/** — React 19 + TypeScript, React Router framework mode in SPA mode (`ssr: false`), SignalR; served at http://localhost:5173 under Aspire
 
@@ -46,7 +46,7 @@ Every operation follows [specifications/architecture.md](specifications/architec
 
 - HTTP integration and SignalR tests: class implements `IClassFixture<ApiFactory>`, uses `factory.CreateClient()` / `factory.CreateHubConnection()`
 - `ApiFactory` runs the app on its own scoped `SqlConnection` to an isolated test database (as in production); `factory.Connection` is a separate open connection for arranging and asserting. It keeps the real `ChecklistNotifier` + hub
-- Account tests: `TestAccounts.CreateServices(db)` gives the real Identity adapter on a test database (dispose it), `accounts.SignUp(TestAccounts.UniqueEmail())` makes an account with `TestAccounts.KnownPassword`, and `FakeTokenIssuer` issues tokens that name their user
+- Account tests: `TestAccounts.CreateServices(db)` gives the real Identity adapter on a test database (dispose it), `accounts.SignUp(TestAccounts.UniqueEmail())` makes an account with `TestAccounts.KnownPassword`, `FakeTokenIssuer` issues tokens that name their user, and `CapturingMailer` keeps the emails (the HTTP tests' is `factory.Mail`, with `LastCodeFor(email)`)
 - Use-case tests: build the use case with the real SQL adapters on a `TestDatabase.CreateAsync()` connection and `CapturingNotifier` (plus a `FixedTimeProvider` when the time matters), and call `Execute` with a `Caller`. Arrange with `db.InsertItemGroup(id, memberIds…)`, `db.InsertItem(...)` and `db.SetItemGroupSettings(...)`, make domain values with `TestHelpers.ValidName(...)` and `ValidSettings(...)`, and check with the `Load…` helpers in `TestHelpers`
 - SQL adapter tests go in `Api.Tests/Sql/`, one port method at a time; tests of domain values such as `Name` go in `Api.Tests/Checklist/Domain/`
 - `Architecture.Tests.cs` pins the dependency rules (`Checklist` references nothing but .NET, use cases take only ports and `TimeProvider`, driving adapters take no port, SQL adapter or connection), and `CompositionRoot.Tests.cs` checks that the app's container builds every use case. When they fail, fix the code, not the test
@@ -72,7 +72,7 @@ Every operation follows [specifications/architecture.md](specifications/architec
   - **Unit** `src/**/*.unit.test.ts`: pure logic in Node, nothing faked
   - **Browser** `src/**/*.browser.test.tsx`: one component/module in real Chromium (`vitest-browser-react`, `page`/`userEvent` from `vitest/browser`); only prop callbacks and, if needed, timers are faked; `expectNoAxeViolations()` checks contrast too
   - **Integration** `integration/*.spec.ts`: Playwright against the production build; only the network (`FakeBackend`: REST, the account endpoints, SignalR over `routeWebSocket`) and timers may be faked. Use `app.signIn()`/`app.openList()` (accounts `ME` and `OTHER`, password `PASSWORD`), `backend.as(OTHER)` for other members, `app.subscribed(id)` before their changes, `expectAccessible(page)` for new pages and dialogs
-  - **End-to-end** `e2e/*.spec.ts`: Playwright against the whole application started by `e2e/support/stack.ts` (SQL Server in Testcontainers, real Api, production client via `vite preview`); nothing faked. Use `newUser(name?)` (signs up a fresh user in its own browser context) and its UI helpers, `receivingLiveUpdates(id)` before relying on another member's change, and `runSql()` only to arrange what the UI can't
+  - **End-to-end** `e2e/*.spec.ts`: Playwright against the whole application started by `e2e/support/stack.ts` (SQL Server and Mailpit in Testcontainers, real Api, production client via `vite preview`); nothing faked. Use `newUser(name?)` (signs up a fresh user in its own browser context) and its UI helpers, `resetLinkSentTo(email)` for a reset email's link, `receivingLiveUpdates(id)` before relying on another member's change, and `runSql()` only to arrange what the UI can't
 - Query by role and accessible name, and assert focus, the way assistive technology sees the page
 
 ## Pitfalls
