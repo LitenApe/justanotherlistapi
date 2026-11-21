@@ -50,6 +50,19 @@ describe("sessionStore", () => {
     expect(listener).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps the user's new name, for this tab and after a reload", () => {
+    const store = createSessionStore(sessionStorage);
+    const listener = vi.fn();
+    store.setSession(session(60_000));
+    store.subscribe(listener);
+
+    store.rename("Robin Lee");
+
+    expect(store.getSession()?.user.name).toBe("Robin Lee");
+    expect(createSessionStore(sessionStorage).getSession()?.user.name).toBe("Robin Lee");
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps working when storage is unavailable", () => {
     const store = createSessionStore(undefined);
     store.setSession(session(60_000));

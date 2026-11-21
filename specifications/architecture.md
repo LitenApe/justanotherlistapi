@@ -89,7 +89,7 @@ Each port is named after what the inside needs, and each method covers one atomi
 | `IItemStore`         | `Create`, `Update` (returns the item as stored, `null` when it's gone), `Delete`, `ChangeReservation` (decides with `ReservationChange.Decide`, returns a `ReservationResult`); items in other lists are left alone | `SqlItemStore`                |
 | `IChecklistNotifier` | `NotifyItemCreated` … `NotifyGroupDeleted`, each with the connection to leave out                                                                  | `ChecklistNotifier` (SignalR) |
 | `IAuditTrail`        | `ItemGroupAutoDeleted`: audit entries that no request is behind                                                                                    | `AuditTrail` (audit log)      |
-| `IAccounts`          | `Create` (`null` when another account uses the email), `CheckPassword` (counts wrong ones towards a lockout), `FindByEmail` (ignoring case), `CreateResetCode` (`null` without an account), `ResetPassword` (`false` for a spent code; ends the lockout) | `IdentityAccounts` (ASP.NET Core Identity on `SqlAccountStore`) |
+| `IAccounts`          | `Create` (`null` when another account uses the email), `CheckPassword` (counts wrong ones towards a lockout), `FindByEmail` (ignoring case), `Rename`, `CreateResetCode` (`null` without an account), `ResetPassword` (`false` for a spent code; ends the lockout) | `IdentityAccounts` (ASP.NET Core Identity on `SqlAccountStore`) |
 | `ITokenIssuer`       | `Issue`: a signed token for a user, and when it expires                                                                                            | `JwtTokenIssuer`              |
 | `IMailer`            | `SendPasswordReset`: failures are the adapter's to log, so asking for a reset answers the same either way                                         | `SmtpMailer` (SMTP)           |
 
@@ -101,7 +101,7 @@ Each port is named after what the inside needs, and each method covers one atomi
 - Notifications go out after the change, with `caller.ConnectionId` as the connection to leave out.
 - The current time comes from `TimeProvider`, which is part of .NET, and goes to ports as `now`.
 - No HTTP types, no SQL, no transactions, no `AuditContext`.
-- The account use cases (`SignUp`, `SignIn`, `RequestPasswordReset`, `ResetPassword`) run before anyone is signed in, so they take no `Caller`. `SignUp` returns the new `Session`, or `null` when the email is taken; `SignIn` returns a nested `Result`: its `Outcome`, with the `Session` when it worked.
+- The account use cases (`SignUp`, `SignIn`, `RequestPasswordReset`, `ResetPassword`) run before anyone is signed in, so they take no `Caller`; `ChangeName` does, and renames the caller. `SignUp` returns the new `Session`, or `null` when the email is taken; `SignIn` returns a nested `Result`: its `Outcome`, with the `Session` when it worked.
 
 ```csharp
 public sealed class RemoveMember(IMembership membership, IChecklistNotifier notifier)
@@ -155,7 +155,7 @@ Each endpoint adapter is an `internal static class` in `Api/Http/<Slice>/`, name
   4. Map its outcome to `TypedResults`.
 - It fills in the `AuditContext` fields the route doesn't carry: `TargetUserId` first (so refusals carry it too), and new IDs on success only. See [audit-logs.md](audit-logs.md#auditcontext).
 
-The account endpoints (`Api/Http/Account/`, mapped by `MapAccountApi()` under `/api/auth`) are how people get a token, so they skip step 2. `SignUpEndpoint` answers a validation problem that names each field breaking its rule, so the client can show the problem next to the field.
+The account endpoints under `/api/auth` (`Api/Http/Account/`, mapped by `MapAccountApi()`) are how people get a token, so they skip step 2. `MapAccountApi()` also maps `/api/me`, the signed-in user's own account (`ChangeNameEndpoint`), which needs a token like the list endpoints. `SignUpEndpoint` answers a validation problem that names each field breaking its rule, so the client can show the problem next to the field.
 
 ### SQL Server
 

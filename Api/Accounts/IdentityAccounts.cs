@@ -85,6 +85,24 @@ internal sealed class IdentityAccounts(
         return await users.FindByEmailAsync(email.Value) is { } account ? ToUser(account) : null;
     }
 
+    public async Task<User?> Rename(Guid userId, DisplayName name, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (await users.FindByIdAsync(userId.ToString()) is not { } account)
+        {
+            return null;
+        }
+
+        account.Name = name.Value;
+        IdentityResult result = await users.UpdateAsync(account);
+        return result.Succeeded
+            ? ToUser(account)
+            : throw new InvalidOperationException(
+                "Identity refused to rename an account: "
+                    + string.Join(", ", result.Errors.Select(error => error.Code))
+            );
+    }
+
     public async Task<PasswordReset?> CreateResetCode(EmailAddress email, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();

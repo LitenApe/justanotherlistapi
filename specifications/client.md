@@ -66,6 +66,7 @@ Client/
     api/
       http.ts                - fetch wrapper: bearer token, X-SignalR-Connection-Id, ApiError, 401 → sign out
       auth.ts                - The account endpoints: signUp, signIn, requestPasswordReset, resetPassword (no token; 401 is an answer there)
+      account.ts             - The signed-in user's own account: changeName (PUT /api/me)
       checklists.ts          - One function per API endpoint
       routeData.ts           - loadRouteData(): maps API errors to redirects and route error responses
       types.ts               - Item, ItemGroup, ItemGroupSettings, request inputs
@@ -76,6 +77,7 @@ Client/
       SignUpPage.tsx         - Route module: sign-up form, name, email and password
       ForgotPasswordPage.tsx - Route module: ask for a link to choose a new password
       ResetPasswordPage.tsx  - Route module: choose a new password from the emailed link
+      ChangeNameDialog.tsx   - The account menu's dialog for changing your name
       ProtectedLayout.tsx    - Route module: clientMiddleware that requires a session
       redirects.ts           - signInPath(), safeRedirect() for ?redirectTo=
     realtime/
@@ -202,7 +204,8 @@ People have accounts with a name, an email address and a password ([accounts.md]
 - The token is kept in **sessionStorage**, so each browser tab has its own sign-in. Two tabs signed in to different accounts are an easy way to try sharing. A stored session without a user (from before accounts) counts as signed out.
 - A timer signs the user out when the token's `exp` passes. Any `401` from the API also signs out. Both send the user to `/sign-in` with a "session expired" notice and return them to the page they were on afterwards.
 - SignalR receives the token through `accessTokenFactory` (`?access_token=` on the WebSocket URL).
-- The account menu shows the user's name and email ("Others add you to their lists with this email") and **Sign out**. User IDs appear nowhere in the interface.
+- The account menu shows the user's name and email ("Others add you to their lists with this email"), **Change name** and **Sign out**. User IDs appear nowhere in the interface.
+- **Change name** closes the menu and opens `ChangeNameDialog` (`auth/`), with the name prefilled and focused, checked against the same rule as sign-up. Saving calls `PUT /api/me`, updates the session (`sessionStore.rename`), announces "Your name is now …", revalidates the page so it lists you by the new name, and returns focus to **Account**. Other members see the new name when they next load a list.
 
 ---
 
@@ -409,7 +412,7 @@ The production SPA (`react-router build`) is served the way a static host serves
 Only the network is replaced, by `FakeBackend` (`integration/support/fakeBackend.ts`), installed through Playwright's routing for every test:
 
 - **REST API:** an in-memory implementation of [checklist.md](checklist.md), including membership checks (403), conflicts (409), `completedAt`, settings and the reservation rules (freeing a removed member's items included). It authenticates the bearer token on every request (401 when missing or expired).
-- **Accounts:** `/api/auth/sign-up` and `/api/auth/sign-in` answer like the real ones (201, 200, 401, 409), with an unsigned JWT whose `sub` is the account's ID. `backend.accounts` starts with `ME` (Robin, robin@example.com) and `OTHER` (Kim, kim@example.com), both with the password `PASSWORD`; `backend.authUnreachable` makes the endpoints unreachable. `/api/auth/forgot-password` records the email it would send in `backend.resetEmails` (only for an account), and `/api/auth/reset-password` accepts that email's code once.
+- **Accounts:** `/api/auth/sign-up` and `/api/auth/sign-in` answer like the real ones (201, 200, 401, 409), with an unsigned JWT whose `sub` is the account's ID. `backend.accounts` starts with `ME` (Robin, robin@example.com) and `OTHER` (Kim, kim@example.com), both with the password `PASSWORD`; `backend.authUnreachable` makes the endpoints unreachable. `/api/auth/forgot-password` records the email it would send in `backend.resetEmails` (only for an account), and `/api/auth/reset-password` accepts that email's code once. `PUT /api/me` renames the account and the member everywhere, without an event.
 - **SignalR:** negotiate (version 1) returns a connection ID and a separate token, and the WebSocket must present that token (`?id=`). Over it, `page.routeWebSocket` speaks the hub's JSON protocol: handshake, `JoinGroup` (members only) and `LeaveGroup`, pings and server-pushed events. Like the real server, every change is broadcast to the list's group except the connection named in `X-SignalR-Connection-Id`; `backend.connectionIds(userId)` returns the IDs it handed out.
 - `backend.as(OTHER)` makes changes as another member through the same code paths, so the page receives real events. `deleteListAutomatically()` stands in for the cleanup service.
 - `failNext()` fails a request with a status; `holdNext()` holds one to look at loading states; `dropHubConnections()` simulates a lost connection. `backend.calls` records every request.

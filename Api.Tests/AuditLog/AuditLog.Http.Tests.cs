@@ -21,8 +21,8 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
     private static readonly Guid auditedItemId = Guid.NewGuid();
     private static readonly Guid auditedMemberId = Guid.NewGuid();
 
-    // Every endpoint under /api/list and /api/auth, with the operation name and resource type its
-    // audit entry must carry. AuditLog.Operation stores the names, so renaming one (or the class
+    // Every endpoint under /api/list, /api/auth and /api/me, with the operation name and resource
+    // type its audit entry must carry. AuditLog.Operation stores the names, so renaming one (or the class
     // its nameof() refers to) would split that operation's history in two.
     private static readonly AuditedEndpoint[] auditedEndpoints =
     [
@@ -35,6 +35,7 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
             "/api/auth/forgot-password",
             new { Email = "" }
         ),
+        new("ChangeName", "User", HttpMethod.Put, "/api/me", new { Name = "" }),
         new(
             "ResetPassword",
             "Account",
@@ -158,6 +159,7 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
             .Where(e =>
                 e.RoutePattern.RawText?.StartsWith("/api/list", StringComparison.Ordinal) == true
                 || e.RoutePattern.RawText?.StartsWith("/api/auth", StringComparison.Ordinal) == true
+                || e.RoutePattern.RawText?.StartsWith("/api/me", StringComparison.Ordinal) == true
             )
             .Select(e => e.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName);
 

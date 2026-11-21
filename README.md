@@ -53,7 +53,7 @@ Client/                             - React Router (framework mode, SPA) web cli
 Checklist/                          - The inside of the hexagon, no packages — see specifications/architecture.md
   Domain/                           - ItemGroup, ItemGroupSettings, Item, User records (also the JSON and SignalR payloads), Caller, Name, ItemInput, ItemGroupSettingsInput, DisplayName, EmailAddress, Password, Session
   Ports/                            - IMembership (who belongs to which list), IItemGroupStore (the lists), IItemStore (their items), IChecklistNotifier (realtime updates), IAuditTrail (audit entries without a request), IAccounts (accounts and passwords), ITokenIssuer (sign-in tokens), IMailer (emails)
-  UseCases/Account/                 - SignUp, SignIn, RequestPasswordReset, ResetPassword
+  UseCases/Account/                 - SignUp, SignIn, RequestPasswordReset, ResetPassword, ChangeName
   UseCases/Item/                    - CreateItem, UpdateItem, DeleteItem
   UseCases/ItemGroup/               - GetItemGroups, GetItemGroup, CreateItemGroup, UpdateItemGroup, UpdateItemGroupSettings, DeleteItemGroup, AutoDeleteItemGroups
   UseCases/Member/                  - GetMembers, AddMember, RemoveMember, SubscribeToItemGroup (for the hub)
@@ -84,7 +84,7 @@ Api/                                - ASP.NET Core backend: the adapters around 
   Http/
     BearerSecuritySchemeTransformer.cs  - Adds the Bearer security scheme to the OpenAPI document
     AccountApiEndpointRouteBuilderExtension.cs  - MapAccountApi(): maps the account routes under /api/auth
-    Account/                        - Endpoint adapters: SignUp, SignIn, RequestPasswordReset (forgot-password), ResetPassword
+    Account/                        - Endpoint adapters: SignUp, SignIn, RequestPasswordReset (forgot-password), ResetPassword, ChangeName (PUT /api/me)
     AuthRateLimit.cs                - How often a client may call the account endpoints
     CallerExtensions.cs             - ToCaller(): the signed-in user and SignalR connection behind a request
     ChecklistApiEndpointRouteBuilderExtension.cs  - MapChecklistApi(): maps all routes under /api/list
@@ -198,6 +198,7 @@ Docker is required because Aspire spins up SQL Server as a persistent container,
 - Each browser tab keeps its own sign-in, so you can sign up a second account in another tab to try sharing.
 - **Forgot your password?** on the sign-in page emails a link to choose a new one. Locally the email lands in Mailpit's inbox.
 - To share a list, enter the email the other person signed up with under **Add a member** on the list page. Members see each other's names, never their emails.
+- **Account → Change name** changes what others call you; they see it the next time they open the list.
 - Changes made by other members appear live.
 - **Settings** on the list page can hide done items after a while and delete the list once every item has been done for a while (at least a day). Both are off by default and apply to every member.
 - Dark mode is the default; use the **Dark mode** toggle in the header to switch to light. Your choice is remembered in the browser.
