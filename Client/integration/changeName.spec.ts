@@ -47,6 +47,35 @@ test.describe("changing your name", () => {
     expect(backend.calls.filter((call) => call.path === "/api/me")).toEqual([]);
   });
 
+  test("leaves the list's items where they were when the page reloads its data", async ({
+    page,
+    app,
+  }) => {
+    // The API returns items in no particular order: the fake keeps them oldest first,
+    // while the page shows the ones added during the visit at the top.
+    await app.openList(makeList("Groceries", ["Milk"]));
+    const input = page.getByLabel("Add an item");
+    for (const name of ["Coffee", "Tea"]) {
+      await input.fill(name);
+      await input.press("Enter");
+    }
+    const items = page.getByRole("list", { name: "Items" }).getByRole("checkbox");
+    await expect(items).toHaveCount(3);
+
+    await page.getByRole("button", { name: "Account" }).click();
+    await page.getByRole("button", { name: "Change name" }).click();
+    const dialog = page.getByRole("dialog", { name: "Change your name" });
+    await dialog.getByLabel("Name").fill("Robin Lee");
+    await dialog.getByRole("button", { name: "Save" }).click();
+
+    // The members come from the reloaded data.
+    const members = page.getByRole("region", { name: /Members/ });
+    await expect(members.getByText("Robin Lee", { exact: true })).toBeVisible();
+    await expect(items.nth(0)).toHaveAccessibleName("Tea");
+    await expect(items.nth(1)).toHaveAccessibleName("Coffee");
+    await expect(items.nth(2)).toHaveAccessibleName("Milk");
+  });
+
   test("keeps the old name for the other members until they load the list again", async ({
     page,
     backend,
