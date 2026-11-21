@@ -67,7 +67,7 @@ The response's `expiresAt` is the token's `exp`.
 
 `Auth:SigningKey` signs every token: a base64-encoded secret of at least 32 random bytes. The app refuses to start without one. `appsettings.Development.json` holds a key for local development only; every other environment must set its own secret, since anyone who has the key can sign in as anyone.
 
-Until the client signs in with these tokens, requests to `/api/list` are still checked against the OAuth authority described in [authentication.md](authentication.md).
+Every other endpoint accepts these tokens and no others; [authentication.md](authentication.md) describes how they're checked. The client keeps the session in sessionStorage, one per tab, and signs out when the token expires (see [client.md](client.md#authentication)).
 
 ## Rate Limit
 

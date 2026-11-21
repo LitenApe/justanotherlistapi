@@ -144,7 +144,7 @@ function ListPage({ list }: { list: ItemGroup }) {
   const listId = list.id;
   const navigate = useNavigate();
   const { revalidate } = useRevalidator();
-  const userId = useSession()?.userId ?? "";
+  const userId = useSession()?.user.id ?? "";
   const { notify, announce } = useToast();
 
   const [state, dispatch] = useReducer(listReducer, list, listStateFrom);

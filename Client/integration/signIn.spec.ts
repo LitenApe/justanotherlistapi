@@ -1,4 +1,4 @@
-import { expect, expectAccessible, makeList, ME, test } from "./support/test";
+import { expect, expectAccessible, makeList, ME, PASSWORD, test } from "./support/test";
 
 test.describe("signing in", () => {
   test("sends signed-out visitors to sign in without calling the API", async ({
@@ -16,20 +16,27 @@ test.describe("signing in", () => {
     await expectAccessible(page);
   });
 
-  test("signs in with the OAuth server and opens your lists", async ({ page, backend }) => {
-    const userId = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
-    backend.seed(makeList("Groceries", [], [userId]));
+  test("signs in with your email and password, and opens your lists", async ({ page, backend }) => {
+    backend.seed(makeList("Groceries", [], [ME]));
 
     await page.goto("/sign-in");
-    await page.getByLabel("User ID").fill(userId.toUpperCase());
+    // Emails match ignoring case, like the real API.
+    await page.getByLabel("Email").fill("ROBIN@example.com");
+    await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
     await page.getByRole("button", { name: "Sign in" }).click();
 
     await expect(page.getByRole("heading", { level: 1, name: "Your lists" })).toBeFocused();
     await expect(page.getByRole("link", { name: "Groceries" })).toBeVisible();
-    expect(backend.calls.map((call) => call.userId)).toEqual([userId]);
+    // The sign-in itself goes without a token; everything after it as Robin.
+    expect(backend.calls.map((call) => [call.path, call.userId])).toEqual([
+      ["/api/auth/sign-in", null],
+      ["/api/list", ME],
+    ]);
+    expect(backend.calls[0]?.body).toEqual({ email: "ROBIN@example.com", password: PASSWORD });
 
     await page.getByRole("button", { name: "Account" }).click();
-    await expect(page.getByText(userId, { exact: true })).toBeVisible();
+    await expect(page.getByText("Robin", { exact: true })).toBeVisible();
+    await expect(page.getByText("robin@example.com", { exact: true })).toBeVisible();
   });
 
   test("returns to the page you asked for", async ({ page, backend }) => {
@@ -38,55 +45,87 @@ test.describe("signing in", () => {
 
     await page.goto(`/lists/${list.id}`);
     await expect(page).toHaveURL(`/sign-in?redirectTo=%2Flists%2F${list.id}`);
+    await page.getByLabel("Email").fill("robin@example.com");
+    await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
     await page.getByRole("button", { name: "Sign in" }).click();
 
     await expect(page).toHaveURL(`/lists/${list.id}`);
     await expect(page.getByRole("heading", { level: 1, name: "Groceries" })).toBeFocused();
   });
 
-  test("explains an invalid user ID next to the field", async ({ page, backend }) => {
+  test("explains a missing email or password next to its field", async ({ page, backend }) => {
     await page.goto("/sign-in");
-    const input = page.getByLabel("User ID");
+    const email = page.getByLabel("Email");
+    const password = page.getByLabel("Password", { exact: true });
 
-    await input.fill("not-a-guid");
     await page.getByRole("button", { name: "Sign in" }).click();
 
-    await expect(input).toHaveAttribute("aria-invalid", "true");
-    await expect(input).toHaveAccessibleDescription(/Enter a user ID in GUID format/);
-    await expect(input).toBeFocused();
-    expect(backend.calls).toEqual([]);
+    await expect(email).toHaveAttribute("aria-invalid", "true");
+    await expect(email).toHaveAccessibleDescription("Enter your email address.");
+    await expect(email).toBeFocused();
+    await expect(password).toHaveAccessibleDescription("Enter your password.");
     await expectAccessible(page);
+
+    await email.fill("robin@example.com");
+    await page.getByRole("button", { name: "Sign in" }).click();
+
+    await expect(email).not.toHaveAttribute("aria-invalid");
+    await expect(password).toBeFocused();
+    expect(backend.calls).toEqual([]);
   });
 
-  test("says so when the sign-in server can't be reached", async ({ page, backend }) => {
-    backend.signInServerDown = true;
+  test("says the email or password is wrong, without saying which", async ({ page }) => {
     await page.goto("/sign-in");
 
+    for (const [email, password] of [
+      ["robin@example.com", "not the password"],
+      ["nobody@example.com", PASSWORD],
+    ] as const) {
+      await page.getByLabel("Email").fill(email);
+      await page.getByLabel("Password", { exact: true }).fill(password);
+      await page.getByRole("button", { name: "Sign in" }).click();
+
+      await expect(
+        page.getByRole("alert").filter({ hasText: "The email or password is wrong." }),
+      ).toBeVisible();
+      await expect(page).toHaveURL("/sign-in");
+    }
+  });
+
+  test("says so when too many wrong passwords locked the account", async ({ page, backend }) => {
+    backend.failNext("POST", /^\/api\/auth\/sign-in$/, 423);
+    await page.goto("/sign-in");
+
+    await page.getByLabel("Email").fill("robin@example.com");
+    await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
     await page.getByRole("button", { name: "Sign in" }).click();
 
     await expect(
-      page.getByRole("alert").filter({ hasText: "Can't reach the sign-in server" }),
+      page.getByRole("alert").filter({ hasText: "Try again in a few minutes." }),
+    ).toBeVisible();
+  });
+
+  test("says so when the server can't be reached", async ({ page, backend }) => {
+    backend.authUnreachable = true;
+    await page.goto("/sign-in");
+
+    await page.getByLabel("Email").fill("robin@example.com");
+    await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+    await page.getByRole("button", { name: "Sign in" }).click();
+
+    await expect(
+      page.getByRole("alert").filter({ hasText: "Can't reach the server" }),
     ).toBeVisible();
     await expect(page).toHaveURL("/sign-in");
   });
 
-  test("generates a fresh user ID and remembers the last one used", async ({ page }) => {
-    await page.goto("/sign-in");
-    const input = page.getByLabel("User ID");
-    await expect(input).toHaveValue(ME);
+  test("links to signing up, still heading where you were going", async ({ page }) => {
+    await page.goto("/sign-in?redirectTo=%2Flists%2F42");
 
-    await page.getByRole("button", { name: "Generate a new user ID" }).click();
-    const generated = await input.inputValue();
-    expect(generated).toMatch(/^[0-9a-f-]{36}$/);
-    expect(generated).not.toBe(ME);
+    await page.getByRole("link", { name: "Sign up" }).click();
 
-    await page.getByRole("button", { name: "Sign in" }).click();
-    await expect(page.getByRole("heading", { level: 1, name: "Your lists" })).toBeVisible();
-    await page.getByRole("button", { name: "Account" }).click();
-    await page.getByRole("button", { name: "Sign out" }).click();
-
-    await expect(page).toHaveURL("/sign-in");
-    await expect(page.getByLabel("User ID")).toHaveValue(generated);
+    await expect(page).toHaveURL("/sign-up?redirectTo=%2Flists%2F42");
+    await expect(page.getByRole("heading", { level: 1, name: "Sign up" })).toBeVisible();
   });
 
   test("signs out from the account menu", async ({ page, app }) => {

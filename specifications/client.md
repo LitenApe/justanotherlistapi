@@ -51,7 +51,7 @@ There are no UI component or icon libraries. Interactive widgets use native elem
 ```
 Client/
   react-router.config.ts     - Framework config: appDirectory "src", SPA mode (ssr: false)
-  vite.config.ts             - React Router plugin, dev proxy (/api, /hubs → Api; /default → mock OAuth)
+  vite.config.ts             - React Router plugin, dev proxy (/api, /hubs → Api)
   vitest.config.ts           - Unit (Node) and browser (Chromium) test projects
   playwright.config.ts       - Integration tests against the production build
   integration/               - Integration specs; support/ has the fake backend, fixtures and static server
@@ -64,13 +64,15 @@ Client/
     NotFoundPage.tsx         - Route module for unknown addresses
     api/
       http.ts                - fetch wrapper: bearer token, X-SignalR-Connection-Id, ApiError, 401 → sign out
+      auth.ts                - The account endpoints: signUp, signIn (no token; 401 is an answer there)
       checklists.ts          - One function per API endpoint
       routeData.ts           - loadRouteData(): maps API errors to redirects and route error responses
       types.ts               - Item, ItemGroup, ItemGroupSettings, request inputs
     auth/
       session.ts             - Session store (sessionStorage, expiry timer, sign-out reason)
-      signIn.ts              - Dev sign-in against the mock OAuth server
-      SignInPage.tsx         - Route module: sign-in form (clientLoader + clientAction)
+      accountRules.ts        - The account rules (name, email, new password), to explain problems before sending
+      SignInPage.tsx         - Route module: sign-in form, email and password (clientLoader + clientAction)
+      SignUpPage.tsx         - Route module: sign-up form, name, email and password
       ProtectedLayout.tsx    - Route module: clientMiddleware that requires a session
       redirects.ts           - signInPath(), safeRedirect() for ?redirectTo=
     realtime/
@@ -102,7 +104,7 @@ Client/
 
 ## Running The Client
 
-`dotnet run --project Aspire` starts the client together with SQL Server, the mock OAuth server and Api. Aspire runs `npm install` and `npm run dev` (`react-router dev`), then serves the client at **http://localhost:5173**. The port is fixed so that browser storage (which is per origin) survives restarts.
+`dotnet run --project Aspire` starts the client together with SQL Server and Api. Aspire runs `npm install` and `npm run dev` (`react-router dev`), then serves the client at **http://localhost:5173**. The port is fixed so that browser storage (which is per origin) survives restarts.
 
 The dev server proxies:
 
@@ -110,9 +112,8 @@ The dev server proxies:
 | ---------- | ----------------------------------------------- |
 | `/api`     | Api (`services__Api__https__0` / `__http__0`)   |
 | `/hubs`    | Api, WebSocket upgrade enabled                  |
-| `/default` | Mock OAuth server (`services__oauth__http__0`)  |
 
-Without Aspire, start Api and the OAuth server yourself and run `npm run dev` in `Client/`. The proxy falls back to `http://localhost:5093` and `http://localhost:8080`.
+Without Aspire, start Api yourself and run `npm run dev` in `Client/`. The proxy falls back to `http://localhost:5093`.
 
 | Script              | Purpose                                                                  |
 | ------------------- | ------------------------------------------------------------------------ |
@@ -131,7 +132,8 @@ The first visit after dependencies change can fail with "504 Outdated Optimize D
 
 | Route            | Page       | Notes                                                                                                                             |
 | ---------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `/sign-in`       | Sign in    | Enter or generate a user ID. Shows a notice when the previous session expired                                                     |
+| `/sign-in`       | Sign in    | Email and password. Shows a notice when the previous session expired. Links to signing up                                         |
+| `/sign-up`       | Sign up    | Name, email and password. Signs the new account in straight away                                                                  |
 | `/`              | Your lists | Cards sorted by name with open item count and a preview. Create a list. Filter appears above 6 lists                              |
 | `/lists/:listId` | List       | Progress, add item, search, All / To do / Done filter, edit/delete items, [reservations](#reservations), rename/delete list, [settings](#list-settings), members |
 | `*`              | Not found  | `/lists/<not-a-guid>` shows the list route's own "List not found"                                                                 |
@@ -148,6 +150,7 @@ The client uses React Router's **framework mode** in **SPA mode** (`ssr: false` 
 
 ```ts
 route("sign-in", "auth/SignInPage.tsx"),
+route("sign-up", "auth/SignUpPage.tsx"),
 layout("auth/ProtectedLayout.tsx", [
   index("lists/ListsPage.tsx"),
   route("lists/:listId", "list/ListPage.tsx"),
@@ -159,14 +162,15 @@ route("*", "NotFoundPage.tsx"),
 | --------------------- | ----------------------------------------------------------------------------------------------------- |
 | `root.tsx`            | `Layout` (HTML document), `default` (toasts + app shell), `HydrateFallback`, `ErrorBoundary`          |
 | `ProtectedLayout.tsx` | `clientMiddleware` (redirect to `/sign-in?redirectTo=…` without a session), `default`                 |
-| `SignInPage.tsx`      | `clientLoader` (skip if signed in), `clientAction` (token request), `default`                         |
+| `SignInPage.tsx`      | `clientLoader` (skip if signed in), `clientAction` (`POST /api/auth/sign-in`), `default`              |
+| `SignUpPage.tsx`      | `clientLoader` (skip if signed in), `clientAction` (`POST /api/auth/sign-up`), `default`              |
 | `ListsPage.tsx`       | `clientLoader` (`GET /api/list`), `clientAction` (create list → redirect), `default`, `ErrorBoundary` |
 | `ListPage.tsx`        | `clientLoader` (`GET /api/list/{id}`; 404 for non-GUIDs), `default`, `ErrorBoundary`                  |
 
 - **Auth gating** is middleware, not a loader, because React Router runs a navigation's loaders in parallel. Middleware runs first, so signed-out visitors never call the API. The layout component also redirects if the session ends while a page is open.
 - **`redirectTo`** goes through `safeRedirect()`, which only accepts same-origin paths.
 - **Loaders** call the API through `loadRouteData()`. A 401 redirects to sign-in (the session has already been cleared). Other API errors become error responses with the HTTP status (503 when the server can't be reached), which the route's `ErrorBoundary` shows: 403 "You can't open this list", 404 "List not found", anything else an alert with **Try again** (`useRevalidator()`).
-- **Forms that navigate** use React Router forms and `clientAction`s: sign-in (`<Form>`) and create list (`useFetcher`, so a validation error doesn't change the URL or add a history entry). Validation errors come back as action data and move focus to the field.
+- **Forms that navigate** use React Router forms and `clientAction`s: sign-in and sign-up (`<Form>`) and create list (`useFetcher`, so a validation error doesn't change the URL or add a history entry). Validation errors come back as action data and move focus to the field.
 - **Mutations on the list page** (toggle, edit, delete, members, settings) stay as direct API calls with an idempotent reducer. They need optimistic updates, focus management and realtime merging, and they shouldn't trigger a full reload of a list that can hold thousands of items.
 - **Loader data vs. live state:** pages keep an editable copy of loader data for realtime events (`useLoaderState()` on the overview, `listReducer` on the list page). The copy resets whenever the loader returns new data. After a SignalR reconnect, or when a hidden overview tab becomes visible, pages call `revalidate()` instead of fetching by hand.
 - **Pending UI:** while the next page loads, the current page stays visible, `<main>` gets `aria-busy`, and a thin bar appears under the header after 150ms (`AppShell`). The first load shows the root `HydrateFallback` ("Loading JustAnotherList…" in `role="status"`).
@@ -177,16 +181,17 @@ route("*", "NotFoundPage.tsx"),
 
 ## Authentication
 
-The API accepts JWT bearer tokens and uses the `sub` claim as the user ID, which must be a GUID (see [authentication.md](authentication.md)).
+People have accounts with a name, an email address and a password ([accounts.md](accounts.md)). The sign-up and sign-in pages post to `/api/auth`, which answers with a token the API signed and the user it's for. The session store keeps `{ accessToken, expiresAt, user }`; the API reads the user's ID from the token (see [authentication.md](authentication.md)).
 
-For local development the client signs in against the mock OAuth server using the **client credentials** grant. The client ID entered on the sign-in page becomes the token's `sub`, so the user ID is whatever GUID you type. Use the same ID to get back to your lists, or generate a new one to act as a different person.
-
-- The token is kept in **sessionStorage**, so each browser tab has its own sign-in. Two tabs with different user IDs are an easy way to try sharing.
-- The last used user ID is remembered in localStorage to prefill the form.
+- **Sign-up** asks for a name ("Other members of your lists see it"), an email ("You sign in with it. Nobody else sees it") and a password of at least 12 characters, and signs the new account in. An email that already has an account gets an alert with a link to sign in instead.
+- **Sign-in** asks for the email and password. A wrong one gets "The email or password is wrong", whichever it was, and a locked-out account (423) or the rate limit (429) gets its own message.
+- `auth/accountRules.ts` copies the server's rules, so each problem shows next to its field, with `aria-invalid` and `aria-describedby`, before anything is sent, and focus moves to the first field with a problem.
+- Passwords use `PasswordField`: a visible label, the right `autocomplete` (`current-password` or `new-password`) so password managers help, and a **Show password** toggle button (`aria-pressed`) that shows the password as typed.
+- The account requests go through `apiRequest` with `anonymous: true`: no token is sent, and a 401 is an answer, not an expired session.
+- The token is kept in **sessionStorage**, so each browser tab has its own sign-in. Two tabs signed in to different accounts are an easy way to try sharing. A stored session without a user (from before accounts) counts as signed out.
 - A timer signs the user out when the token's `exp` passes. Any `401` from the API also signs out. Both send the user to `/sign-in` with a "session expired" notice and return them to the page they were on afterwards.
 - SignalR receives the token through `accessTokenFactory` (`?access_token=` on the WebSocket URL).
-
-> **Production:** the client credentials grant with a shared secret is only suitable for the mock server. A real deployment needs an OIDC authorization code + PKCE flow. Only `auth/signIn.ts` and the sign-in page need to change; everything else reads the session store.
+- The account menu shows the user's name and email, their user ID with **Copy user ID** (members are still added by ID), and **Sign out**.
 
 ---
 
@@ -340,7 +345,7 @@ Tests come in four kinds. Each kind has its own tool, file naming and rule about
 | ----------- | ----------------------------------------------- | ----------------------------- | --------------------------------------------- |
 | Unit        | Vitest, Node (no DOM)                           | `src/**/*.unit.test.ts`       | Nothing                                       |
 | Browser     | Vitest browser mode, real Chromium (Playwright) | `src/**/*.browser.test.ts(x)` | Callbacks passed as props, timers when needed |
-| Integration | Playwright Test against the production build    | `integration/*.spec.ts`       | The network (REST, OAuth, SignalR) and timers |
+| Integration | Playwright Test against the production build    | `integration/*.spec.ts`       | The network (REST, SignalR) and timers |
 | End-to-end  | Playwright Test against the whole application   | `e2e/*.spec.ts`               | Nothing                                       |
 
 ```bash
@@ -377,19 +382,19 @@ Components and browser-API modules rendered on their own in a real browser (`vit
 
 ### Integration tests
 
-The production SPA (`react-router build`) is served the way a static host serves it (`integration/support/serveSpa.mjs`: files, else `index.html`; `/api`, `/hubs` and `/default` return 404 so unfaked requests fail loudly). Everything in the browser is the real app: entry point, routing, middleware, loaders, session handling, the SignalR client and the CSS.
+The production SPA (`react-router build`) is served the way a static host serves it (`integration/support/serveSpa.mjs`: files, else `index.html`; `/api` and `/hubs` return 404 so unfaked requests fail loudly). Everything in the browser is the real app: entry point, routing, middleware, loaders, session handling, the SignalR client and the CSS.
 
 Only the network is replaced, by `FakeBackend` (`integration/support/fakeBackend.ts`), installed through Playwright's routing for every test:
 
 - **REST API:** an in-memory implementation of [checklist.md](checklist.md), including membership checks (403), conflicts (409), `completedAt`, settings and the reservation rules (freeing a removed member's items included). It authenticates the bearer token on every request (401 when missing or expired).
-- **OAuth:** the token endpoint returns an unsigned JWT whose `sub` is the client ID, like the mock OAuth server.
+- **Accounts:** `/api/auth/sign-up` and `/api/auth/sign-in` answer like the real ones (201, 200, 401, 409), with an unsigned JWT whose `sub` is the account's ID. `backend.accounts` starts with `ME` (Robin, robin@example.com) and `OTHER` (Kim, kim@example.com), both with the password `PASSWORD`; `backend.authUnreachable` makes the endpoints unreachable.
 - **SignalR:** negotiate (version 1) returns a connection ID and a separate token, and the WebSocket must present that token (`?id=`). Over it, `page.routeWebSocket` speaks the hub's JSON protocol: handshake, `JoinGroup` (members only) and `LeaveGroup`, pings and server-pushed events. Like the real server, every change is broadcast to the list's group except the connection named in `X-SignalR-Connection-Id`; `backend.connectionIds(userId)` returns the IDs it handed out.
 - `backend.as(OTHER)` makes changes as another member through the same code paths, so the page receives real events. `deleteListAutomatically()` stands in for the cleanup service.
 - `failNext()` fails a request with a status; `holdNext()` holds one to look at loading states; `dropHubConnections()` simulates a lost connection. `backend.calls` records every request.
 
 Fixtures (`integration/support/test.ts`):
 
-- `app.signIn()` goes through the real sign-in page.
+- `app.signIn()` goes through the real sign-in page, with the account's email and password.
 - `app.openList(list)` seeds, signs in, opens the list and waits until the page has joined its SignalR group. Wait the same way (`app.subscribed(id)`) before another member changes something, or the event is (correctly) missed.
 - Any uncaught error in the page fails the test.
 - `expectAccessible(page, selector?)` runs every axe rule, colour contrast and best practices included.
@@ -402,21 +407,21 @@ Projects: `desktop` runs everything except `@mobile` tests; `mobile` (Pixel 7) r
 
 The whole application runs locally and nothing is faked. `e2e/support/globalSetup.ts` calls `startStack()` (`e2e/support/stack.ts`) once per run:
 
-1. **Containers:** SQL Server and the mock OAuth server, using the images from `Aspire/Program.cs`, started with Testcontainers on random ports and removed afterwards. The database is created the way Aspire would.
-2. **Backend:** Api is built into a temporary folder (so a running dev instance doesn't matter) and started in Production mode on a free port, with the connection string and `OAuth__Authority` Aspire would pass.
-3. **Client:** the production build is served with `vite preview` on port 4174, using the same proxy as the dev server, with the `services__…` variables pointed at the test containers and Api. The browser reaches Api and OAuth only through it, as in local development.
+1. **Containers:** SQL Server, using the image from `Aspire/Program.cs`, started with Testcontainers on a random port and removed afterwards. The database is created the way Aspire would.
+2. **Backend:** Api is built into a temporary folder (so a running dev instance doesn't matter) and started in Production mode on a free port, with the connection string Aspire would pass, a signing key of its own for each run, and an account rate limit high enough for every test's sign-ups, which all come from one address.
+3. **Client:** the production build is served with `vite preview` on port 4174, using the same proxy as the dev server, with the `services__…` variables pointed at Api. The browser reaches Api only through it, as in local development.
 4. Setup waits until `/api/list` answers 401, first from Api and then through the client's proxy, so the pieces are connected before tests start. The containers and builds start in parallel; the whole stack is ready in about 15 seconds.
 
 Container, Api and client output goes to `test-results/e2e-logs/`.
 
 Fixtures (`e2e/support/test.ts`):
 
-- `newUser()` opens a browser context of its own (its own session) and signs in a fresh random user through the real sign-in page and OAuth server. Every test uses new users, so tests never see each other's lists although they share one database, and they run in parallel.
+- `newUser(name?)` opens a browser context of its own (its own session) and signs up a fresh user, called "Person 1", "Person 2" and so on unless named, with an email of its own, through the real sign-up page. `user.id` is the ID the server gave the account, and `user.signIn()` signs back in with the email and password. Every test uses new users, so tests never see each other's lists although they share one database, and they run in parallel.
 - `User` has helpers that act through the UI: `createList`, `openList`, `addItem`, `toggle` (waits for the server to save, since the page updates first), `saveSettings`, `addMember`, `reserve` (through the reservation dialog, waiting for the server), and `item(name)`, an item's checkbox, whose description includes its reservation.
 - `receivingLiveUpdates(listId)` waits until the server has accepted the page's `JoinGroup`. With no fake backend to ask, it reads the page's real SignalR WebSocket frames, read-only.
 - Uncaught page errors fail the test.
 
-The specs cover sign-in and token validation, list and item changes surviving reloads (stored in SQL Server), sharing, live sync between members, caller exclusion (your own changes aren't reported back to you), removing, leaving and deleting, privacy (403 for non-members), settings shared between members, and reservations: for yourself and others, taking one over, protected lists, and freeing a member's items when they leave or are removed.
+The specs cover signing up, signing out and back in with a password the server checked, list and item changes surviving reloads (stored in SQL Server), sharing, live sync between members, caller exclusion (your own changes aren't reported back to you), removing, leaving and deleting, privacy (403 for non-members), settings shared between members, and reservations: for yourself and others, taking one over, protected lists, and freeing a member's items when they leave or are removed.
 
 `autoDelete.spec.ts` checks the server's cleanup service end to end. Auto-delete waits at least a day, so `runSql()` (`e2e/support/database.ts`, using `docker exec` and `sqlcmd`) moves the completion back to a day minus 30 seconds. The list is due shortly after both pages reload and subscribe, and the service (which runs every minute) deletes it within about 90 seconds. Use `runSql()` only to arrange what the UI can't.
 
@@ -424,7 +429,6 @@ The specs cover sign-in and token validation, list and item changes surviving re
 
 ## Known Limitations
 
-- **Dev-only sign-in.** See [Authentication](#authentication).
 - **Item order.** The API has no ordering column, so items reload in database order.
 - **Members are GUIDs.** There is no user directory, so members are shown and added by user ID, and reservations name people by the start of their user ID.
 - **Overview payload.** `GET /api/list` returns every open item of every list, which can be large with seeded data.

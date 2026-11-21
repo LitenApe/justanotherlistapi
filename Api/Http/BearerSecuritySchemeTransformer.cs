@@ -4,10 +4,12 @@ using Microsoft.OpenApi;
 
 namespace Api.Http;
 
-public sealed class BearerSecuritySchemeTransformer(
-    IAuthenticationSchemeProvider schemeProvider,
-    IConfiguration configuration
-) : IOpenApiDocumentTransformer
+/// <summary>
+/// Tells the OpenAPI document that the API takes bearer tokens: the ones
+/// <c>POST /api/auth/sign-in</c> and <c>POST /api/auth/sign-up</c> answer with.
+/// </summary>
+public sealed class BearerSecuritySchemeTransformer(IAuthenticationSchemeProvider schemeProvider)
+    : IOpenApiDocumentTransformer
 {
     public async Task TransformAsync(
         OpenApiDocument document,
@@ -41,26 +43,6 @@ public sealed class BearerSecuritySchemeTransformer(
                 BearerFormat = "Json Web Token",
             }
         );
-
-        string? authority = configuration["OAuth:Authority"];
-        if (!string.IsNullOrEmpty(authority))
-        {
-            document.Components.SecuritySchemes.Add(
-                "OAuth2",
-                new OpenApiSecurityScheme
-                {
-                    Type = SecuritySchemeType.OAuth2,
-                    Flows = new OpenApiOAuthFlows
-                    {
-                        ClientCredentials = new OpenApiOAuthFlow
-                        {
-                            TokenUrl = new Uri($"{authority}/token"),
-                            Scopes = new Dictionary<string, string>(StringComparer.Ordinal),
-                        },
-                    },
-                }
-            );
-        }
 
         document.Security ??= [];
         document.Security.Add(

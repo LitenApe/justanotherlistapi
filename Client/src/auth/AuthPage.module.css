@@ -1,3 +1,5 @@
+/* The account pages: sign in, sign up and, later, password recovery. */
+
 .page {
   display: grid;
   place-items: start center;
@@ -22,16 +24,15 @@
   gap: var(--space-3);
 }
 
-.mono {
-  font-family: var(--font-mono);
-}
-
-.generate {
+.submit {
   justify-self: start;
-  padding-inline: var(--space-2);
-  color: var(--color-accent);
 }
 
-.generate:hover {
-  color: var(--color-accent-hover);
+/* "New here? Sign up" and the like, under the form. */
+.links {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }

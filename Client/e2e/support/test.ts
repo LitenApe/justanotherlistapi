@@ -2,26 +2,51 @@ import { test as base, expect, type BrowserContext, type Page } from "@playwrigh
 
 export { expect };
 
+/** Every test user's password. */
+export const PASSWORD = "correct horse battery";
+
 /**
  * A person using the app in their own browser context (so their own session),
- * signed in through the real sign-in page and the mock OAuth server. Each test
- * makes fresh users with random IDs, so tests never see each other's lists even
- * though they share one database.
+ * who signed up through the real sign-up page. Each test makes fresh users
+ * with emails of their own, so tests never see each other's lists even though
+ * they share one database.
  */
 export class User {
-  readonly id = crypto.randomUUID();
+  /** The ID the server gave the account when it signed up. */
+  id = "";
+  readonly email = `user.${crypto.randomUUID()}@example.com`;
   /** Lists this user's page is receiving live updates for. */
   private readonly liveLists = new Set<string>();
   readonly errors: string[] = [];
 
-  constructor(readonly page: Page) {
+  constructor(
+    readonly page: Page,
+    readonly name: string,
+  ) {
     page.on("pageerror", (error) => this.errors.push(error.message));
     this.watchLiveUpdates();
   }
 
-  async signIn(): Promise<void> {
+  async signUp(): Promise<void> {
+    await this.page.goto("/sign-up");
+    await this.page.getByLabel("Name").fill(this.name);
+    await this.page.getByLabel("Email").fill(this.email);
+    await this.page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+    await this.page.getByRole("button", { name: "Sign up" }).click();
+    await expect(this.page.getByRole("heading", { level: 1, name: "Your lists" })).toBeVisible();
+    this.id = await this.page.evaluate(() => {
+      const stored = JSON.parse(sessionStorage.getItem("jal.session") ?? "{}") as {
+        user?: { id?: string };
+      };
+      return stored.user?.id ?? "";
+    });
+    expect(this.id).toMatch(/^[0-9a-f-]{36}$/);
+  }
+
+  async signIn(password = PASSWORD): Promise<void> {
     await this.page.goto("/sign-in");
-    await this.page.getByLabel("User ID").fill(this.id);
+    await this.page.getByLabel("Email").fill(this.email);
+    await this.page.getByLabel("Password", { exact: true }).fill(password);
     await this.page.getByRole("button", { name: "Sign in" }).click();
     await expect(this.page.getByRole("heading", { level: 1, name: "Your lists" })).toBeVisible();
   }
@@ -194,17 +219,17 @@ function hubMessages(payload: string | Buffer): HubMessage[] {
     .map((record) => JSON.parse(record) as HubMessage);
 }
 
-export const test = base.extend<{ newUser: () => Promise<User> }>({
-  /** Signs in a fresh user in a browser context of their own. */
+export const test = base.extend<{ newUser: (name?: string) => Promise<User> }>({
+  /** Signs up a fresh user, by default called "Person 1", "Person 2"…, in a browser context of their own. */
   newUser: async ({ browser, baseURL }, use) => {
     const contexts: BrowserContext[] = [];
     const users: User[] = [];
-    await use(async () => {
+    await use(async (name = `Person ${(users.length + 1).toString()}`) => {
       const context = await browser.newContext(baseURL ? { baseURL } : {});
       contexts.push(context);
-      const user = new User(await context.newPage());
+      const user = new User(await context.newPage(), name);
       users.push(user);
-      await user.signIn();
+      await user.signUp();
       return user;
     });
     await Promise.all(contexts.map((context) => context.close()));

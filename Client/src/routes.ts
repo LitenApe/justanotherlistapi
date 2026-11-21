@@ -2,6 +2,7 @@ import { index, layout, route, type RouteConfig } from "@react-router/dev/routes
 
 export default [
   route("sign-in", "auth/SignInPage.tsx"),
+  route("sign-up", "auth/SignUpPage.tsx"),
   // Everything inside requires a session; the layout redirects to sign-in otherwise.
   layout("auth/ProtectedLayout.tsx", [
     index("lists/ListsPage.tsx"),

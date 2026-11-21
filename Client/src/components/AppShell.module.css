@@ -116,6 +116,18 @@
   font-size: 1rem;
 }
 
+.accountName {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* Right under the name, as one block with it. */
+.accountEmail {
+  margin-top: calc(-1 * var(--space-2));
+  overflow-wrap: anywhere;
+}
+
 .userId {
   display: block;
   padding: var(--space-2) var(--space-3);

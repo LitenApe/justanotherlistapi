@@ -4,6 +4,8 @@ import type { ItemGroup } from "../../src/api/types";
 import { ME } from "../../src/test/builders";
 import { FakeBackend } from "./fakeBackend";
 
+export { PASSWORD } from "./fakeBackend";
+
 export { expect };
 export * from "../../src/test/builders";
 
@@ -14,10 +16,12 @@ export class App {
     readonly backend: FakeBackend,
   ) {}
 
-  /** Signs in through the real sign-in page and lands on "Your lists". */
+  /** Signs in through the real sign-in page, with the account's email and password, and lands on "Your lists". */
   async signIn(userId = ME): Promise<void> {
+    const account = this.backend.accountById(userId);
     await this.page.goto("/sign-in");
-    await this.page.getByLabel("User ID").fill(userId);
+    await this.page.getByLabel("Email").fill(account.email);
+    await this.page.getByLabel("Password", { exact: true }).fill(account.password);
     await this.page.getByRole("button", { name: "Sign in" }).click();
     await expect(this.page.getByRole("heading", { level: 1, name: "Your lists" })).toBeVisible();
   }

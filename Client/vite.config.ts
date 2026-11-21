@@ -7,7 +7,6 @@ const apiUrl =
   process.env.services__Api__https__0 ??
   process.env.services__Api__http__0 ??
   "http://localhost:5093";
-const oauthUrl = process.env.services__oauth__http__0 ?? "http://localhost:8080";
 
 export default defineConfig({
   plugins: [reactRouter()],
@@ -17,7 +16,6 @@ export default defineConfig({
     proxy: {
       "/api": { target: apiUrl, changeOrigin: true, secure: false },
       "/hubs": { target: apiUrl, changeOrigin: true, secure: false, ws: true },
-      "/default": { target: oauthUrl, changeOrigin: true },
     },
   },
   build: {

@@ -4,7 +4,7 @@ const port = 4173;
 
 /**
  * Integration tests: the production SPA build served as static files, driven
- * in a real browser. Only the network (REST, OAuth token endpoint, SignalR
+ * in a real browser. Only the network (REST, the account endpoints, SignalR
  * WebSocket) is faked, in integration/support/fakeBackend.ts.
  */
 export default defineConfig({
