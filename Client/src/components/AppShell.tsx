@@ -4,7 +4,6 @@ import { sessionStore, type Session } from "../auth/session";
 import { useSession } from "../auth/useSession";
 import { useConnectionStatus, useRealtimeConnection } from "../realtime/hooks";
 import { themeStore, useTheme } from "../theme/theme";
-import { CopyButton } from "./CopyButton";
 import { Icon } from "./Icon";
 import styles from "./AppShell.module.css";
 
@@ -128,10 +127,8 @@ function AccountMenu({ session }: { session: Session }) {
         <h2 className={styles.accountHeading}>Your account</h2>
         <p className={styles.accountName}>{session.user.name}</p>
         <p className={`hint ${styles.accountEmail}`}>{session.user.email}</p>
-        <p className="hint">Your user ID. Share it so others can add you to their lists.</p>
-        <code className={styles.userId}>{session.user.id}</code>
+        <p className="hint">Others add you to their lists with this email.</p>
         <div className={styles.accountActions}>
-          <CopyButton value={session.user.id} label="Copy user ID" />
           <button
             type="button"
             className="button button-small"

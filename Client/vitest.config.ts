@@ -19,7 +19,7 @@ export default defineConfig({
       {
         test: {
           // Components and browser-API modules in a real Chromium, with real
-          // events, focus, <dialog>, storage, clipboard and computed styles.
+          // events, focus, <dialog>, storage and computed styles.
           name: "browser",
           include: ["src/**/*.browser.test.{ts,tsx}"],
           setupFiles: ["./src/test/browserSetup.ts"],
@@ -27,9 +27,7 @@ export default defineConfig({
             enabled: true,
             headless: true,
             screenshotFailures: false,
-            provider: playwright({
-              contextOptions: { permissions: ["clipboard-read", "clipboard-write"] },
-            }),
+            provider: playwright(),
             instances: [{ browser: "chromium" }],
           },
         },

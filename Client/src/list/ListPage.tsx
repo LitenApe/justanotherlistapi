@@ -440,13 +440,16 @@ function ListPage({ list }: { list: ItemGroup }) {
     }
   }
 
-  async function addMember(memberId: string): Promise<string | null> {
+  async function addMember(email: string): Promise<string | null> {
     try {
-      const member = await checklistApi.addMember(listId, memberId);
+      const member = await checklistApi.addMember(listId, email);
       dispatch({ type: "memberAdded", member });
       announce(`Added ${memberName(member.id, [...state.members, member])}.`);
       return null;
     } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        return "No one has an account with that email.";
+      }
       if (error instanceof ApiError && error.status === 409) {
         return "That person is already a member.";
       }

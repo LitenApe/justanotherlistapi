@@ -87,7 +87,7 @@ Client/
       Dialog.tsx             - Native <dialog> wrapper; ConfirmDialog.tsx builds on it
       Toasts.tsx             - Visible notifications + screen reader announcements (live regions)
       DocumentTitle.tsx      - Renders <title> (React hoists it into <head>)
-      Icon.tsx, CopyButton.tsx
+      Icon.tsx
     lib/                     - GUID helpers, formText(), useLoaderState()
     lists/ListsPage.tsx      - Route module: overview of all lists, create list, filter lists
     list/
@@ -202,7 +202,7 @@ People have accounts with a name, an email address and a password ([accounts.md]
 - The token is kept in **sessionStorage**, so each browser tab has its own sign-in. Two tabs signed in to different accounts are an easy way to try sharing. A stored session without a user (from before accounts) counts as signed out.
 - A timer signs the user out when the token's `exp` passes. Any `401` from the API also signs out. Both send the user to `/sign-in` with a "session expired" notice and return them to the page they were on afterwards.
 - SignalR receives the token through `accessTokenFactory` (`?access_token=` on the WebSocket URL).
-- The account menu shows the user's name and email, their user ID with **Copy user ID** (members are still added by ID), and **Sign out**.
+- The account menu shows the user's name and email ("Others add you to their lists with this email") and **Sign out**. User IDs appear nowhere in the interface.
 
 ---
 
@@ -272,7 +272,7 @@ The API sends each member as `{ id, name }` ([checklist.md](checklist.md#members
 - `memberLabel(id, userId, members)`: the same, but "you" for yourself, for sentences such as reservation lines and announcements.
 - `sortMembers(members, userId)`: you first, then everyone by name.
 
-The members panel lists each member by name, yours marked **You**, with **Remove** buttons named "Remove member Kim". Adding a member returns them with their name, so the panel shows it straight away and announces "Added Kim."; `MemberAdded` carries the name to everyone else.
+The members panel lists each member by name, yours marked **You**, with **Remove** buttons named "Remove member Kim". **Add a member** takes the email the person signed up with: the field explains a missing or malformed email before sending, and the server's answers as "No one has an account with that email." (404) or "That person is already a member." (409), next to the field. Adding a member returns them with their name, so the panel shows it straight away and announces "Added Kim."; `MemberAdded` carries the name to everyone else.
 
 ---
 
@@ -391,7 +391,6 @@ Components and browser-API modules rendered on their own in a real browser (`vit
 
 - `Dialog`/`ConfirmDialog`: native `showModal()`, `:modal`, centred on desktop and 320px screens (`page.viewport()`), Escape, focus return and inert background.
 - Toasts: live regions, auto-dismiss, pausing on hover.
-- `CopyButton`: the real clipboard (permission granted in `vitest.config.ts`).
 - Theme store and boot script: real `localStorage`, computed colours.
 - Session store: real `sessionStorage`.
 - `EditItemDialog`, `ListSettingsDialog`, `MembersPanel`, `ReservationDialog`: validation, focus, accessible errors and what they save.
@@ -453,6 +452,5 @@ The specs cover signing up, signing out and back in with a password the server c
 ## Known Limitations
 
 - **Item order.** The API has no ordering column, so items reload in database order.
-- **Adding members by user ID.** Members are shown by name, but still added by pasting their user ID.
 - **Overview payload.** `GET /api/list` returns every open item of every list, which can be large with seeded data.
 - **Clock differences.** Auto-hide compares the server's `completedAt` with the browser's clock, so a device whose clock is off hides items correspondingly early or late.

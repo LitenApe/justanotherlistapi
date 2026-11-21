@@ -411,7 +411,8 @@ public sealed class ChecklistHubTests(ApiFactory factory) : IClassFixture<ApiFac
             "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
             new { MemberId = TestAuthHandler.UserId, ItemGroupId = itemGroupId }
         );
-        await factory.Connection.InsertUser(newMemberId, "Kim");
+        string email = TestAccounts.UniqueEmail();
+        await factory.Connection.InsertUser(newMemberId, "Kim", email);
 
         await using HubConnection connection = factory.CreateHubConnection();
         await connection.StartAsync(TestContext.Current.CancellationToken);
@@ -428,9 +429,9 @@ public sealed class ChecklistHubTests(ApiFactory factory) : IClassFixture<ApiFac
 
         // Act
         using HttpClient client = factory.CreateClient();
-        HttpResponseMessage response = await client.PostAsync(
-            $"/api/list/{itemGroupId}/member/{newMemberId}",
-            null,
+        HttpResponseMessage response = await client.PostAsJsonAsync(
+            $"/api/list/{itemGroupId}/member",
+            new { Email = email },
             TestContext.Current.CancellationToken
         );
         response.EnsureSuccessStatusCode();
