@@ -1,3 +1,4 @@
+using Api.Accounts;
 using Api.AuditLog;
 using Api.Realtime;
 using Api.Sql;
@@ -21,8 +22,11 @@ internal static class ChecklistServiceCollectionExtensions
         services.AddScoped<IItemGroupStore, SqlItemGroupStore>();
         services.AddSingleton<IChecklistNotifier, ChecklistNotifier>();
         services.AddSingleton<IAuditTrail, AuditTrail>();
+        services.AddAccounts();
 
         // Use cases
+        services.AddScoped<SignUp>();
+        services.AddScoped<SignIn>();
         services.AddScoped<GetItemGroups>();
         services.AddScoped<GetItemGroup>();
         services.AddScoped<CreateItemGroup>();

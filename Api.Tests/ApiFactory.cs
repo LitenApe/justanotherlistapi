@@ -25,6 +25,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     public static Guid TestUserId => TestAuthHandler.UserId;
 
+    /// <summary>The key the app under test signs and checks its tokens with.</summary>
+    public const string SigningKey = "bnbrrIy4LqUu8u+avMy9RXO/CSpumyHppxWGOkHY58U=";
+
     /// <summary>An open connection to the app's database, for arranging data and checking results.</summary>
     public SqlConnection Connection => connection;
 
@@ -66,6 +69,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // A host setting, so it's already in the configuration when Program.cs registers the
         // app's SqlConnection (ApiFactoryTests checks this).
         builder.UseSetting("ConnectionStrings:database", connectionString);
+        builder.UseSetting("Auth:SigningKey", SigningKey);
+        // Every test's requests come from one address; only the rate limit's own test hits it.
+        builder.UseSetting("Auth:RateLimit:PermitLimit", "100000");
 
         builder.ConfigureServices(services =>
         {

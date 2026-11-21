@@ -155,15 +155,20 @@ Authentication-related keys currently used by the application:
 - `OAuth:Authority` (or environment variable `OAuth__Authority`)
 - `OAuth:Audience` (or environment variable `OAuth__Audience`)
 
+The API also issues tokens of its own when people sign up or sign in (see [accounts.md](accounts.md)):
+
+- `Auth:SigningKey` (`Auth__SigningKey`): required. A base64-encoded secret of at least 32 random bytes that signs those tokens; the app refuses to start without it. `appsettings.Development.json` holds one for local development only.
+- `Auth:Issuer` and `Auth:Audience`: the tokens' `iss` and `aud` claims, both `JustAnotherList` by default.
+- `Auth:TokenLifetime`: how long a token works, 8 hours by default.
+- `Auth:RateLimit:PermitLimit`: requests per client per minute to the account endpoints, 20 by default.
+
 ---
 
 ## Out Of Scope
 
 Not implemented in this repository:
 
-- User registration
-- Username/password login UI or endpoint
-- Token minting/issuing service
+- Username/password login UI
 - Refresh token flow
 
-These are delegated to an external OAuth/OIDC provider.
+Accounts, sign-up and sign-in endpoints, and the tokens they issue are described in [accounts.md](accounts.md). Until the client moves to them, it signs in through the external OAuth/OIDC provider described above.

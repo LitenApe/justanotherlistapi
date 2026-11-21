@@ -21,7 +21,7 @@
 - **Api.Tests/** — xUnit tests against SQL Server via Testcontainers (requires Docker)
 - **Client/** — React 19 + TypeScript, React Router framework mode in SPA mode (`ssr: false`), SignalR; served at http://localhost:5173 under Aspire
 
-The backend follows a hexagonal (ports and adapters) architecture, in slices (ItemGroup, Item, Member): each operation is a use case in `Checklist/UseCases/<Slice>/` behind an endpoint adapter in `Api/Http/<Slice>/`. See [specifications/architecture.md](specifications/architecture.md) for the layout and where each rule lives, and [specifications/checklist.md](specifications/checklist.md) for the full domain model and API contract.
+The backend follows a hexagonal (ports and adapters) architecture, in slices (ItemGroup, Item, Member, Account): each operation is a use case in `Checklist/UseCases/<Slice>/` behind an endpoint adapter in `Api/Http/<Slice>/`. See [specifications/architecture.md](specifications/architecture.md) for the layout and where each rule lives, and [specifications/checklist.md](specifications/checklist.md) for the full domain model and API contract.
 
 The client is organized by page (`lists/`, `list/`, `auth/`) with shared `api/`, `realtime/` and `components/`. Routes are declared in `src/routes.ts`; each page file is a route module. See [specifications/client.md](specifications/client.md).
 
@@ -46,6 +46,7 @@ Every operation follows [specifications/architecture.md](specifications/architec
 
 - HTTP integration and SignalR tests: class implements `IClassFixture<ApiFactory>`, uses `factory.CreateClient()` / `factory.CreateHubConnection()`
 - `ApiFactory` runs the app on its own scoped `SqlConnection` to an isolated test database (as in production); `factory.Connection` is a separate open connection for arranging and asserting. It keeps the real `ChecklistNotifier` + hub
+- Account tests: `TestAccounts.CreateServices(db)` gives the real Identity adapter on a test database (dispose it), `accounts.SignUp(TestAccounts.UniqueEmail())` makes an account with `TestAccounts.KnownPassword`, and `FakeTokenIssuer` issues tokens that name their user
 - Use-case tests: build the use case with the real SQL adapters on a `TestDatabase.CreateAsync()` connection and `CapturingNotifier` (plus a `FixedTimeProvider` when the time matters), and call `Execute` with a `Caller`. Arrange with `db.InsertItemGroup(id, memberIds…)`, `db.InsertItem(...)` and `db.SetItemGroupSettings(...)`, make domain values with `TestHelpers.ValidName(...)` and `ValidSettings(...)`, and check with the `Load…` helpers in `TestHelpers`
 - SQL adapter tests go in `Api.Tests/Sql/`, one port method at a time; tests of domain values such as `Name` go in `Api.Tests/Checklist/Domain/`
 - `Architecture.Tests.cs` pins the dependency rules (`Checklist` references nothing but .NET, use cases take only ports and `TimeProvider`, driving adapters take no port, SQL adapter or connection), and `CompositionRoot.Tests.cs` checks that the app's container builds every use case. When they fail, fix the code, not the test
@@ -77,6 +78,7 @@ Every operation follows [specifications/architecture.md](specifications/architec
 ## Pitfalls
 
 - `dotnet build` fails on formatting issues (CSharpier). Run `dotnet csharpier .` to fix before committing.
+- The Api refuses to start without `Auth:SigningKey` (a base64 secret of at least 32 bytes). Development has one in `appsettings.Development.json`, `ApiFactory` sets its own, and `e2e/support/stack.ts` makes one per run.
 - **Central package management** via `Directory.Packages.props` — project `PackageReference` items must omit `Version`. Update versions only in `Directory.Packages.props`.
 - **Warnings as errors** — all compiler warnings (including Roslynator/Meziantou analyzers) fail the build.
 - **Nullable reference types** enabled everywhere; do not add `#nullable disable`.
@@ -103,6 +105,7 @@ Detailed design docs live in [specifications/](specifications/):
 
 - [architecture.md](specifications/architecture.md) — Backend layout (ports and adapters), where code and rules belong, how to add an operation
 - [checklist.md](specifications/checklist.md) — Domain model, endpoints, DB schema, authorization rules
+- [accounts.md](specifications/accounts.md) — Sign-up and sign-in rules, lockout, issued tokens, rate limit, the Users table
 - [audit-logs.md](specifications/audit-logs.md) — Audit schema, per-operation capture, ChannelAuditWriter design
 - [authentication.md](specifications/authentication.md) — JWT Bearer setup, claim resolution, failure modes
 - [client.md](specifications/client.md) — Client structure, dev sign-in, realtime, accessibility and responsive conventions

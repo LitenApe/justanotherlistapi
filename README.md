@@ -51,14 +51,20 @@ Client/                             - React Router (framework mode, SPA) web cli
   src/styles/global.css             - Design tokens per theme (WCAG AA contrast) and base styles
   src/test/                         - Fake API, fake SignalR connection, axe helper
 Checklist/                          - The inside of the hexagon, no packages — see specifications/architecture.md
-  Domain/                           - ItemGroup, ItemGroupSettings, Item records (also the JSON and SignalR payloads), Caller, Name, ItemInput, ItemGroupSettingsInput
-  Ports/                            - IMembership (who belongs to which list), IItemGroupStore (the lists), IItemStore (their items), IChecklistNotifier (realtime updates), IAuditTrail (audit entries without a request)
+  Domain/                           - ItemGroup, ItemGroupSettings, Item, User records (also the JSON and SignalR payloads), Caller, Name, ItemInput, ItemGroupSettingsInput, DisplayName, EmailAddress, Password, Session
+  Ports/                            - IMembership (who belongs to which list), IItemGroupStore (the lists), IItemStore (their items), IChecklistNotifier (realtime updates), IAuditTrail (audit entries without a request), IAccounts (accounts and passwords), ITokenIssuer (sign-in tokens)
+  UseCases/Account/                 - SignUp, SignIn
   UseCases/Item/                    - CreateItem, UpdateItem, DeleteItem
   UseCases/ItemGroup/               - GetItemGroups, GetItemGroup, CreateItemGroup, UpdateItemGroup, UpdateItemGroupSettings, DeleteItemGroup, AutoDeleteItemGroups
   UseCases/Member/                  - GetMembers, AddMember, RemoveMember, SubscribeToItemGroup (for the hub)
 Api/                                - ASP.NET Core backend: the adapters around Checklist
   Program.cs                        - App composition root: DI, middleware, auth, OpenAPI, DB init
   ChecklistServiceCollectionExtensions.cs  - AddChecklist(): registers use cases, plugs adapters into ports
+  Accounts/
+    IdentityAccounts.cs             - IAccounts on ASP.NET Core Identity: hashes and checks passwords, locks out guessing
+    SqlAccountStore.cs              - Identity's store on the Users table, with Dapper
+    JwtTokenIssuer.cs               - ITokenIssuer: JWTs signed with the Auth:SigningKey secret
+    AuthOptions.cs                  - The Auth configuration section: issuer, audience, key, token lifetime
   AuditLog/
     AuditContext.cs                 - Scoped per-request bag handlers use to pass resource IDs to the filter
     AuditEndpointFilter.cs          - IEndpointFilter that enqueues an AuditEntry after every request
@@ -66,6 +72,7 @@ Api/                                - ASP.NET Core backend: the adapters around 
     AuditLogSchemaInitializer.cs    - Idempotent DDL for the AuditLog table and its indexes
     AuditTrail.cs                   - IAuditTrail on the audit log: entries no request is behind (auto-delete)
     AuthenticationAudit.cs          - Audits rejected bearer tokens, which never reach the endpoint filter
+    RateLimitAudit.cs               - Audits requests over the account endpoints' rate limit
     ChannelAuditWriter.cs           - IAuditWriter + IHostedService: batches entries via a bounded Channel
     IAuditWriter.cs                 - Enqueue(AuditEntry) abstraction consumed by handlers and the filter
   Background/
@@ -74,6 +81,9 @@ Api/                                - ASP.NET Core backend: the adapters around 
     ClaimsPrincipalExtension.cs     - GetUserId(): reads sub / NameIdentifier / user_id claim → Guid?
   Http/
     BearerSecuritySchemeTransformer.cs  - Adds Bearer + OAuth2 security schemes to the OpenAPI document
+    AccountApiEndpointRouteBuilderExtension.cs  - MapAccountApi(): maps the account routes under /api/auth
+    Account/                        - Endpoint adapters: SignUp, SignIn
+    AuthRateLimit.cs                - How often a client may call the account endpoints
     CallerExtensions.cs             - ToCaller(): the signed-in user and SignalR connection behind a request
     ChecklistApiEndpointRouteBuilderExtension.cs  - MapChecklistApi(): maps all routes under /api/list
     Item/                           - Endpoint adapters: CreateItem, UpdateItem, DeleteItem
@@ -125,6 +135,7 @@ coverage.config                     - Code coverage settings used by CI
 specifications/                     - Design and architecture specifications
   architecture.md                   - Backend layout: ports and adapters, where rules live, adding an operation
   checklist.md                      - Checklist feature: domain model, endpoints, DB schema
+  accounts.md                       - Accounts: sign-up and sign-in rules, tokens, endpoints, the Users table
   audit-logs.md                     - Audit log feature: schema, implementation design
   authentication.md                 - Authentication: JWT setup, claim resolution
   client.md                         - Web client: structure, sign-in, realtime, accessibility
@@ -138,6 +149,7 @@ Design and architecture documents for planned and implemented features live in t
 | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [architecture.md](specifications/architecture.md)     | Backend architecture — the ports-and-adapters layout, where each kind of code and rule belongs, and how to add an operation |
 | [checklist.md](specifications/checklist.md)           | Checklist feature — domain model, authorization model, database schema, all API endpoints with request/response shapes, and structural conventions |
+| [accounts.md](specifications/accounts.md)             | Accounts — the rules for names, emails and passwords, signing up and in, lockout, the tokens the API issues, the rate limit and the Users table |
 | [audit-logs.md](specifications/audit-logs.md)         | Audit Log feature — database schema, per-operation audit data, implementation design, and future extensibility                                     |
 | [authentication.md](specifications/authentication.md) | Authentication feature — JWT Bearer setup, token validation behavior, user identity claim resolution, and how users authenticate against the API   |
 | [client.md](specifications/client.md)                 | Web client — structure, dev sign-in, data flow, real-time updates, accessibility (WCAG 2.2 AA) and responsive design conventions                   |
