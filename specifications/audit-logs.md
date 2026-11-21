@@ -162,6 +162,7 @@ CREATE TABLE AuditLog (
 | `'ItemGroup'` | All ItemGroup and Member operations |
 | `'Item'` | All Item operations |
 | `'Account'` | The account operations under `/api/auth`: `SignUp`, `SignIn`, `RequestPasswordReset`, `ResetPassword` |
+| `'User'` | The signed-in user's own account, under `/api/me`: `ChangeName` |
 | NULL | `AuthenticationFailed` — no resource involved |
 
 ### `Outcome` Values
@@ -242,6 +243,7 @@ Audit rows are stored indefinitely. Deletion is a manual administrative action o
 | `SignIn` | `'Account'` | NULL | NULL | The account, on success |
 | `RequestPasswordReset` | `'Account'` | NULL | NULL | NULL, so the log doesn't say whether an account uses the email |
 | `ResetPassword` | `'Account'` | NULL | NULL | The `userId` the request names, refused or not |
+| `ChangeName` | `'User'` | NULL | NULL | NULL: `UserId` is already the user renamed |
 
 These requests carry no token, so `UserId` is NULL. Emails, passwords, tokens and reset codes are never stored: an attempt on an account that failed shows only its IP address and outcome. See [accounts.md](accounts.md).
 
@@ -319,7 +321,7 @@ Three registrations ensure one shared instance is reachable as `ChannelAuditWrit
 
 ### `AuditEndpointFilter`
 
-`AuditEndpointFilter` is registered once on each route group, the Checklist group and the account group:
+`AuditEndpointFilter` is registered once on each route group: the Checklist group, the account group and the `/api/me` group:
 
 ```csharp
 app.MapGroup("/api/list")
@@ -329,6 +331,10 @@ app.MapGroup("/api/list")
 app.MapGroup("/api/auth")
    .AllowAnonymous()
    .RequireRateLimiting(AuthRateLimit.Policy)
+   .AddEndpointFilter<AuditEndpointFilter>();
+
+app.MapGroup("/api/me")
+   .RequireAuthorization()
    .AddEndpointFilter<AuditEndpointFilter>();
 ```
 
@@ -516,7 +522,7 @@ For handlers where all context (IDs, user) is already in route values, `AuditCon
 
 **4. Add the endpoint to `auditedEndpoints` in `AuditLog.Http.Tests.cs`**
 
-`AuditedEndpoints_CoverEveryListAndAccountEndpoint` fails until every endpoint under `/api/list` and `/api/auth` is listed there. `EveryEndpoint_CapturesItsOperationResourceTypeAndRouteIds` then checks that its entry carries the expected operation name, resource type and the IDs in its request (route, query or body). Operation names are stored in `AuditLog.Operation`, so never rename an existing one: old rows would no longer match.
+`AuditedEndpoints_CoverEveryListAndAccountEndpoint` fails until every endpoint under `/api/list`, `/api/auth` and `/api/me` is listed there. `EveryEndpoint_CapturesItsOperationResourceTypeAndRouteIds` then checks that its entry carries the expected operation name, resource type and the IDs in its request (route, query or body). Operation names are stored in `AuditLog.Operation`, so never rename an existing one: old rows would no longer match.
 
 ---
 

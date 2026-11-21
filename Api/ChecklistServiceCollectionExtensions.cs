@@ -31,6 +31,7 @@ internal static class ChecklistServiceCollectionExtensions
         services.AddScoped<SignIn>();
         services.AddScoped<RequestPasswordReset>();
         services.AddScoped<ResetPassword>();
+        services.AddScoped<ChangeName>();
         services.AddScoped<GetItemGroups>();
         services.AddScoped<GetItemGroup>();
         services.AddScoped<CreateItemGroup>();

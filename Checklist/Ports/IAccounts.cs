@@ -34,6 +34,12 @@ public interface IAccounts
     Task<User?> FindByEmail(EmailAddress email, CancellationToken ct);
 
     /// <summary>
+    /// Changes what the user is called and returns them with the new name, or returns
+    /// <see langword="null"/> when no account has the ID.
+    /// </summary>
+    Task<User?> Rename(Guid userId, DisplayName name, CancellationToken ct);
+
+    /// <summary>
     /// A code that lets the owner of <paramref name="email"/> choose a new password, for an hour
     /// and once, or <see langword="null"/> when no account uses the email.
     /// </summary>

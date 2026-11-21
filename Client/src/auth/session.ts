@@ -70,6 +70,14 @@ export function createSessionStore(storage: Storage | undefined = safeSessionSto
     emit();
   }
 
+  /** After a change of name: the session keeps the user it's for up to date. */
+  function rename(name: string): void {
+    if (!session) return;
+    session = { ...session, user: { ...session.user, name } };
+    write(session);
+    emit();
+  }
+
   function signOut(reason: SignOutReason): void {
     if (!session) return;
     session = null;
@@ -85,6 +93,7 @@ export function createSessionStore(storage: Storage | undefined = safeSessionSto
     getSession: () => session,
     getSignOutReason: () => signOutReason,
     setSession,
+    rename,
     signOut,
     subscribe: (listener: () => void): (() => void) => {
       listeners.add(listener);
