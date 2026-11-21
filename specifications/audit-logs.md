@@ -151,7 +151,7 @@ CREATE TABLE AuditLog (
 | `Operation` | Name of the operation. Matches the `.WithName()` value set on the endpoint, ensuring this is a stable compile-time identifier (e.g. `"CreateItemGroup"`). The special value `"AuthenticationFailed"` is used for JWT failures. |
 | `ResourceId` | Primary resource GUID. For all Checklist operations this is `itemGroupId`. NULL for `GetItemGroups` and auth events. |
 | `SubResourceId` | Secondary resource GUID. Populated only for Item operations where both `itemGroupId` and `itemId` are relevant. NULL for all other operations. |
-| `TargetUserId` | GUID of the user being affected by the operation. Populated only for `AddMember`, `RemoveMember`, `ReserveItem` and `UnreserveItem`. NULL for all other operations. |
+| `TargetUserId` | GUID of the user being affected by the operation. Populated only for `AddMember`, `RemoveMember`, `ReserveItem`, `UnreserveItem`, `SignUp`, `SignIn` and `ResetPassword` (see the tables below). NULL for all other operations. |
 | `Outcome` | Result string — see values below. |
 | `FailureReason` | Human-readable reason for failure. Populated for `AuthenticationFailed` (the JWT exception message) and `MissingClaim` (the fixed string `"Required user identifier claim is missing."`). NULL for all other outcomes. |
 
@@ -231,7 +231,7 @@ Audit rows are stored indefinitely. Deletion is a manual administrative action o
 | Operation | `ResourceType` | `ResourceId` | `SubResourceId` | `TargetUserId` |
 |---|---|---|---|---|
 | `GetMembers` | `'ItemGroup'` | `itemGroupId` | NULL | NULL |
-| `AddMember` | `'ItemGroup'` | `itemGroupId` | NULL | `memberId` |
+| `AddMember` | `'ItemGroup'` | `itemGroupId` | NULL | The account the email in the body belongs to; NULL when no account uses it or the request was refused before the lookup |
 | `RemoveMember` | `'ItemGroup'` | `itemGroupId` | NULL | `memberId` |
 
 ### Accounts
@@ -390,8 +390,8 @@ public sealed class AuditContext
 |---|---|---|
 | `CreateItemGroupEndpoint` | `ResourceId` | The `CreateItemGroup` use case generates the new list's ID. There is no `itemGroupId` route value on `POST /api/list`. |
 | `CreateItemEndpoint` | `SubResourceId` | The `CreateItem` use case generates the new item's ID. The `itemGroupId` is a route value but the item's ID is not. |
-| `AddMemberEndpoint` | `TargetUserId` | The `memberId` route value identifies the user being added. |
-| `RemoveMemberEndpoint` | `TargetUserId` | Same as `AddMemberEndpoint`. |
+| `AddMemberEndpoint` | `TargetUserId` | The account the email belongs to, once the use case has found it (added, or already a member). |
+| `RemoveMemberEndpoint` | `TargetUserId` | The `memberId` route value identifies the user being removed. |
 | `ReserveItemEndpoint` | `TargetUserId` | The `memberId` in the request body identifies the member the item is reserved for. |
 | `UnreserveItemEndpoint` | `TargetUserId` | The `memberId` query parameter identifies the member whose reservation is cancelled. |
 

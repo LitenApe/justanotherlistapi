@@ -22,7 +22,7 @@
 
 ## Overview
 
-People have accounts: a name, an email address and a password. The API keeps them itself, with ASP.NET Core Identity on SQL Server, and signs people in with tokens it issues. The email address identifies the account: people sign in with it, a forgotten password is recovered through it, and nothing else about them is unique. Names don't have to be unique.
+People have accounts: a name, an email address and a password. The API keeps them itself, with ASP.NET Core Identity on SQL Server, and signs people in with tokens it issues. The email address identifies the account: people sign in with it, a forgotten password is recovered through it, other members add them to lists by it, and nothing else about them is unique. Other members only ever see the name, never the email. Names don't have to be unique.
 
 Email addresses aren't confirmed: an account works as soon as it's created.
 

@@ -1,15 +1,15 @@
 import { useId, useRef, useState, type SubmitEvent } from "react";
-import { CopyButton } from "../components/CopyButton";
-import { Icon } from "../components/Icon";
 import type { Member } from "../api/types";
-import { isGuid, normalizeGuid } from "../lib/guid";
+import { isEmailAddress } from "../auth/accountRules";
+import { Icon } from "../components/Icon";
 import styles from "./ListPage.module.css";
 import { memberName, sortMembers } from "./members";
 
 interface MembersPanelProps {
   members: Member[];
   currentUserId: string;
-  onAdd: (memberId: string) => Promise<string | null>;
+  /** Adds the person who signed up with the email; resolves to a problem to show, or null. */
+  onAdd: (email: string) => Promise<string | null>;
   onRemove: (memberId: string) => void;
 }
 
@@ -63,17 +63,12 @@ export function MembersPanel({ members, currentUserId, onAdd, onRemove }: Member
         })}
       </ul>
 
-      <div className={styles.shareId}>
-        <p className="hint">Share your user ID so others can add you to their lists.</p>
-        <CopyButton value={currentUserId} label="Copy your user ID" />
-      </div>
-
-      <AddMemberForm members={members} onAdd={onAdd} />
+      <AddMemberForm onAdd={onAdd} />
     </section>
   );
 }
 
-function AddMemberForm({ members, onAdd }: Pick<MembersPanelProps, "members" | "onAdd">) {
+function AddMemberForm({ onAdd }: Pick<MembersPanelProps, "onAdd">) {
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -90,19 +85,19 @@ function AddMemberForm({ members, onAdd }: Pick<MembersPanelProps, "members" | "
       inputRef.current?.focus();
     };
 
-    if (!isGuid(value)) {
-      fail("Enter a user ID in GUID format.");
+    const email = value.trim();
+    if (!email) {
+      fail("Enter their email address.");
       return;
     }
-    const memberId = normalizeGuid(value);
-    if (members.some((member) => member.id === memberId)) {
-      fail("That person is already a member.");
+    if (!isEmailAddress(email)) {
+      fail("Enter an email address, like name@example.com.");
       return;
     }
 
     setError(null);
     setPending(true);
-    const failure = await onAdd(memberId);
+    const failure = await onAdd(email);
     setPending(false);
     if (failure) {
       fail(failure);
@@ -119,21 +114,22 @@ function AddMemberForm({ members, onAdd }: Pick<MembersPanelProps, "members" | "
         void handleSubmit(event);
       }}
     >
-      <label className="label" htmlFor="member-id">
+      <label className="label" htmlFor="member-email">
         Add a member
       </label>
       <p className="hint" id={hintId}>
-        Paste their user ID. They can find it under Account.
+        The email they signed up with. Members see each other's names, never their emails.
       </p>
       <input
         ref={inputRef}
-        id="member-id"
-        className={`input ${styles.mono}`}
+        id="member-email"
+        type="email"
+        className="input"
         value={value}
         onChange={(event) => {
           setValue(event.target.value);
         }}
-        placeholder="00000000-0000-0000-0000-000000000000"
+        placeholder="name@example.com"
         autoComplete="off"
         autoCapitalize="none"
         spellCheck={false}

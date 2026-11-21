@@ -58,9 +58,12 @@ export const checklistApi = {
       `${reservationPath(listId, itemId)}?memberId=${encodeURIComponent(memberId)}`,
     ),
 
-  /** Adds the user and returns them as a member, with their name. */
-  addMember: (listId: string, memberId: string) =>
-    apiRequest<Member>("POST", memberPath(listId, memberId)),
+  /**
+   * Adds the person who signed up with the email and returns them as a member,
+   * with their name. 404: no account uses the email; 409: already a member.
+   */
+  addMember: (listId: string, email: string) =>
+    apiRequest<Member>("POST", `${listPath(listId)}/member`, { body: { email } }),
 
   removeMember: (listId: string, memberId: string) =>
     apiRequest<undefined>("DELETE", memberPath(listId, memberId)),

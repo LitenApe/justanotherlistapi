@@ -3,7 +3,10 @@ using Checklist.Ports;
 
 namespace Checklist.UseCases;
 
-/// <summary>Lets a member give another user access to the list.</summary>
+/// <summary>
+/// Lets a member give someone else access to the list, by the email they signed up with. The
+/// list's members see the new member's name, never their email.
+/// </summary>
 public sealed class AddMember(
     IMembership membership,
     IAccounts accounts,
@@ -14,16 +17,22 @@ public sealed class AddMember(
     {
         Added,
         NotAMember,
+
+        /// <summary>No account uses the email.</summary>
+        NoAccount,
         AlreadyAMember,
     }
 
-    /// <summary>What happened, and the new member, with their name, when they were added.</summary>
+    /// <summary>
+    /// What happened, and the person the email belongs to, with their name, once they're known:
+    /// for <see cref="Outcome.Added"/> and <see cref="Outcome.AlreadyAMember"/>.
+    /// </summary>
     public sealed record Result(Outcome Outcome, Member? Member);
 
     public async Task<Result> Execute(
         Caller caller,
         Guid itemGroupId,
-        Guid memberId,
+        EmailAddress email,
         CancellationToken ct
     )
     {
@@ -32,12 +41,17 @@ public sealed class AddMember(
             return new Result(Outcome.NotAMember, null);
         }
 
-        if (!await membership.Add(itemGroupId, memberId, ct))
+        if (await accounts.FindByEmail(email, ct) is not { } user)
         {
-            return new Result(Outcome.AlreadyAMember, null);
+            return new Result(Outcome.NoAccount, null);
         }
 
-        var member = new Member { Id = memberId, Name = (await accounts.Find(memberId, ct))?.Name };
+        var member = new Member { Id = user.Id, Name = user.Name };
+        if (!await membership.Add(itemGroupId, member.Id, ct))
+        {
+            return new Result(Outcome.AlreadyAMember, member);
+        }
+
         await notifier.NotifyMemberAdded(itemGroupId, member, caller.ConnectionId);
         return new Result(Outcome.Added, member);
     }

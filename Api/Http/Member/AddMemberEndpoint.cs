@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Security.Claims;
 using Api.AuditLog;
@@ -15,20 +16,27 @@ internal static class AddMemberEndpoint
     internal static void MapEndpoint(this IEndpointRouteBuilder builder)
     {
         builder
-            .MapPost("/{itemGroupId:guid}/member/{memberId:guid}", Handle)
+            .MapPost("/{itemGroupId:guid}/member", Handle)
             .WithSummary("Add a new member to an item group")
             .WithDescription(
-                "Grants another user access to an item group by adding them as a member, and returns them with their name. The authenticated user must already be a member. Returns 409 Conflict if the user is already a member."
+                "Grants someone access to an item group by the email address they signed up with, and returns them as a member with their name; the other members never see the email. The authenticated user must already be a member. Returns 404 Not Found when no account uses the email address, and 409 Conflict if that person is already a member."
             )
             .WithTags("Member")
             .WithName(Operation);
     }
 
     private static async Task<
-        Results<Ok<Member>, UnauthorizedHttpResult, ForbidHttpResult, Conflict>
+        Results<
+            Ok<Member>,
+            BadRequest,
+            UnauthorizedHttpResult,
+            ForbidHttpResult,
+            NotFound,
+            Conflict
+        >
     > Handle(
         Guid itemGroupId,
-        Guid memberId,
+        Request request,
         ClaimsPrincipal user,
         HttpRequest httpRequest,
         AuditContext auditContext,
@@ -36,19 +44,31 @@ internal static class AddMemberEndpoint
         CancellationToken ct
     )
     {
-        // Set first, so refused requests are audited with their target too.
-        auditContext.TargetUserId = memberId;
+        if (!EmailAddress.TryCreate(request.Email, out EmailAddress? email))
+        {
+            return TypedResults.BadRequest();
+        }
         if (user.ToCaller(httpRequest) is not { } caller)
         {
             return TypedResults.Unauthorized();
         }
 
-        return await useCase.Execute(caller, itemGroupId, memberId, ct) switch
+        AddMember.Result result = await useCase.Execute(caller, itemGroupId, email, ct);
+        // The target is known once the email led to an account.
+        auditContext.TargetUserId = result.Member?.Id;
+        return result switch
         {
             { Outcome: AddMember.Outcome.Added, Member: { } member } => TypedResults.Ok(member),
             { Outcome: AddMember.Outcome.AlreadyAMember } => TypedResults.Conflict(),
+            { Outcome: AddMember.Outcome.NoAccount } => TypedResults.NotFound(),
             { Outcome: AddMember.Outcome.NotAMember } => TypedResults.Forbid(),
             _ => throw new UnreachableException(),
         };
+    }
+
+    public sealed record Request
+    {
+        [Description("The email address the person to add signed up with, in any case")]
+        public string? Email { get; init; }
     }
 }

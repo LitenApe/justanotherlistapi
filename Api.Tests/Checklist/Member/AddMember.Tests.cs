@@ -8,32 +8,28 @@ namespace Api.Tests.Checklist.MemberTests;
 
 public sealed class AddMemberTests
 {
+    private readonly Guid userId = Guid.NewGuid();
+    private readonly Guid kimId = Guid.NewGuid();
+    private readonly Guid itemGroupId = Guid.NewGuid();
+    private readonly CapturingNotifier notifier = new();
+
     [Fact]
-    public async Task Execute_AddsTheMember_WithTheirName_AndTellsTheOtherMembers()
+    public async Task Execute_AddsTheAccountsOwner_ByEmailIgnoringCase_AndTellsTheOtherMembers()
     {
-        var userId = Guid.NewGuid();
-        var itemGroupId = Guid.NewGuid();
-        var newMemberId = Guid.NewGuid();
-        var notifier = new CapturingNotifier();
         await using SqlConnection db = await TestDatabase.CreateAsync();
         await using ServiceProvider services = TestAccounts.CreateServices(db);
         await db.InsertItemGroup(itemGroupId, userId);
-        await db.InsertUser(newMemberId, "Kim");
+        await db.InsertUser(kimId, "Kim", "kim@example.com");
 
-        AddMember.Result result = await AddMemberUseCase(db, services, notifier)
-            .Execute(
-                new Caller(userId, "conn-am-003"),
-                itemGroupId,
-                newMemberId,
-                TestContext.Current.CancellationToken
-            );
+        AddMember.Result result = await Add(db, services, "KIM@Example.com", "conn-am-003");
 
-        var kim = new Member { Id = newMemberId, Name = "Kim" };
+        var kim = new Member { Id = kimId, Name = "Kim" };
         Assert.Equal(new AddMember.Result(AddMember.Outcome.Added, kim), result);
-        Assert.Contains(newMemberId, await db.LoadMembers(itemGroupId));
-        object notification = Assert.Single(notifier.Notifications);
+        Assert.Contains(kimId, await db.LoadMembers(itemGroupId));
         CapturingNotifier.MemberAddedNotification memberAdded =
-            Assert.IsType<CapturingNotifier.MemberAddedNotification>(notification);
+            Assert.IsType<CapturingNotifier.MemberAddedNotification>(
+                Assert.Single(notifier.Notifications)
+            );
         Assert.Equal(itemGroupId, memberAdded.GroupId);
         Assert.Equal(kim, memberAdded.Member);
         // The caller's own connection is left out, so it doesn't get its change back.
@@ -41,44 +37,29 @@ public sealed class AddMemberTests
     }
 
     [Fact]
-    public async Task Execute_AddsSomeoneWithoutAnAccount_WithoutAName()
+    public async Task Execute_ReturnsNoAccount_AndChangesNothing_WhenNoAccountUsesTheEmail()
     {
-        var userId = Guid.NewGuid();
-        var itemGroupId = Guid.NewGuid();
-        var newMemberId = Guid.NewGuid();
         await using SqlConnection db = await TestDatabase.CreateAsync();
         await using ServiceProvider services = TestAccounts.CreateServices(db);
         await db.InsertItemGroup(itemGroupId, userId);
 
-        AddMember.Result result = await AddMemberUseCase(db, services, new CapturingNotifier())
-            .Execute(
-                new Caller(userId),
-                itemGroupId,
-                newMemberId,
-                TestContext.Current.CancellationToken
-            );
+        AddMember.Result result = await Add(db, services, "nobody@example.com");
 
-        Assert.Equal(new Member { Id = newMemberId, Name = null }, result.Member);
+        Assert.Equal(new AddMember.Result(AddMember.Outcome.NoAccount, null), result);
+        Assert.Equal(userId, Assert.Single(await db.LoadMembers(itemGroupId)));
+        Assert.Empty(notifier.Notifications);
     }
 
     [Fact]
     public async Task Execute_ReturnsNotAMember_AndChangesNothing_WhenTheCallerIsNotAMember()
     {
-        var itemGroupId = Guid.NewGuid();
         var memberId = Guid.NewGuid();
-        var newMemberId = Guid.NewGuid();
-        var notifier = new CapturingNotifier();
         await using SqlConnection db = await TestDatabase.CreateAsync();
         await using ServiceProvider services = TestAccounts.CreateServices(db);
         await db.InsertItemGroup(itemGroupId, memberId);
+        await db.InsertUser(kimId, "Kim", "kim@example.com");
 
-        AddMember.Result result = await AddMemberUseCase(db, services, notifier)
-            .Execute(
-                new Caller(Guid.NewGuid()),
-                itemGroupId,
-                newMemberId,
-                TestContext.Current.CancellationToken
-            );
+        AddMember.Result result = await Add(db, services, "kim@example.com");
 
         Assert.Equal(new AddMember.Result(AddMember.Outcome.NotAMember, null), result);
         Assert.Equal(memberId, Assert.Single(await db.LoadMembers(itemGroupId)));
@@ -86,32 +67,37 @@ public sealed class AddMemberTests
     }
 
     [Fact]
-    public async Task Execute_ReturnsAlreadyAMember_WhenTheUserAlreadyIsOne()
+    public async Task Execute_ReturnsAlreadyAMember_WithWhoTheyAre_WhenTheyAlreadyAreOne()
     {
-        var userId = Guid.NewGuid();
-        var itemGroupId = Guid.NewGuid();
-        var existingMemberId = Guid.NewGuid();
-        var notifier = new CapturingNotifier();
         await using SqlConnection db = await TestDatabase.CreateAsync();
         await using ServiceProvider services = TestAccounts.CreateServices(db);
-        await db.InsertItemGroup(itemGroupId, userId, existingMemberId);
+        await db.InsertItemGroup(itemGroupId, userId, kimId);
+        await db.InsertUser(kimId, "Kim", "kim@example.com");
 
-        AddMember.Result result = await AddMemberUseCase(db, services, notifier)
-            .Execute(
-                new Caller(userId),
-                itemGroupId,
-                existingMemberId,
-                TestContext.Current.CancellationToken
-            );
+        AddMember.Result result = await Add(db, services, "kim@example.com");
 
-        Assert.Equal(new AddMember.Result(AddMember.Outcome.AlreadyAMember, null), result);
+        Assert.Equal(
+            new AddMember.Result(
+                AddMember.Outcome.AlreadyAMember,
+                new Member { Id = kimId, Name = "Kim" }
+            ),
+            result
+        );
         Assert.Equal(2, (await db.LoadMembers(itemGroupId)).Count);
         Assert.Empty(notifier.Notifications);
     }
 
-    private static AddMember AddMemberUseCase(
+    /// <summary>Adds the owner of <paramref name="email"/> as the user, who may or may not be a member.</summary>
+    private Task<AddMember.Result> Add(
         SqlConnection db,
         ServiceProvider services,
-        CapturingNotifier notifier
-    ) => new(new SqlMembership(db), services.Accounts(), notifier);
+        string email,
+        string? connectionId = null
+    ) =>
+        new AddMember(new SqlMembership(db), services.Accounts(), notifier).Execute(
+            new Caller(userId, connectionId),
+            itemGroupId,
+            TestAccounts.ValidEmail(email),
+            TestContext.Current.CancellationToken
+        );
 }

@@ -93,7 +93,8 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
             "AddMember",
             "ItemGroup",
             HttpMethod.Post,
-            $"/api/list/{auditedGroupId}/member/{auditedMemberId}"
+            $"/api/list/{auditedGroupId}/member",
+            new { Email = "nobody@example.com" }
         ),
         new(
             "RemoveMember",
@@ -312,6 +313,8 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
             "INSERT INTO Members (MemberId, ItemGroupId) VALUES (@MemberId, @ItemGroupId)",
             new { MemberId = TestAuthHandler.UserId, ItemGroupId = itemGroupId }
         );
+        string email = TestAccounts.UniqueEmail();
+        await factory.Connection.InsertUser(newMemberId, "Kim", email);
 
         var writer = new CapturingAuditWriter();
         await using WebApplicationFactory<Program> webFactory = factory.WithWebHostBuilder(b =>
@@ -323,9 +326,9 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
         );
         HttpClient client = webFactory.CreateClient();
 
-        await client.PostAsync(
-            $"/api/list/{itemGroupId}/member/{newMemberId}",
-            null,
+        await client.PostAsJsonAsync(
+            $"/api/list/{itemGroupId}/member",
+            new { Email = email },
             TestContext.Current.CancellationToken
         );
 
@@ -411,6 +414,8 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
                 ItemGroupId = itemGroupId,
             }
         );
+        string email = TestAccounts.UniqueEmail();
+        await factory.Connection.InsertUser(existingMemberId, "Kim", email);
 
         var writer = new CapturingAuditWriter();
         await using WebApplicationFactory<Program> webFactory = factory.WithWebHostBuilder(b =>
@@ -422,9 +427,9 @@ public sealed class AuditLogHttpTests(ApiFactory factory) : IClassFixture<ApiFac
         );
         HttpClient client = webFactory.CreateClient();
 
-        await client.PostAsync(
-            $"/api/list/{itemGroupId}/member/{existingMemberId}",
-            null,
+        await client.PostAsJsonAsync(
+            $"/api/list/{itemGroupId}/member",
+            new { Email = email },
             TestContext.Current.CancellationToken
         );
 
